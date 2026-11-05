@@ -1,0 +1,69 @@
+import assert from "node:assert/strict";
+import {test} from "node:test";
+import {FLASH_ALLOWANCE,validateWalletQuote,createFlashOrders} from "../../src/features/builder/execution/flash-orders.ts";
+import {signFlashOrder,connectBrowserWallet} from "../../src/features/builder/demo/wallet.js";
+import {createPriceMonitor} from "../../src/features/builder/execution/monitor.ts";
+import {priceStrategy} from "../../src/features/builder/market/config.ts";
+const wallet="0x1111111111111111111111111111111111111111",time=1800000000000;
+const order={side:"buy",qty:"20.000000",funderAddress:wallet};
+function quote(){
+  const typed={types:{EIP712Domain:[{name:"name",type:"string"},{name:"version",type:"string"},{name:"chainId",type:"uint256"},{name:"verifyingContract",type:"address"}],FlashOrder:[{name:"swapper",type:"address"},{name:"vault",type:"address"},{name:"recipient",type:"address"},{name:"fromToken",type:"address"},{name:"toToken",type:"address"},{name:"fromAmount",type:"uint256"},{name:"salt",type:"uint256"},{name:"deadline",type:"uint256"}]},primaryType:"FlashOrder",domain:{name:"DefinitiveFlashAllowance",version:"1",chainId:"8453",verifyingContract:FLASH_ALLOWANCE},message:{swapper:wallet,vault:"0x1074393effFCf1A15e306cD3931F48eDA9ABcd55",recipient:wallet,fromToken:priceStrategy.tokenIn,toToken:priceStrategy.tokenOut,fromAmount:"20000000",salt:"1",deadline:String(time/1000+300)}};
+  return {quoteId:"quote-wallet",side:"buy",orderType:"market",targetAsset:priceStrategy.tokenOut,contraAsset:priceStrategy.tokenIn,from:{asset:"contra",amount:"20"},to:{asset:"target",amount:"0.01"},evm:{permitTypedData:"",orderTypedData:JSON.stringify(typed),approveTx:{to:priceStrategy.tokenIn,data:"0x095ea7b3"+FLASH_ALLOWANCE.slice(2).toLowerCase().padStart(64,"0")+(20000000).toString(16).padStart(64,"0")}}};
+}
+test("wallet quote is bound to Base, recipient, amount, tokens and an exact allowance",()=>{
+  assert.equal(validateWalletQuote(quote(),order,time).quoteId,"quote-wallet");
+  for(const change of [
+    (q:any)=>q.evm.approveTx.data=q.evm.approveTx.data.slice(0,74)+"f".repeat(64),
+    (q:any)=>{const typed=JSON.parse(q.evm.orderTypedData);typed.message.recipient="0x2222222222222222222222222222222222222222";q.evm.orderTypedData=JSON.stringify(typed);},
+    (q:any)=>{const typed=JSON.parse(q.evm.orderTypedData);typed.domain.chainId="1";q.evm.orderTypedData=JSON.stringify(typed);},
+    (q:any)=>{const typed=JSON.parse(q.evm.orderTypedData);typed.message.fromAmount="99999999";q.evm.orderTypedData=JSON.stringify(typed);},
+    (q:any)=>{const typed=JSON.parse(q.evm.orderTypedData);typed.types.EIP712Domain=[];q.evm.orderTypedData=JSON.stringify(typed);},
+    (q:any)=>q.evm.permitTypedData="unapproved permit",
+  ]){const q=quote();change(q);assert.throws(()=>validateWalletQuote(q,order,time));}
+});
+test("Flash order submission echoes the server-owned quote and never retries an uncertain response",async()=>{
+  let calls=0,body:any;
+  const orders=createFlashOrders({now:()=>time,fetcher:async(_url,init)=>{calls++;body=JSON.parse(init!.body as string);return Response.json({orderId:"ord-test"});}});
+  const prepared={...validateWalletQuote(quote(),order,time),order};
+  assert.equal(await orders.submit(prepared,"0x"+"a".repeat(130)),"ord-test");assert.equal(body.quoteId,"quote-wallet");assert.equal(calls,1);
+  const failed=createFlashOrders({now:()=>time,fetcher:async()=>{calls++;throw new Error("private URL credential");}});
+  await assert.rejects(failed.submit(prepared,"0x"+"a".repeat(130)),/unknown/);assert.equal(calls,2);
+});
+test("browser wallet checks account and Base, sends approval before requesting the EIP-712 signature",async()=>{
+  const methods:string[]=[];
+  const provider={request:async({method}:any)=>{methods.push(method);return ({eth_requestAccounts:[wallet],eth_accounts:[wallet],eth_chainId:"0x2105",eth_sendTransaction:"0x"+"1".repeat(64),eth_getTransactionReceipt:{status:"0x1"},eth_signTypedData_v4:"0x"+"a".repeat(130)} as any)[method];}};
+  assert.equal(await connectBrowserWallet(provider),wallet);
+  const signing=validateWalletQuote(quote(),order,time);
+  await signFlashOrder({...signing,deadlineMs:Date.now()+300000,funderAddress:wallet},undefined,provider);
+  assert.ok(methods.indexOf("eth_sendTransaction")<methods.indexOf("eth_signTypedData_v4"));
+  await assert.rejects(signFlashOrder({...signing,deadlineMs:Date.now()+300000,funderAddress:"0x2222222222222222222222222222222222222222"},undefined,provider),/changed/);
+});
+test("live monitor waits for a signature, submits once and only reports completion after Flash confirms a fill",async()=>{
+  let clock=time,submits=0;
+  const market={refresh:async()=>market.read(),read:()=>({priceUsd:"2050.000000",stale:false})};
+  const prepared={...validateWalletQuote(quote(),order,time),order,side:"BUY",notionalUsd:"20.000000",expectedReceive:"0.01",effectivePriceUsd:"2000.000000"};
+  const monitor=createPriceMonitor({market,now:()=>clock,invoke:async({execute}:any)=>({fill:await execute(),inference:{model:"fake"}}),orders:{prepare:async()=>prepared,revalidate:async()=>{},submit:async()=>{submits++;return "ord-live";},status:async()=>"ORDER_STATUS_FILLED"}});
+  const start=monitor.start({mode:"LIVE",wallet,strategy:{...structuredClone(priceStrategy),riskPolicy:{...priceStrategy.riskPolicy,paperTradingOnly:false}},initialCashUsd:100,maxTurnoverUsd:100,feeBps:0,slippageBps:25});
+  const ready=await monitor.check(start.id,"sk-test-wallet-key");assert.equal(ready.status,"AWAITING_WALLET");assert.equal(ready.orders.length,0);assert.equal(submits,0);
+  const submitted=await monitor.submit(start.id,"0x"+"a".repeat(130));assert.equal(submitted.status,"WAITING");assert.equal(submitted.liveOrders[0].status,"ORDER_STATUS_PENDING");assert.equal(submits,1);
+  await assert.rejects(monitor.submit(start.id,"0x"+"a".repeat(130)));clock+=10000;
+  assert.equal((await monitor.check(start.id,"sk-test-wallet-key")).status,"COMPLETED");assert.equal(submits,1);
+});
+
+test("live submission rechecks Flash range and Stop survives an accepted in-flight submission",async()=>{
+  async function setup(){
+    let flashPrice="2050.000000",submits=0,resolve:any;
+    const prepared={...validateWalletQuote(quote(),order,time),order,side:"BUY",notionalUsd:"20.000000",expectedReceive:"0.01",effectivePriceUsd:"2000.000000"};
+    const market={refresh:async()=>market.read(),read:()=>({priceUsd:"2050.000000",stale:false,flash:{priceUsd:flashPrice}})};
+    const monitor=createPriceMonitor({market,now:()=>time,invoke:async({execute}:any)=>({fill:await execute(),inference:{model:"fake"}}),orders:{prepare:async()=>prepared,revalidate:async()=>{},submit:async()=>{submits++;return new Promise(done=>{resolve=done;});},status:async()=>"ORDER_STATUS_PENDING"}});
+    const run=monitor.start({mode:"LIVE",wallet,strategy:{...structuredClone(priceStrategy),riskPolicy:{...priceStrategy.riskPolicy,paperTradingOnly:false}},initialCashUsd:100,maxTurnoverUsd:100,feeBps:0,slippageBps:25});
+    await monitor.check(run.id,"sk-test-wallet-key");
+    return {monitor,id:run.id,setPrice(value:string){flashPrice=value;},get submits(){return submits;},finish(){resolve("ord-accepted");}};
+  }
+  const moved=await setup();moved.setPrice("2150.000000");
+  await assert.rejects(Promise.race([moved.monitor.submit(moved.id,"0x"+"a".repeat(130)),new Promise((_,reject)=>setTimeout(()=>reject(new Error("Range check did not block submission")),100))]),/outside.*range/);assert.equal(moved.submits,0);
+  const stopped=await setup(),pending=stopped.monitor.submit(stopped.id,"0x"+"a".repeat(130));
+  while(!stopped.submits)await new Promise(resolve=>setImmediate(resolve));
+  stopped.monitor.stop(stopped.id);stopped.finish();
+  const result=await pending;assert.equal(result.status,"STOPPED");assert.equal(result.liveOrders[0].orderId,"ord-accepted");
+});

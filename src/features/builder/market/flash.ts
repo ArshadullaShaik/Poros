@@ -2,7 +2,7 @@ import {readBoundedJson} from "../ai/zero-g.ts";
 import {PaperError} from "../execution/paper.ts";
 import type {Candle} from "../execution/paper.ts";
 import type {StrategyDefinition} from "../validation/strategy.ts";
-import {marketContext, validateMarketStrategy} from "./config.ts";
+import {marketContext, validateMarketStrategy, pairForStrategy} from "./config.ts";
 
 const INTERVAL = 60000, REFRESH = 10000;
 // Public development integrator key from Definitive's getting-started guide.
@@ -16,13 +16,13 @@ function decimal(value: unknown) {
   return {raw, scale: 10n ** BigInt(fraction.length)};
 }
 
-export function createFlashMarket({fetcher = fetch, now = Date.now, apiKey = process.env.FLASH_API_KEY ?? DEVELOPMENT_KEY} = {}) {
+export function createFlashMarket({fetcher = fetch, now = Date.now, apiKey = process.env.FLASH_API_KEY ?? DEVELOPMENT_KEY, pair = pairForStrategy()} = {}) {
   let latest: {quoteId: string; observedAtMs: number; priceUsd: string} | undefined;
   let lastAttempt = -Infinity, lastError: FlashError | undefined, pending: Promise<ReturnType<typeof read>> | undefined;
   let candles: Candle[] = [];
   const completed = () => candles.filter(candle => candle.closeTimeMs <= now()).slice(-500);
   function read() {
-    return {source: "DEFINITIVE_FLASH" as const, chain: "base", pair: "WETH/USDC", intervalMs: INTERVAL,
+    return {source: "DEFINITIVE_FLASH" as const, chain: "base", pair: `${pair.base.symbol}/${pair.quote.symbol}`, intervalMs: INTERVAL,
       priceUsd: latest?.priceUsd ?? null, observedAtMs: latest?.observedAtMs ?? null, quoteId: latest?.quoteId ?? null,
       closedObservations: completed().length, stale: !latest || now() - latest.observedAtMs > INTERVAL};
   }
@@ -31,12 +31,12 @@ export function createFlashMarket({fetcher = fetch, now = Date.now, apiKey = pro
       const signal = AbortSignal.timeout(25000);
       const response = await fetcher("https://flash.definitive.fi/v1/quote", {method: "POST", signal, redirect: "error",
         headers: {"Content-Type": "application/json", "x-definitive-api-key": apiKey},
-        body: JSON.stringify({targetChain: "base", contraChain: "base", targetAsset: marketContext.tokenAddresses[1], contraAsset: marketContext.tokenAddresses[0], side: "buy", qty: "20", orderType: "market", maxSlippage: "0.005"})});
+        body: JSON.stringify({targetChain: pair.network.key, contraChain: pair.network.key, targetAsset: pair.base.native&&pair.network.family!=="solana"?pair.base.wrappedAddress:pair.base.address, contraAsset: pair.quote.address, side: "buy", qty: "20", orderType: "market", maxSlippage: "0.005"})});
       if (!response.ok) {void response.body?.cancel().catch(() => {}); throw new FlashError(`Flash quote request failed (HTTP ${response.status}).`);}
       const quote = await readBoundedJson(response, 262144, "INVALID_OUTPUT", signal);
       if (typeof quote?.quoteId !== "string" || !quote.quoteId.trim() || quote.quoteId.length > 128 || quote.quoteId.includes(apiKey) ||
-          quote.side !== "buy" || quote.orderType !== "market" || quote.targetAsset?.toLowerCase() !== marketContext.tokenAddresses[1]!.toLowerCase() ||
-          quote.contraAsset?.toLowerCase() !== marketContext.tokenAddresses[0]!.toLowerCase() || quote.from?.asset !== "contra" || quote.to?.asset !== "target") throw new FlashError("Flash returned a quote for an unexpected market.");
+          quote.side !== "buy" || quote.orderType !== "market" || quote.targetAsset?.toLowerCase() !== (pair.base.native&&pair.network.family!=="solana"?pair.base.wrappedAddress!:pair.base.address).toLowerCase() ||
+          quote.contraAsset?.toLowerCase() !== pair.quote.address.toLowerCase() || quote.from?.asset !== "contra" || quote.to?.asset !== "target") throw new FlashError("Flash returned a quote for an unexpected market.");
       const spent = decimal(quote.from.amount), amount = decimal(quote.to.amount), notional = decimal(quote.to.notional);
       if (spent.raw !== 20n * spent.scale) throw new FlashError("Flash returned an unexpected reference amount.");
       const micros = notional.raw * amount.scale * 1000000n / (notional.scale * amount.raw);

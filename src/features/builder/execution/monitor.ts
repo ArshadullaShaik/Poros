@@ -2,7 +2,7 @@ import {AgentError,requestZeroG,validateInferenceKey} from "../ai/zero-g.ts";
 import {createFlashOrders} from "./flash-orders.ts";
 import {FlashError} from "../market/flash.ts";
 import {PaperError} from "./paper.ts";
-import {validatePriceStrategy} from "../market/config.ts";
+import {validatePriceStrategy,pairForStrategy} from "../market/config.ts";
 import type {StrategyDefinition} from "../validation/strategy.ts";
 
 type Limits={initialCashUsd:number;maxTurnoverUsd:number;feeBps:number;slippageBps:number};
@@ -27,10 +27,10 @@ export async function invokePriceExecution({apiKey,rule,marketData,execute,signa
 export function createPriceMonitor({market,now=Date.now,invoke=invokePriceExecution,fetcher=fetch,orders=createFlashOrders({fetcher,now})}:any) {
   type Run={id:string;strategy:StrategyDefinition;mode:string;limits:Limits;cash:bigint;base:bigint;turnover:bigint;orders:Fill[];inference:object[];done:Set<string>;status:string;message:string;touched:number;lastCheck:number;pending:boolean;abort:AbortController;wallet?:string;pendingWallet?:any;liveOrders:any[]};
   const runs=new Map<string,Run>();
-  function view(run:Run){return {id:run.id,status:run.status,message:run.message,orders:structuredClone(run.orders),inference:structuredClone(run.inference),cashUsd:money(run.cash),baseQuantity:(Number(run.base)/1e8).toFixed(8),turnoverUsd:money(run.turnover),mode:run.mode==="LIVE"?"LIVE":"PAPER",agentMode:run.mode,liveOrders:structuredClone(run.liveOrders),walletRequest:run.pendingWallet?{quoteId:run.pendingWallet.prepared.quoteId,typedData:run.pendingWallet.prepared.typedData,approveTx:run.pendingWallet.prepared.approveTx,deadlineMs:run.pendingWallet.prepared.deadlineMs,funderAddress:run.wallet,side:run.pendingWallet.prepared.side,notionalUsd:run.pendingWallet.prepared.notionalUsd,expectedReceive:run.pendingWallet.prepared.expectedReceive,effectivePriceUsd:run.pendingWallet.prepared.effectivePriceUsd}:null,marketData:market.read()};}
+  function view(run:Run){return {id:run.id,status:run.status,message:run.message,orders:structuredClone(run.orders),inference:structuredClone(run.inference),cashUsd:money(run.cash),baseQuantity:(Number(run.base)/1e8).toFixed(8),turnoverUsd:money(run.turnover),mode:run.mode==="LIVE"?"LIVE":"PAPER",agentMode:run.mode,liveOrders:structuredClone(run.liveOrders),walletRequest:run.pendingWallet?{quoteId:run.pendingWallet.prepared.quoteId,typedData:run.pendingWallet.prepared.typedData,approveTx:run.pendingWallet.prepared.approveTx,deadlineMs:run.pendingWallet.prepared.deadlineMs,networkId:pairForStrategy(run.strategy).network.id,networkName:pairForStrategy(run.strategy).network.name,family:pairForStrategy(run.strategy).network.family,orderMessage:run.pendingWallet.prepared.orderMessage,setupTxs:run.pendingWallet.prepared.setupTxs,wrapTx:run.pendingWallet.prepared.wrapTx,funderAddress:run.wallet,side:run.pendingWallet.prepared.side,notionalUsd:run.pendingWallet.prepared.notionalUsd,baseSymbol:run.pendingWallet.prepared.baseSymbol??pairForStrategy(run.strategy).base.symbol,quoteSymbol:run.pendingWallet.prepared.quoteSymbol??pairForStrategy(run.strategy).quote.symbol,expectedReceive:run.pendingWallet.prepared.expectedReceive,effectivePriceUsd:run.pendingWallet.prepared.effectivePriceUsd}:null,pair:{id:pairForStrategy(run.strategy).id,label:pairForStrategy(run.strategy).label,baseSymbol:pairForStrategy(run.strategy).base.symbol,quoteSymbol:pairForStrategy(run.strategy).quote.symbol,network:pairForStrategy(run.strategy).network},marketData:market.read(run.strategy)};}
   function get(id:string){const run=runs.get(id);if(!run)throw new PaperError("Unknown or expired monitor. Start a new run.");if(now()-run.touched>(run.status==="AWAITING_WALLET"?300000:60000)){run.abort.abort();runs.delete(id);throw new PaperError("Monitor expired after losing contact with this tab. Start a new run.");}run.touched=now();return run;}
   function start(input:any){
-    if(!input||!validatePriceStrategy(input.strategy).valid||!["AI","RULES_ONLY","LIVE"].includes(input.mode)||(input.mode==="LIVE"?input.strategy?.riskPolicy?.paperTradingOnly!==false||typeof input.wallet!=="string"||!/^0x[0-9a-fA-F]{40}$/.test(input.wallet):input.strategy?.riskPolicy?.paperTradingOnly!==true)||!validMoney(input.initialCashUsd)||!validMoney(input.maxTurnoverUsd)||![input.feeBps,input.slippageBps].every(value=>Number.isInteger(value)&&value>=0)||input.feeBps>1000||input.slippageBps>input.strategy.riskPolicy.maxSlippageBps||input.strategy.nodes.some((node:any)=>node.type==="action.intent"&&!validMoney(node.notionalUsd)))throw new PaperError("Use valid price rules, a connected wallet for live mode, positive limits and slippage within the strategy cap.");
+    if(!input||!validatePriceStrategy(input.strategy).valid||!["AI","RULES_ONLY","LIVE"].includes(input.mode)||(input.mode==="LIVE"?input.strategy?.riskPolicy?.paperTradingOnly!==false||typeof input.wallet!=="string"||!(pairForStrategy(input.strategy).network.family==="solana"?/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(input.wallet):/^0x[0-9a-fA-F]{40}$/.test(input.wallet)):input.strategy?.riskPolicy?.paperTradingOnly!==true)||!validMoney(input.initialCashUsd)||!validMoney(input.maxTurnoverUsd)||![input.feeBps,input.slippageBps].every(value=>Number.isInteger(value)&&value>=0)||input.feeBps>1000||input.slippageBps>input.strategy.riskPolicy.maxSlippageBps||input.strategy.nodes.some((node:any)=>node.type==="action.intent"&&!validMoney(node.notionalUsd)))throw new PaperError("Use valid price rules, a connected wallet for live mode, positive limits and slippage within the strategy cap.");
     for(const [id,run]of runs)if(now()-run.touched>60000){run.abort.abort();runs.delete(id);}
     if(runs.size>=20)throw new PaperError("Too many active monitor sessions. Stop an existing run first.");
     const run:Run={id:crypto.randomUUID(),strategy:structuredClone(input.strategy),mode:input.mode,limits:{initialCashUsd:input.initialCashUsd,maxTurnoverUsd:input.maxTurnoverUsd,feeBps:input.feeBps,slippageBps:input.slippageBps},cash:micros(input.initialCashUsd),base:0n,turnover:0n,orders:[],inference:[],done:new Set(),status:"WAITING",message:"Monitoring live price. Each action executes at most once per run.",touched:now(),lastCheck:-Infinity,pending:false,abort:new AbortController(),wallet:input.wallet,liveOrders:[]};
@@ -43,7 +43,7 @@ export function createPriceMonitor({market,now=Date.now,invoke=invokePriceExecut
     run.pending=true;run.lastCheck=now();
     const activeSignal=signal?AbortSignal.any([signal,run.abort.signal]):run.abort.signal;
     try {
-      const data=await market.refresh();activeSignal.throwIfAborted();
+      const data=await market.refresh(run.strategy);activeSignal.throwIfAborted();
       if(data.stale||!validMoney(Number(data.priceUsd)))throw new PaperError("Live prices are missing or stale. Run paused.");
       const activeOrder=run.liveOrders.find(order=>!["ORDER_STATUS_FILLED","ORDER_STATUS_CANCELLED","ORDER_STATUS_REJECTED","ORDER_STATUS_TERMINATED"].includes(order.status));
       if(activeOrder){
@@ -64,7 +64,7 @@ export function createPriceMonitor({market,now=Date.now,invoke=invokePriceExecut
         const quotePrice=data.flash?.priceUsd?Number(data.flash.priceUsd):price;
         if(price>=condition.minPriceUsd&&price<=condition.maxPriceUsd&&quotePrice>=condition.minPriceUsd&&quotePrice<=condition.maxPriceUsd){candidate={action,condition};break;}
       }
-      if(!candidate){run.status="WAITING";run.message=`Waiting: ETH/USD $${data.priceUsd} is outside remaining target ranges.`;return view(run);}
+      if(!candidate){run.status="WAITING";run.message=`Waiting: ${pairForStrategy(run.strategy).base.reference}/USD $${data.priceUsd} is outside remaining target ranges.`;return view(run);}
       const {action,condition}=candidate;
       function settlement(price:number){
         const notional=micros(action.notionalUsd),fee=(notional*BigInt(run.limits.feeBps)+9999n)/10000n;
@@ -78,7 +78,7 @@ export function createPriceMonitor({market,now=Date.now,invoke=invokePriceExecut
       else if(run.turnover+micros(action.notionalUsd)>micros(run.limits.maxTurnoverUsd)||action.side==="BUY"&&run.cash<micros(action.notionalUsd))throw new PaperError("Live order exceeds the approved run spending or turnover cap.");
       let preparedLive:any;
       if(run.mode==="LIVE"){
-        try{preparedLive=await orders.prepare({action,condition,funderAddress:run.wallet,priceUsd:data.priceUsd,maxSlippageBps:run.limits.slippageBps},activeSignal);}
+        try{preparedLive=await orders.prepare({action,condition,funderAddress:run.wallet,priceUsd:data.priceUsd,quotePriceUsd:data.quotePriceUsd??"1.000000",pairId:pairForStrategy(run.strategy).id,maxSlippageBps:run.limits.slippageBps},activeSignal);}
         catch(error){if(error instanceof FlashError&&error.message.includes("outside the creator’s price range")){run.status="WAITING";run.message="Waiting: the executable Flash quote is outside the target range.";return view(run);}throw error;}
       }
       activeSignal.throwIfAborted();
@@ -86,7 +86,7 @@ export function createPriceMonitor({market,now=Date.now,invoke=invokePriceExecut
       let executed=false;
       const execute=async()=>{
         if(executed)throw new PaperError("This action has already executed.");
-        const fresh=await market.refresh();activeSignal.throwIfAborted();
+        const fresh=await market.refresh(run.strategy);activeSignal.throwIfAborted();
         const price=Number(fresh.priceUsd);
         if(fresh.stale||!validMoney(price))throw new PaperError("Live prices became stale before execution.");
         if(price<condition.minPriceUsd||price>condition.maxPriceUsd){executed=true;run.status="WAITING";run.message="Waiting: price left the target range before execution.";return {status:"WAITING",skipped:true};}
@@ -123,11 +123,11 @@ export function createPriceMonitor({market,now=Date.now,invoke=invokePriceExecut
     const activeSignal=signal?AbortSignal.any([signal,run.abort.signal]):run.abort.signal;
     try{
       const {prepared,action,condition}=run.pendingWallet;
-      const fresh=await market.refresh();activeSignal.throwIfAborted();
+      const fresh=await market.refresh(run.strategy);activeSignal.throwIfAborted();
       if(fresh.stale||!validMoney(Number(fresh.priceUsd))||Number(fresh.priceUsd)<condition.minPriceUsd||Number(fresh.priceUsd)>condition.maxPriceUsd)throw new PaperError("Price left the target range before the signed order could be submitted.");
       const quotePrice=Number(fresh.flash?.priceUsd??fresh.priceUsd);
       if(!validMoney(quotePrice)||quotePrice<condition.minPriceUsd||quotePrice>condition.maxPriceUsd)throw new PaperError("Fresh Flash price is outside the creator’s target range.");
-      await orders.revalidate(prepared,condition,activeSignal);activeSignal.throwIfAborted();
+      await orders.revalidate(prepared,condition,activeSignal,fresh.quotePriceUsd??"1.000000",fresh.priceUsd);activeSignal.throwIfAborted();
       run.status="SUBMITTING";run.done.add(action.id);
       const orderId=await orders.submit(prepared,signature,activeSignal);
       run.liveOrders.push({orderId,actionId:action.id,side:action.side,notionalUsd:prepared.notionalUsd,status:"ORDER_STATUS_PENDING",submittedAtMs:now()});
@@ -138,5 +138,9 @@ export function createPriceMonitor({market,now=Date.now,invoke=invokePriceExecut
     }catch(error){if(run.status!=="STOPPED"){run.status="ERROR";run.message=error instanceof PaperError||error instanceof FlashError?error.message:"Order outcome is uncertain. Check Flash wallet orders before retrying.";}throw error;}
     finally{run.pending=false;}
   }
-  return {start,check,stop,submit};
+  async function setup(id:string,signedSetupTx:string,signal?:AbortSignal){
+    const run=get(id);if(run.status!=="AWAITING_WALLET"||!run.pendingWallet||run.pending||run.pendingWallet.prepared.family!=="solana")throw new PaperError("No Solana setup is awaiting this wallet.");
+    run.pending=true;try{return await orders.setup(run.pendingWallet.prepared,signedSetupTx,signal?AbortSignal.any([signal,run.abort.signal]):run.abort.signal);}finally{run.pending=false;}
+  }
+  return {start,check,stop,submit,setup};
 }

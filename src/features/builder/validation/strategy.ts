@@ -1,5 +1,5 @@
 // shortcut: provisional Dev 3 contract, replace with Dev 4's canonical imports when agreed.
-export type Address = `0x${string}`;
+export type Address = string;
 
 export type StrategyNode =
   | { id: string; type: "signal.price"; minPriceUsd: number; maxPriceUsd: number }
@@ -69,7 +69,7 @@ export function validateStrategy(input: unknown, context: ValidationContext): Va
     }
   };
   const address = (value: unknown, path: string) => {
-    if (typeof value !== "string" || !/^0x[0-9a-fA-F]{40}$/.test(value)) {
+    if (typeof value !== "string" || !(context?.networkId===101 ? /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(value) : /^0x[0-9a-fA-F]{40}$/.test(value))) {
       add("INVALID_ADDRESS", path, "Expected a 20-byte hexadecimal address.");
     }
   };
@@ -89,7 +89,8 @@ export function validateStrategy(input: unknown, context: ValidationContext): Va
     for (let i = 0; i < tokens.length; i++) address(tokens[i], `$context.tokenAddresses[${i}]`);
   }
   if (issues.length) return { valid: false, issues };
-  const supported = new Set((tokens as string[]).map(token => token.toLowerCase()));
+  const normalize=(token:string)=>context.networkId===101?token:token.toLowerCase();
+  const supported = new Set((tokens as string[]).map(normalize));
 
   const draft = object(input, "$", [
     "schemaVersion", "strategyId", "name", "networkId", "tokenIn", "tokenOut", "nodes", "edges", "riskPolicy",
@@ -105,12 +106,12 @@ export function validateStrategy(input: unknown, context: ValidationContext): Va
   if (draft.networkId !== registry.networkId) add("UNSUPPORTED_NETWORK", "$.networkId", "Network is not the configured trading network.");
   for (const key of ["tokenIn", "tokenOut"]) {
     address(draft[key], `$.${key}`);
-    if (typeof draft[key] === "string" && !supported.has(draft[key].toLowerCase())) {
+    if (typeof draft[key] === "string" && !supported.has(normalize(draft[key]))) {
       add("UNSUPPORTED_TOKEN", `$.${key}`, "Token is not in the trusted network registry.");
     }
   }
   if (typeof draft.tokenIn === "string" && typeof draft.tokenOut === "string" &&
-      draft.tokenIn.toLowerCase() === draft.tokenOut.toLowerCase()) {
+      normalize(draft.tokenIn) === normalize(draft.tokenOut)) {
     add("INVALID_PAIR", "$.tokenOut", "Base and quote tokens must be different.");
   }
 
@@ -129,12 +130,12 @@ export function validateStrategy(input: unknown, context: ValidationContext): Va
         const token = allowed[i];
         address(token, path);
         if (typeof token !== "string") continue;
-        const normalized = token.toLowerCase();
+        const normalized = normalize(token);
         if (!supported.has(normalized)) add("UNSUPPORTED_TOKEN", path, "Allowlisted token is not in the trusted network registry.");
         if (seen.has(normalized)) add("DUPLICATE_TOKEN", path, "Allowlisted tokens must be unique.");
         seen.add(normalized);
       }
-      if ([draft.tokenIn, draft.tokenOut].some(token => typeof token !== "string" || !seen.has(token.toLowerCase()))) {
+      if ([draft.tokenIn, draft.tokenOut].some(token => typeof token !== "string" || !seen.has(normalize(token)))) {
         add("TOKEN_NOT_ALLOWED", "$.riskPolicy.allowlistedTokenAddresses", "Both pair tokens must be allowlisted.");
       }
     }
