@@ -10,8 +10,11 @@ import { createPriceMonitor, invokePriceExecution } from "../execution/monitor.t
 import { interpretCreatorStrategy } from "../ai/interpreter.ts";
 import { PaperError, runPaperStrategy } from "../execution/paper.ts";
 import { runExecutionAgent } from "../execution/agent.ts";
+import { createSepoliaProxy } from "./sepolia-rpc.mjs";
 
 const assets = new Map([
+  ...["/community","/community/"].map(path=>[path,[new URL("../../../../apps/web/dist/index.html",import.meta.url),"text/html"]]),
+  ...[["app.js","text/javascript"],["builder.js","text/javascript"],["preview.js","text/javascript"],["app.css","text/css"],["favicon.svg","image/svg+xml"]].map(([name,mime])=>[`/community/${name}`,[new URL(`../../../../apps/web/dist/${name}`,import.meta.url),mime]]),
   ["/", [new URL("./index.html", import.meta.url), "text/html"]],
   ["/app.js", [new URL("./app.js", import.meta.url), "text/javascript"]],
   ["/solana-wallet.js", [new URL("./solana-wallet.js", import.meta.url), "text/javascript"]],
@@ -30,6 +33,7 @@ const assets = new Map([
 
 export function createDemoServer({fetcher = fetch, market = createLiveMarkets({fetcher})} = {}) {
   // shortcut: local demo concurrency gate, replace with authenticated per-user limits before hosting.
+  const handleSepolia = createSepoliaProxy(fetcher);
   let aiBusy = false;
   const monitor = createPriceMonitor({market,fetcher,invoke:async(options)=>{
     if(aiBusy)throw new AgentError("RATE_LIMITED");
@@ -128,7 +132,7 @@ export function createDemoServer({fetcher = fetch, market = createLiveMarkets({f
   return createServer(async (request, response) => {
     response.setHeader("X-Content-Type-Options", "nosniff");
     response.setHeader("Cache-Control", "no-store");
-    response.setHeader("Content-Security-Policy", "default-src 'self'; style-src 'self' 'unsafe-inline'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'");
+    response.setHeader("Content-Security-Policy", "default-src 'self'; connect-src 'self' https://rpc.rabdi.db-chain.testnet.arkiv.network; style-src 'self' 'unsafe-inline'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'");
     if (!/^(127\.0\.0\.1|localhost)(:\d+)?$/.test(request.headers.host ?? "")) {
       response.writeHead(403).end("Local requests only.");
       return;
@@ -136,6 +140,7 @@ export function createDemoServer({fetcher = fetch, market = createLiveMarkets({f
     let pathname;
     try { pathname = new URL(request.url ?? "/", "http://127.0.0.1").pathname; }
     catch { response.writeHead(400).end("Malformed request target."); return; }
+    if (pathname === "/api/sepolia-rpc") {await handleSepolia(request,response);return;}
     if (pathname === "/api/market") {
       if (request.method !== "GET") {response.setHeader("Allow","GET");response.writeHead(405).end("Method not allowed.");return;}
       if ((request.headers.origin && request.headers.origin !== `http://${request.headers.host}`) ||
