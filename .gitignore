@@ -1,4 +1,7 @@
-/tests/
 /docs/
-/node_modules/
-/src/integrations/
+**/node_modules/
+/apps/web/dist/
+/src/integrations/arkiv/dist/
+/CHANGE_LOG.md
+/COMMIT_LOG.md
+/Prompt.MD

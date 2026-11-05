@@ -1,0 +1,11 @@
+{
+  "compilerOptions": {
+    "target": "ES2022", "module": "NodeNext", "moduleResolution": "NodeNext",
+    "strict": true, "noUncheckedIndexedAccess": true, "skipLibCheck": true,
+    "lib": ["ES2022", "DOM"], "types": ["node"],
+    "allowImportingTsExtensions": true, "rewriteRelativeImportExtensions": true,
+    "verbatimModuleSyntax": true, "esModuleInterop": true, "resolveJsonModule": true
+  },
+  "include": ["*.ts", "community/*.ts", "marketplace/contracts.ts", "tooling/live.ts", "../../../tests/integrations/arkiv/**/*.ts"],
+  "exclude": ["node_modules", "dist"]
+}
