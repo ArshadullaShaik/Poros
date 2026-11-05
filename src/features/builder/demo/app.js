@@ -1,6 +1,5 @@
-import { validateStrategy } from "/core/validation/strategy.ts";
 import { editStrategy, importStrategyJson, exportStrategyJson } from "/core/adapters/editor.ts";
-import { fixtureContext, rsiStrategy } from "/core/fixtures/rsi-strategy.ts";
+import { marketContext, priceStrategy as defaultStrategy, validatePriceStrategy as validateMarketStrategy } from "/core/market/config.ts";
 import { keepFocus } from "/focus.js";
 import { mountStrategyAi } from "/ai.js";
 import { mountExecution } from "/execution.js";
@@ -9,11 +8,11 @@ const $ = selector => document.querySelector(selector);
 const canvas = $("#canvas");
 const dialog = $("#import-dialog");
 const kinds = {
-  "indicator.rsi": {label: "RSI signal", className: "indicator", icon: "∿"},
+  "signal.price": {label: "Price range", className: "indicator", icon: "$"},
   "guard.risk": {label: "Risk limit", className: "guard", icon: "◇"},
   "action.intent": {label: "Buy / sell", className: "action", icon: "⇄"},
 };
-let draft = structuredClone(rsiStrategy);
+let draft = structuredClone(defaultStrategy);
 let selected = draft.nodes[0]?.id;
 let positions = new Map();
 let connectFrom;
@@ -41,6 +40,7 @@ function edit(operation) {
 function select(id) { selected = id; render(); $("#strategy-settings").showModal(); }
 function replaceDraft(next) {
   draft = structuredClone(next);
+  $("#execution-mode").value = draft.riskPolicy.paperTradingOnly ? "AI" : "LIVE";
   selected = draft.nodes[0]?.id;
   connectFrom = undefined;
   resetPositions();
@@ -50,7 +50,7 @@ function replaceDraft(next) {
 function mayReplace() { return !dirty || window.confirm("Replace your current draft? Export JSON first if you want to keep it."); }
 
 function describe(node) {
-  if (node.type === "indicator.rsi") return `RSI (${node.period}) ${node.comparison === "lt" ? "<" : ">"} ${node.threshold}`;
+  if (node.type === "signal.price") return `$${node.minPriceUsd} ≤ ETH/USD ≤ $${node.maxPriceUsd}`;
   if (node.type === "guard.risk") return `Maximum $${draft.riskPolicy.maxNotionalUsd} per order`;
   return `${node.side === "BUY" ? "Buy" : "Sell"} · $${node.notionalUsd}`;
 }
@@ -129,7 +129,7 @@ function renderNodes(result) {
     const card = element("article", `node ${info.className}${selected === node.id ? " selected" : ""}${invalid ? " invalid" : ""}`);
     card.dataset.id = node.id;
     card.style.left = `${position.x}px`; card.style.top = `${position.y}px`;
-    card.append(element("span", "node-number", `${String(index + 1).padStart(2, "0")} / ${node.type === "indicator.rsi" ? "SIGNAL" : node.type === "guard.risk" ? "GUARD" : "ACTION"}`));
+    card.append(element("span", "node-number", `${String(index + 1).padStart(2, "0")} / ${node.type === "signal.price" ? "SIGNAL" : node.type === "guard.risk" ? "GUARD" : "ACTION"}`));
     const header = element("button", "node-header");
     header.dataset.focusKey = `title:${node.id}`;
     header.ariaLabel = `Edit ${node.id}; arrow keys move block`;
@@ -155,8 +155,8 @@ function renderNodes(result) {
     remove.title = "Remove block";
     remove.dataset.focusKey = `remove:${node.id}`;
     remove.addEventListener("click", event => { event.stopPropagation(); removeNode(node.id); });
-    card.append(header, remove, element("div", "node-description", describe(node)), element("div", "node-meta", node.type === "indicator.rsi" ? "Check at candle close" : node.type === "guard.risk" ? `${draft.riskPolicy.maxSlippageBps} bps slippage cap · paper only` : "Creates an intention, not a trade"));
-    if (node.type !== "indicator.rsi") card.append(port(node, "input"), element("span", "port-label left", "IN"));
+    card.append(header, remove, element("div", "node-description", describe(node)), element("div", "node-meta", node.type === "signal.price" ? "Checks the current live price" : node.type === "guard.risk" ? `${draft.riskPolicy.maxSlippageBps} bps slippage cap · ${draft.riskPolicy.paperTradingOnly ? "virtual funds" : "LIVE wallet"}` : "Agent executes once when the condition matches"));
+    if (node.type !== "signal.price") card.append(port(node, "input"), element("span", "port-label left", "IN"));
     if (node.type !== "action.intent") card.append(port(node, "output"), element("span", "port-label right", "OUT"));
     canvas.append(card);
   });
@@ -184,6 +184,7 @@ function renderSettings() {
   $("#strategy-name").value = draft.name;
   $("#max-notional").value = draft.riskPolicy.maxNotionalUsd;
   $("#max-slippage").value = draft.riskPolicy.maxSlippageBps;
+  $(".paper-label").textContent = draft.riskPolicy.paperTradingOnly ? "Virtual funds only" : "LIVE · browser wallet approval required";
   const node = draft.nodes.find(item => item.id === selected);
   const panel = $("#node-settings");
   panel.replaceChildren();
@@ -191,10 +192,9 @@ function renderSettings() {
   $("#selected-kind").textContent = node ? kinds[node.type].label : "None";
   if (!node) { panel.append(element("p", "small muted", "Select a block to edit its settings.")); return; }
   const update = settings => edit({type: "updateNode", nodeId: node.id, settings});
-  if (node.type === "indicator.rsi") {
-    panel.append(field("RSI period", node.period, {type: "number", min: 2, max: 200, step: 1}, value => update({period: value})),
-      field("Condition", node.comparison, {options: [["lt", "Is below (<)"], ["gt", "Is above (>)"]]}, value => update({comparison: value})),
-      field("RSI threshold", node.threshold, {type: "number", min: 0, max: 100, step: "any"}, value => update({threshold: value})));
+  if (node.type === "signal.price") {
+    panel.append(field("Minimum price (USD, inclusive)", node.minPriceUsd, {type:"number",min:0.000001,max:1000000,step:"any"}, value=>update({minPriceUsd:value})),
+      field("Maximum price (USD, inclusive)", node.maxPriceUsd, {type:"number",min:0.000001,max:1000000,step:"any"}, value=>update({maxPriceUsd:value})));
   } else if (node.type === "action.intent") {
     panel.append(field("Action", node.side, {options: [["BUY", "Buy base asset"], ["SELL", "Sell base asset"]]}, value => update({side: value})),
       field("Order size (USD)", node.notionalUsd, {type: "number", min: 0.01, step: 0.01}, value => update({notionalUsd: value})));
@@ -248,7 +248,7 @@ function renderValidation(result) {
 
 function render() {
   keepFocus(document, () => {
-    const result = validateStrategy(draft, fixtureContext);
+    const result = validateMarketStrategy(draft);
     renderNodes(result); renderSettings(); renderConnections(); renderValidation(result);
     $("#block-count").textContent = `${draft.nodes.length} blocks · ${draft.edges.length} connections`;
     $("#json-preview").textContent = JSON.stringify(draft, null, 2);
@@ -260,7 +260,7 @@ function addBlock(type, position) {
   if (!Object.hasOwn(kinds, type)) return;
   if (draft.nodes.length >= 32) { announce("The demo supports up to 32 blocks."); return; }
   const id = crypto.randomUUID();
-  const node = type === "indicator.rsi" ? {id, type, period: 14, comparison: "lt", threshold: 30} :
+  const node = type === "signal.price" ? {id, type, minPriceUsd: 2000, maxPriceUsd: 2100} :
     type === "guard.risk" ? {id, type} : {id, type, side: "BUY", notionalUsd: Math.min(20, draft.riskPolicy.maxNotionalUsd)};
   const point = position ?? defaultPosition(draft.nodes.length);
   positions.set(id, {x: Math.max(20, Math.min(canvas.clientWidth - 235, point.x)), y: Math.max(40, Math.min(3000, point.y))});
@@ -290,18 +290,19 @@ $("#strategy-name").addEventListener("change", event => { draft = {...draft, nam
 for (const [selector, key] of [["#max-notional", "maxNotionalUsd"], ["#max-slippage", "maxSlippageBps"]]) {
   $(selector).addEventListener("change", event => { draft = {...draft, riskPolicy: {...draft.riskPolicy, [key]: Number(event.target.value)}}; dirty = true; render(); });
 }
+$("#execution-mode").addEventListener("change", () => {draft={...draft,riskPolicy:{...draft.riskPolicy,paperTradingOnly:$("#execution-mode").value!=="LIVE"}};dirty=true;render();});
 $("#delete-node").addEventListener("click", () => removeNode(selected));
 $("#open-strategy-settings").addEventListener("click", () => $("#strategy-settings").showModal());
 $("#close-strategy-settings").addEventListener("click", () => $("#strategy-settings").close());
-$("#load-example").addEventListener("click", () => { if (mayReplace()) { replaceDraft(rsiStrategy); announce("RSI example loaded: buy below 30, sell above 70, $20 per order."); } });
-$("#new-strategy").addEventListener("click", () => { if (mayReplace()) { replaceDraft({...rsiStrategy, strategyId: crypto.randomUUID(), name: "Untitled strategy", description: "Paper strategy draft", nodes: [], edges: []}); announce("Blank canvas ready. Add blocks from the left."); } });
+$("#load-example").addEventListener("click", () => { if (mayReplace()) { replaceDraft(defaultStrategy); announce("Price example loaded: buy $20 once between $2000 and $2100."); } });
+$("#new-strategy").addEventListener("click", () => { if (mayReplace()) { replaceDraft({...defaultStrategy, strategyId: crypto.randomUUID(), name: "Untitled strategy", description: "Paper strategy draft", nodes: [], edges: []}); announce("Blank canvas ready. Add blocks from the left."); } });
 for (const view of ["canvas", "json"]) $("#" + view + "-view").addEventListener("click", () => {
   $("#canvas-viewport").hidden = view !== "canvas"; $("#json-panel").hidden = view !== "json";
   for (const name of ["canvas", "json"]) { $("#" + name + "-view").classList.toggle("active", view === name); $("#" + name + "-view").setAttribute("aria-pressed", String(view === name)); }
 });
 $("#export").addEventListener("click", () => {
   try {
-    const text = exportStrategyJson(draft, fixtureContext);
+    const text = exportStrategyJson(draft, marketContext);
     const url = URL.createObjectURL(new Blob([text], {type: "application/json"}));
     const link = element("a"); link.href = url; link.download = "strategy.json"; link.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
@@ -318,17 +319,19 @@ $("#json-file").addEventListener("change", async event => {
 });
 $("#import-form").addEventListener("submit", event => {
   event.preventDefault();
-  const result = importStrategyJson($("#import-text").value, fixtureContext);
+  let result = importStrategyJson($("#import-text").value, marketContext);
+  if (result.valid) result = validateMarketStrategy(result.strategy);
   if (!result.valid) { $("#import-error").textContent = result.issues.slice(0, 5).map(issue => `${issue.path}: ${issue.message}`).join("\n"); return; }
   if (!result.strategy.riskPolicy.paperTradingOnly) { $("#import-error").textContent = "This demo accepts paper-only strategies. Set paperTradingOnly to true before importing."; return; }
   if (!mayReplace()) return;
   replaceDraft(result.strategy); dialog.close(); announce("Strategy imported and validated. Layout was rebuilt from its blocks.");
 });
 const ai = mountStrategyAi({
+  interpreterOnly:true,
   getDraft: () => draft,
   onKeyChange: () => executionUI?.invalidate("AI key changed. Pending execution was stopped; start a new run when ready."),
   applyDraft(next) {
-    if (!validateStrategy(next, fixtureContext).valid || !next.riskPolicy.paperTradingOnly) throw new Error("Invalid AI proposal.");
+    if (!validateMarketStrategy(next).valid || !next.riskPolicy.paperTradingOnly) throw new Error("Invalid AI proposal.");
     replaceDraft(next);
     dirty = true;
     announce("AI proposal accepted. Export JSON to keep this draft.");
@@ -338,10 +341,12 @@ executionUI = mountExecution({
   getDraft: () => draft,
   mayReplace,
   applyDraft(next) {replaceDraft(next); dirty = true;},
-  validateDraft: next => validateStrategy(next, fixtureContext),
+  validateDraft: next => validateMarketStrategy(next),
   getApiKey: ai.getKey,
 });
-executionUI.addUnlockedStrategy({strategy: rsiStrategy, versionId: "public-demo-v1"});
+executionUI.addUnlockedStrategy({id:"public-demo",name:"Creator price-range example",text:"On Base, buy $20 of WETH using USDC once when ETH/USD is between $2000 and $2100 inclusive. Maximum slippage 0.5%.",versionId:"public-demo-v2"});
+void executionUI.refreshMarket();
+setInterval(() => {void executionUI.refreshMarket();}, 10000);
 // The host verifies purchase access before calling this demo handoff; this hook is not authorization.
 export function loadUnlockedStrategy(entry) {executionUI.addUnlockedStrategy(entry);}
 window.addEventListener("strategy:unlocked", event => {

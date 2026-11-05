@@ -5,7 +5,7 @@ export type StrategyEdit =
   | { type: "addNode"; node: StrategyNode }
   | { type: "removeNode"; nodeId: string }
   | { type: "updateNode"; nodeId: string; settings: {
-      period?: number; comparison?: "lt" | "gt"; threshold?: number;
+      minPriceUsd?: number; maxPriceUsd?: number; period?: number; comparison?: "lt" | "gt"; threshold?: number;
       side?: "BUY" | "SELL"; notionalUsd?: number;
     } }
   | { type: "connect"; edge: StrategyDefinition["edges"][number] }

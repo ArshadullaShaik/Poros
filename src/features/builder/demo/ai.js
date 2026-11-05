@@ -1,4 +1,4 @@
-export function mountStrategyAi({root = document, getDraft, applyDraft, request = fetch, onKeyChange}) {
+export function mountStrategyAi({root = document, getDraft, applyDraft, request = fetch, onKeyChange, interpreterOnly = false}) {
   const $ = id => root.querySelector(`#${id}`);
   let apiKey = "", busy = false, pending, snapshot, controller, sequence = 0;
   const status = message => { $("ai-status").textContent = message; };
@@ -11,7 +11,7 @@ export function mountStrategyAi({root = document, getDraft, applyDraft, request 
     $("ai-operation").disabled = busy;
     $("ai-prompt").disabled = busy || $("ai-operation").value === "explain";
     $("ai-forget").disabled = !apiKey;
-    $("ai-run").textContent = busy ? "Asking 0G…" : "Ask AI";
+    $("ai-run").textContent = busy ? "Interpreting…" : (interpreterOnly ? "Interpret creator text" : "Ask AI");
   }
   function discard() {
     pending = undefined;
@@ -57,7 +57,7 @@ export function mountStrategyAi({root = document, getDraft, applyDraft, request 
     }
     try {
       applyDraft(pending);
-      discard(); status("AI proposal accepted as your editable paper draft.");
+      discard(); status("Interpreted rules loaded. Review them before Run.");
     } catch { discard(); status("The proposal could not be applied. Your draft is unchanged."); }
   });
   $("ai-form").addEventListener("submit", async event => {
@@ -72,14 +72,14 @@ export function mountStrategyAi({root = document, getDraft, applyDraft, request 
     controller = new AbortController();
     const signal = AbortSignal.any([controller.signal, AbortSignal.timeout(45000)]);
     busy = true; discard(); refresh();
-    status("Asking the lowest estimated-cost compatible model. Your current draft stays editable.");
+    status("Asking the lowest estimated-cost compatible Qwen model. Your current draft stays editable.");
     try {
-      const response = await request("/api/ai", {method: "POST", signal, headers: {"Content-Type": "application/json", Authorization: `Bearer ${apiKey}`}, body: JSON.stringify(input)});
+      const response = await request(interpreterOnly ? "/api/interpret" : "/api/ai", {method: "POST", signal, headers: {"Content-Type": "application/json", Authorization: `Bearer ${apiKey}`}, body: JSON.stringify(interpreterOnly ? {name:"Interpreted creator strategy",text:prompt} : input)});
       const result = await response.json();
       if (current !== sequence) return;
       if (!response.ok || !result.ok) { status(result.error?.message ?? "AI is unavailable. Your draft is unchanged."); return; }
       if (JSON.stringify(getDraft()) !== snapshot) { status("Your draft changed during the request. Ask AI again to get a current proposal."); return; }
-      const data = result.data;
+      const data = interpreterOnly ? {...result.data,proposedDraft:result.data.strategy,explanation:result.data.status === "READY" ? "Creator text interpreted. Review the price ranges and amounts before Run." : "Creator instructions need clarification.",changeSummary:[],warnings:result.data.questions??[]} : result.data;
       pending = data.proposedDraft;
       $("ai-explanation").textContent = [data.explanation, ...data.changeSummary.map(item => `• ${item}`), ...data.warnings.map(item => `Warning: ${item}`)].join("\n");
       const metadata = data.inferenceMetadata;

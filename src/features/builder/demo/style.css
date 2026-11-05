@@ -21,3 +21,5 @@ main{max-width:1700px;padding:36px 42px 20px;margin:auto}.page-heading{display:f
 .strategy-dialog{max-height:85vh;overflow:auto}.strategy-dialog .inspector{padding:0}.strategy-dialog .icon-button{width:32px;height:32px}
 
 .node-remove{position:absolute;top:13px;right:8px;z-index:2;font-size:18px;line-height:1}.node-remove:hover{color:#b44545;border-color:#e4bcbc;background:#fff5f5}
+
+.market-feed{padding:12px 20px;background:#f4f8ff;border-block:1px solid var(--line)}.market-feed strong{font-size:12px}.market-feed p{margin:6px 0 0}

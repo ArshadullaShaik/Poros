@@ -1,9 +1,9 @@
-import { createSyntheticCandles } from "./replay.js";
-
+import {connectBrowserWallet,signFlashOrder} from "./wallet.js";
 export function mountExecution({root=document,getDraft,applyDraft,validateDraft,getApiKey,mayReplace=()=>true,request=fetch}) {
   const $=id=>root.querySelector(`#${id}`);
   const entries=new Map();
-  let busy=false,sequence=0,controller,lastDraft=JSON.stringify(getDraft());
+  let sessionId,timer,wallet,walletBusy=false;
+  let busy=false,sequence=0,controller,lastDraft=JSON.stringify(getDraft()),market,marketLoading=false;
   const status=message=>{$("execution-status").textContent=message;};
   function element(tag,text,className) {
     const node=root.createElement(tag);
@@ -12,34 +12,73 @@ export function mountExecution({root=document,getDraft,applyDraft,validateDraft,
     return node;
   }
   function refresh() {
-    const ai=$("execution-mode").value==="AI";
-    $("execution-start").disabled=busy||!validateDraft(getDraft()).valid||(ai&&!getApiKey());
+    const ai=["AI","LIVE"].includes($("execution-mode").value);
+    $("execution-start").disabled=busy||!validateDraft(getDraft()).valid||(ai&&!getApiKey())||!marketReady();
     $("execution-stop").disabled=!busy;
-    $("execution-help").textContent=ai?(getApiKey()?"Uses your 0G balance for at most two inference requests. Trades remain paper-only.":"Add your 0G key using the key icon, or select local replay to try without AI."):"Local rules replay uses no AI key and sends no request to 0G or Flash.";
+    if($("wallet-connect"))$("wallet-connect").disabled=busy;
+    $("execution-help").textContent=$("execution-mode").value==="LIVE"?"Real funds on Base. 0G prepares the order at your target; your browser wallet must approve and sign. Stop does not cancel submitted orders or revoke token approvals.":ai?(getApiKey()?"0G invokes the execution tool when a target matches. Waiting uses no inference. Virtual funds only.":"Add your 0G key using the key icon, or select local replay to try without AI."):"Local live-price monitoring without AI inference. Virtual funds only.";
   }
-  function invalidate(message="Run cleared because its inputs changed.") {
+  const marketReady=()=>market&&!market.stale;
+  async function refreshMarket() {
+    if(marketLoading)return;
+    marketLoading=true;
+    try {
+      const response=await request("/api/market",{signal:AbortSignal.timeout(30000),cache:"no-store"});
+      const payload=await response.json(),data=payload.data;
+      if(!response.ok||!payload.ok)throw new Error(payload.error?.message??"Market data is unavailable.");
+      if(data?.source!=="CHAINLINK_FLASH"||typeof data.stale!=="boolean"||(data.priceUsd!==null&&(typeof data.priceUsd!=="string"||!/^\d+\.\d{6}$/.test(data.priceUsd))))throw new Error("Market data response is invalid.");
+      market=data;
+      $("market-price").textContent=data.priceUsd?`ETH $${data.priceUsd} · Chainlink / Base`:"Loading price sources…";
+      $("market-status").textContent=data.stale?"Prices are stale or failed their checks. Waiting for fresh sources.":"Live Chainlink + Flash checks passed · Checks every 10 seconds · Ready to monitor.";
+    } catch(error) {market=undefined;$("market-price").textContent="Market data unavailable";$("market-status").textContent=error.message??"Market data is unavailable.";}
+    finally {marketLoading=false;refresh();}
+  }
+  function invalidate(message="Run cleared because its inputs changed.",keepResults=false) {
+    clearTimeout(timer);
+    if(sessionId){void request("/api/monitor",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"stop",id:sessionId}),keepalive:true}).catch(()=>{});sessionId=undefined;}
+    walletBusy=false;
     sequence++;controller?.abort();controller=undefined;busy=false;
-    $("execution-results").hidden=true;$("execution-results").replaceChildren();
+    if(!keepResults){$("execution-results").hidden=true;$("execution-results").replaceChildren();}
     status(message);refresh();
   }
-  function choose(entry) {
+  async function choose(entry) {
     if(!mayReplace())return;
-    invalidate("Strategy loaded. Review limits, then start a paper run.");
-    lastDraft=JSON.stringify(entry.strategy);
-    applyDraft(structuredClone(entry.strategy));
-    $("execution-selected").textContent=`${entry.strategy.name} · version ${entry.versionId}`;
-    refresh();
+    invalidate("Loading creator strategy…");
+    const current=sequence,snapshot=JSON.stringify(getDraft());
+    try {
+      let strategy=entry.strategy;
+      if(!strategy){
+        const apiKey=getApiKey();
+        if(!apiKey)throw new Error("Add your 0G key first. The interpreter reads creator text separately from the execution agent.");
+        busy=true;controller=new AbortController();refresh();
+        status("Interpreter is reading the creator’s text. This uses one 0G request; no trade starts.");
+        const response=await request("/api/interpret",{method:"POST",signal:AbortSignal.any([controller.signal,AbortSignal.timeout(45000)]),headers:{"Content-Type":"application/json",Authorization:`Bearer ${apiKey}`},body:JSON.stringify({name:entry.name,text:entry.text})});
+        const payload=await response.json();
+        if(current!==sequence)return;
+        if(!response.ok||!payload.ok)throw new Error(payload.error?.message??"Creator text could not be interpreted.");
+        if(payload.data.status!=="READY")throw new Error(`Creator must clarify: ${(payload.data.questions??[]).join(" ")}`);
+        strategy=payload.data.strategy;
+      }
+      if(current!==sequence||JSON.stringify(getDraft())!==snapshot)return;
+      if(!validateDraft(strategy).valid)throw new Error("The interpreter returned unsupported rules. Current canvas is unchanged.");
+      lastDraft=JSON.stringify(strategy);applyDraft(structuredClone(strategy));
+      if($("creator-text"))$("creator-text").textContent=entry.text?`Creator instructions: ${entry.text}`:"";
+      $("execution-selected").textContent=`${strategy.name} · version ${entry.versionId} · each action once per run`;
+      status("Review the interpreted price ranges and amounts on the canvas, then Run to monitor.");
+    }catch(error){if(current===sequence)status(error.message);}
+    finally{if(current===sequence){busy=false;controller=undefined;refresh();}}
   }
   function addUnlockedStrategy(entry) {
-    if(!entry||typeof entry.versionId!=="string"||!entry.versionId.trim()||entry.versionId.length>128||!validateDraft(entry.strategy).valid||entry.strategy.riskPolicy.paperTradingOnly!==true)throw new Error("Supply a valid paper strategy and its unlocked version ID.");
-    const key=JSON.stringify([entry.strategy.strategyId,entry.versionId]);
-    if(entries.has(key)&&JSON.stringify(entries.get(key).strategy)!==JSON.stringify(entry.strategy))throw new Error("This version is already loaded with different rules.");
+    if(!entry||typeof entry.versionId!=="string"||!entry.versionId.trim()||entry.versionId.length>128||
+      (entry.strategy? !validateDraft(entry.strategy).valid||entry.strategy.riskPolicy.paperTradingOnly!==true : typeof entry.id!=="string"||!entry.id.trim()||entry.id.length>128||typeof entry.name!=="string"||!entry.name.trim()||entry.name.length>100||typeof entry.text!=="string"||!entry.text.trim()||entry.text.length>4000))throw new Error("Supply an unlocked creator text strategy with ID, name and version, or validated price rules.");
+    const key=JSON.stringify([entry.strategy?.strategyId??entry.id,entry.versionId]);
+    if(entries.has(key)&&JSON.stringify(entries.get(key))!==JSON.stringify(entry))throw new Error("This version is already loaded with different rules.");
     if(!entries.has(key)&&entries.size>=20)throw new Error("This demo supports up to 20 unlocked strategy cards.");
-    entries.set(key,structuredClone({strategy:entry.strategy,versionId:entry.versionId}));
+    entries.set(key,structuredClone(entry));
     $("execution-library").replaceChildren();
-    for(const [id,item] of entries) {
+    for(const [id,item]of entries){
       const card=element("button",undefined,"unlocked-card");card.type="button";card.draggable=true;
-      card.append(element("strong",item.strategy.name),element("small",`Version ${item.versionId} · drag or click to load`));
+      card.append(element("strong",item.name??item.strategy.name),element("small",`Version ${item.versionId} · ${item.text?"text interpreted on load (0G cost)":"validated rules"} · drag or click`));
       card.addEventListener("click",()=>choose(item));
       card.addEventListener("dragstart",event=>{event.dataTransfer.setData("text/plain",JSON.stringify({kind:"unlocked-strategy",id}));event.dataTransfer.effectAllowed="copy";});
       $("execution-library").append(card);
@@ -72,47 +111,75 @@ export function mountExecution({root=document,getDraft,applyDraft,validateDraft,
     return {mode:$("execution-mode").value,initialCashUsd:Number($("execution-capital").value),maxTurnoverUsd:Number($("execution-turnover").value),feeBps:Number($("execution-fee").value),slippageBps:Number($("execution-slippage").value)};
   }
   for(const id of ["execution-mode","execution-capital","execution-turnover","execution-fee","execution-slippage"])$(id).addEventListener("change",()=>invalidate("Execution settings changed. Start a new paper run to use them."));
-  $("execution-stop").addEventListener("click",()=>invalidate("Stopped. Pending results were discarded. An already accepted AI request may still be charged."));
+  $("execution-stop").addEventListener("click",()=>invalidate("Stopped. Pending AI may still be charged. Submitted Flash orders may still fill; their IDs remain below.",true));
   function renderResults(data) {
-    const result=data.execution,summary=result.summary;
     const output=$("execution-results");output.replaceChildren();
-    output.append(element("h3",`${summary.tradeCount} filled paper trades · ${data.agentMode==="REAL_0G"?"0G AI tool execution":"Local rules replay"}`));
-    output.append(element("p",`Final value $${summary.finalValueUsd} · Net P&L $${summary.netPnlUsd} · Cash $${summary.cashUsd} · Base balance ${summary.baseQuantity}`,"small"));
-    output.append(element("p",`Turnover including fees $${summary.turnoverUsd} · ${result.rejections.length} rejected fills${result.unfilledSignal?" · Final signal has no next candle to fill":""}.`,"small muted"));
-    output.append(element("p",data.explanation,"small"));
-    if(data.inference?.length)output.append(element("p",data.inference.map(item=>`${item.model}${item.totalCostNeuron!==undefined?` · ${item.totalCostNeuron} neuron charged`:" · cost not reported"}`).join(" / "),"tiny muted"));
-    const scroll=element("div",undefined,"execution-table-wrap"),table=element("table");
-    const header=element("tr");
-    for(const label of ["Fill time (synthetic UTC)","Side","Base quantity","Notional USD","Fee USD"]) {const cell=element("th",label);cell.setAttribute("scope","col");header.append(cell);}
-    const head=element("thead"),body=element("tbody");head.append(header);
-    for(const order of result.orders) {
-      const row=element("tr");
-      for(const value of [new Date(order.fillTimeMs).toISOString(),order.side,order.baseQuantity,order.notionalUsd,order.feeUsd])row.append(element("td",value));
-      body.append(row);
+    output.append(element("h3",`${data.status} · ${data.mode==="LIVE"?"LIVE Flash orders":`${data.orders.length} paper fills`}`));
+    if(data.mode==="LIVE"){
+      output.append(element("p",`Remaining run buy budget $${data.cashUsd} · Reserved order notional $${data.turnoverUsd}. Wallet balances and gas are separate.`,"small"));
+      for(const order of data.liveOrders??[])output.append(element("p",`${order.side} $${order.notionalUsd} · ${order.orderId} · ${order.status}`,"small"));
+      if(data.walletRequest){
+        const quote=data.walletRequest;
+        output.append(element("p",`${quote.side} $${quote.notionalUsd} · Flash quote $${quote.effectivePriceUsd} · receives approximately ${quote.expectedReceive} ${quote.side==="BUY"?"WETH":"USDC"}.`,"small"));
+        const approve=element("button",walletBusy?"Waiting for your wallet…":"Approve and sign in wallet","button primary");approve.type="button";approve.disabled=walletBusy;
+        approve.addEventListener("click",async()=>{
+          if(walletBusy)return;
+          const current=sequence;walletBusy=true;approve.disabled=true;status("Approve the exact token amount, then sign the Flash order in your wallet.");
+          try{
+            const signature=await signFlashOrder(quote,controller.signal);
+            if(current!==sequence)return;
+            const result=await postMonitor({action:"submit",id:sessionId,signature},AbortSignal.any([controller.signal,AbortSignal.timeout(30000)]));
+            if(current!==sequence)return;renderResults(result);status(result.message);
+          }catch(error){if(current===sequence)invalidate(error.code===4001?"Wallet request declined. Monitoring stopped.":error.message);}
+          finally{walletBusy=false;}
+        });output.append(approve);
+      }
+      output.hidden=false;return;
     }
-    table.append(head,body);scroll.append(table);output.append(scroll);
-    const detail=element("details");detail.append(element("summary","Decisions, rejected fills and replay assumptions"),element("pre",JSON.stringify({decisions:result.decisions,rejections:result.rejections,assumptions:result.assumptions},null,2)));
-    output.append(detail);output.hidden=false;
+    output.append(element("p",`Virtual cash $${data.cashUsd} · WETH ${data.baseQuantity} · Turnover $${data.turnoverUsd}`,"small"));
+    output.append(element("p","Current live prices only. Each action executes once per run. No wallet trade is submitted.","tiny muted"));
+    for(const fill of data.orders)output.append(element("p",`${new Date(fill.filledAtMs).toISOString()} · ${fill.side} $${fill.notionalUsd} · ${fill.baseQuantity} WETH · simulated price $${fill.priceUsd}`,"small"));
+    for(const inference of data.inference??[])output.append(element("p",`0G execution · ${inference.model}${inference.totalCostNeuron!==undefined?` · ${inference.totalCostNeuron} neuron charged`:""}`,"tiny muted"));
+    output.hidden=false;
+  }
+  async function postMonitor(body,signal) {
+    const apiKey=["AI","LIVE"].includes($("execution-mode").value)?getApiKey():"";
+    const response=await request("/api/monitor",{method:"POST",signal,headers:{"Content-Type":"application/json",...(apiKey?{Authorization:`Bearer ${apiKey}`}:{})},body:JSON.stringify(body)});
+    const payload=await response.json();if(!response.ok||!payload.ok)throw new Error(payload.error?.message??"Monitor unavailable.");return payload.data;
   }
   $("execution-start").addEventListener("click",async()=>{
     if(busy)return;
     if(!validateDraft(getDraft()).valid){status("Finish the strategy rules before running.");return;}
-    const config=settings(),apiKey=config.mode==="AI"?getApiKey():"";
-    if(config.mode==="AI"&&!apiKey){status("Add a 0G inference key first, or choose local replay.");return;}
-    invalidate("");
-    const current=++sequence,snapshot=JSON.stringify(getDraft()),configSnapshot=JSON.stringify(config);
-    controller=new AbortController();busy=true;refresh();
-    status(config.mode==="AI"?"AI agent is invoking the paper execution tool. No live orders will be submitted.":"Replaying the strategy on synthetic candles…");
-    try {
-      const response=await request("/api/execution",{method:"POST",signal:AbortSignal.any([controller.signal,AbortSignal.timeout(75000)]),headers:{"Content-Type":"application/json",...(apiKey?{Authorization:`Bearer ${apiKey}`}:{})},body:JSON.stringify({...config,strategy:JSON.parse(snapshot),candles:createSyntheticCandles()})});
-      const payload=await response.json();
-      if(current!==sequence)return;
-      if(snapshot!==JSON.stringify(getDraft())||configSnapshot!==JSON.stringify(settings())){invalidate("Strategy or limits changed. Start a new run.");return;}
-      if(!response.ok||!payload.ok){status(payload.error?.message??"Execution unavailable. No live order was submitted.");return;}
-      renderResults(payload.data);status("Paper execution complete. Results are simulated, not live Flash fills.");
-    } catch {if(current===sequence)status("The run did not finish. No live order was submitted. Check 0G usage before retrying an AI run.");}
-    finally {if(current===sequence){busy=false;controller=undefined;refresh();}}
+    if(!marketReady()){status("Wait for fresh Chainlink / Flash prices before running.");return;}
+    const config=settings();
+    if(["AI","LIVE"].includes(config.mode)&&!getApiKey()){status("Add your 0G key first.");return;}
+    if(config.mode==="LIVE"&&!wallet){status("Connect your browser wallet on Base before starting live execution.");return;}
+    invalidate("");const current=++sequence;controller=new AbortController();busy=true;refresh();
+    const signal=()=>AbortSignal.any([controller.signal,AbortSignal.timeout(45000)]);
+    async function tick(){
+      try{
+        const data=await postMonitor({action:"check",id:sessionId},signal());
+        if(current!==sequence)return;
+        renderResults(data);status(data.message);
+        if(["STOPPED","ERROR","COMPLETED"].includes(data.status)){busy=false;sessionId=undefined;refresh();return;}
+        timer=setTimeout(()=>{void tick();},10000);timer.unref?.();
+      }catch(error){if(current===sequence){invalidate(error.message??"Monitor stopped. Check 0G usage before restarting.");}}
+    }
+    try{
+      const strategy=structuredClone(getDraft());
+      if(config.mode==="LIVE"&&strategy.riskPolicy.paperTradingOnly)throw new Error("Enable live mode in the strategy before using real funds.");
+      const data=await postMonitor({action:"start",...config,...(config.mode==="LIVE"?{wallet}:{}),strategy},signal());
+      if(current!==sequence){void request("/api/monitor",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"stop",id:data.id})}).catch(()=>{});return;}
+      sessionId=data.id;status("Monitoring current price. Waiting uses no AI requests.");await tick();
+    }catch(error){if(current===sequence)invalidate(error.message??"Could not start the monitor.");}
   });
+  $("wallet-connect")?.addEventListener("click",async()=>{
+    try{wallet=await connectBrowserWallet();$("wallet-connect").textContent=`${wallet.slice(0,6)}…${wallet.slice(-4)} · Base`;status("Wallet connected. Select live mode to use real funds; virtual-fund modes remain available.");}
+    catch(error){status(error.code===4001?"Wallet connection declined.":error.message);}
+  });
+  root.defaultView?.ethereum?.on?.("accountsChanged",()=>{wallet=undefined;invalidate("Wallet account changed. Reconnect before running live.");if($("wallet-connect"))$("wallet-connect").textContent="Connect wallet";});
+  root.defaultView?.ethereum?.on?.("chainChanged",()=>invalidate("Wallet network changed. Start a new run on Base."));
+  root.defaultView?.addEventListener("pagehide",()=>invalidate("Monitoring stopped because this tab closed."));
   $("execution-results").hidden=true;refresh();
-  return {addUnlockedStrategy,setFollowedCreators,invalidate,draftChanged(){const now=JSON.stringify(getDraft());if(now!==lastDraft){lastDraft=now;$("execution-selected").textContent="Current edited draft · paper replay only";invalidate("Draft changed. Review it before starting a new run.");}}};
+  return {addUnlockedStrategy,setFollowedCreators,refreshMarket,invalidate,draftChanged(){const now=JSON.stringify(getDraft());if(now!==lastDraft){lastDraft=now;$("execution-selected").textContent="Current edited draft · live price monitor";invalidate("Draft changed. Review it before starting a new run.");}}};
 }
