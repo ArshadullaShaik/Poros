@@ -149,7 +149,13 @@ function renderNodes(result) {
         moveNode(node.id, point.x + dx, point.y + dy);
       } else if (event.key === "Delete" || event.key === "Backspace") { event.preventDefault(); removeNode(node.id); }
     });
-    card.append(header, element("div", "node-description", describe(node)), element("div", "node-meta", node.type === "indicator.rsi" ? "Check at candle close" : node.type === "guard.risk" ? `${draft.riskPolicy.maxSlippageBps} bps slippage cap · paper only` : "Creates an intention, not a trade"));
+    const remove = element("button", "icon-button node-remove", "×");
+    remove.type = "button";
+    remove.ariaLabel = `Remove block ${node.id}`;
+    remove.title = "Remove block";
+    remove.dataset.focusKey = `remove:${node.id}`;
+    remove.addEventListener("click", event => { event.stopPropagation(); removeNode(node.id); });
+    card.append(header, remove, element("div", "node-description", describe(node)), element("div", "node-meta", node.type === "indicator.rsi" ? "Check at candle close" : node.type === "guard.risk" ? `${draft.riskPolicy.maxSlippageBps} bps slippage cap · paper only` : "Creates an intention, not a trade"));
     if (node.type !== "indicator.rsi") card.append(port(node, "input"), element("span", "port-label left", "IN"));
     if (node.type !== "action.intent") card.append(port(node, "output"), element("span", "port-label right", "OUT"));
     canvas.append(card);
