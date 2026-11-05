@@ -78,3 +78,24 @@ test('a rejected account connection propagates and missing providers stay unavai
   const provider = {request: async () => {throw Object.assign(new Error('Rejected'), {code: 4001});}};
   await assert.rejects(createInjectedWallet(provider)!.connect(), {code: 4001});
 });
+
+
+test('simultaneous network requests share one MetaMask prompt', async () => {
+  let chain = '0x1', switches = 0;
+  const wallet = createInjectedWallet({request:async ({method,params}) => {
+    if(method === 'eth_chainId') return chain;
+    if(method === 'wallet_switchEthereumChain') {
+      switches++;
+      await new Promise(resolve=>setTimeout(resolve,5));
+      chain = (params![0] as {chainId:string}).chainId;
+      return null;
+    }
+    throw new Error(method);
+  }})!;
+  await Promise.all([wallet.switchChain!(7794095),wallet.switchChain!(7794095)]);
+  assert.equal(switches,1);
+  await wallet.switchChain!(7794095);
+  assert.equal(switches,1);
+  await wallet.switchChain!(11155111);
+  assert.equal(switches,2);
+});

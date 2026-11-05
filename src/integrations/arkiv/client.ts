@@ -36,7 +36,7 @@ function decoded(raw:FullEntity):StoredEntity {
 }
 export function createSDKBackend(options:StoreOptions={}):Backend {
   const chain=rabdi({accessKey:options.accessKey??''});
-  const publicClient=createPublicClient({chain,transport:options.publicTransport??http(undefined,{retryCount:2,retryDelay:500,timeout:15_000})});
+  const publicClient=createPublicClient({chain,transport:options.publicTransport??http(typeof window === 'undefined' ? undefined : '/api/arkiv-rpc',{retryCount:0,timeout:10_000})});
   const safe=async<T>(operation:()=>Promise<T>,writing=false):Promise<T>=>{try{return await operation();}catch(e){throw mapError(e,writing);}};
   return {
     source:'arkiv',
