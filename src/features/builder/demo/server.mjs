@@ -10,9 +10,17 @@ import { createPriceMonitor, invokePriceExecution } from "../execution/monitor.t
 import { interpretCreatorStrategy } from "../ai/interpreter.ts";
 import { PaperError, runPaperStrategy } from "../execution/paper.ts";
 import { runExecutionAgent } from "../execution/agent.ts";
+import { createSepoliaProxy } from "./sepolia-rpc.mjs";
 
 const assets = new Map([
   ["/", [new URL("./index.html", import.meta.url), "text/html"]],
+  ["/community", [new URL("../../../../apps/web/dist/index.html", import.meta.url), "text/html"]],
+  ["/community/", [new URL("../../../../apps/web/dist/index.html", import.meta.url), "text/html"]],
+  ["/community/app.js", [new URL("../../../../apps/web/dist/app.js", import.meta.url), "text/javascript"]],
+  ["/community/preview.js", [new URL("../../../../apps/web/dist/preview.js", import.meta.url), "text/javascript"]],
+  ["/community/builder.js", [new URL("../../../../apps/web/dist/builder.js", import.meta.url), "text/javascript"]],
+  ["/community/app.css", [new URL("../../../../apps/web/dist/app.css", import.meta.url), "text/css"]],
+  ["/community/favicon.svg", [new URL("../../../../apps/web/dist/favicon.svg", import.meta.url), "image/svg+xml"]],
   ["/app.js", [new URL("./app.js", import.meta.url), "text/javascript"]],
   ["/wallet.js", [new URL("./wallet.js", import.meta.url), "text/javascript"]],
   ["/focus.js", [new URL("./focus.js", import.meta.url), "text/javascript"]],
@@ -26,7 +34,8 @@ const assets = new Map([
   ["/core/market/config.ts", [new URL("../market/config.ts", import.meta.url), "text/javascript"]],
 ]);
 
-export function createDemoServer({fetcher = fetch, market = createLiveMarket({fetcher})} = {}) {
+export function createDemoServer({fetcher = fetch} = {}) {
+  const handleSepolia = createSepoliaProxy(fetcher);
   // shortcut: local demo concurrency gate, replace with authenticated per-user limits before hosting.
   let aiBusy = false;
   const monitor = createPriceMonitor({market,fetcher,invoke:async(options)=>{
@@ -126,7 +135,7 @@ export function createDemoServer({fetcher = fetch, market = createLiveMarket({fe
   return createServer(async (request, response) => {
     response.setHeader("X-Content-Type-Options", "nosniff");
     response.setHeader("Cache-Control", "no-store");
-    response.setHeader("Content-Security-Policy", "default-src 'self'; style-src 'self' 'unsafe-inline'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'");
+    response.setHeader("Content-Security-Policy", "default-src 'self'; connect-src 'self' https://rpc.rabdi.db-chain.testnet.arkiv.network; style-src 'self' 'unsafe-inline'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'");
     if (!/^(127\.0\.0\.1|localhost)(:\d+)?$/.test(request.headers.host ?? "")) {
       response.writeHead(403).end("Local requests only.");
       return;
@@ -134,19 +143,7 @@ export function createDemoServer({fetcher = fetch, market = createLiveMarket({fe
     let pathname;
     try { pathname = new URL(request.url ?? "/", "http://127.0.0.1").pathname; }
     catch { response.writeHead(400).end("Malformed request target."); return; }
-    if (pathname === "/api/market") {
-      if (request.method !== "GET") {response.setHeader("Allow","GET");response.writeHead(405).end("Method not allowed.");return;}
-      if ((request.headers.origin && request.headers.origin !== `http://${request.headers.host}`) ||
-          (request.headers["sec-fetch-site"] && !["same-origin","none"].includes(request.headers["sec-fetch-site"]))) {response.writeHead(403).end("Open market data from this local demo only.");return;}
-      response.setHeader("Content-Type","application/json; charset=utf-8");
-      try {response.writeHead(200).end(JSON.stringify({ok:true,data:await market.refresh()}));}
-      catch (error) {const safe=error instanceof FlashError?error:new FlashError("Historical, Chainlink or Flash market data is unavailable.");response.writeHead(safe.status).end(JSON.stringify({ok:false,error:{code:safe.code,message:safe.message}}));}
-      return;
-    }
-    if (pathname === "/api/monitor" || pathname === "/api/interpret") {
-      if(request.method!=="POST"){response.setHeader("Allow","POST");response.writeHead(405).end("Method not allowed.");return;}
-      await handleMonitor(request,response,pathname==="/api/interpret");return;
-    }
+    if (pathname === "/api/sepolia-rpc") { await handleSepolia(request, response); return; }
     if (pathname === "/api/ai" || pathname === "/api/execution") {
       if (request.method === "POST") { await handleAi(request, response, pathname === "/api/execution"); return; }
       response.setHeader("Allow", "POST");

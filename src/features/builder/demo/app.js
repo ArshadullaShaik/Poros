@@ -18,6 +18,9 @@ let positions = new Map();
 let connectFrom;
 let dirty = false;
 let executionUI;
+let forkSource;
+let strategyLoad = 0;
+let communityCursor;
 
 function element(tag, className, text) {
   const node = document.createElement(tag);
@@ -39,6 +42,7 @@ function edit(operation) {
 }
 function select(id) { selected = id; render(); $("#strategy-settings").showModal(); }
 function replaceDraft(next) {
+  forkSource = undefined;
   draft = structuredClone(next);
   $("#execution-mode").value = draft.riskPolicy.paperTradingOnly ? "AI" : "LIVE";
   selected = draft.nodes[0]?.id;
@@ -243,6 +247,7 @@ function renderValidation(result) {
     item.append(button); list.append(item);
   });
   $("#export").disabled = !result.valid;
+  $("#publish-community").disabled = !result.valid;
   $("#export").title = result.valid ? "Save validated strategy JSON" : "Fix validation errors before exporting";
 }
 
@@ -280,6 +285,11 @@ canvas.addEventListener("dragover", event => { event.preventDefault(); canvas.cl
 canvas.addEventListener("dragleave", event => { if (!canvas.contains(event.relatedTarget)) canvas.classList.remove("drag-over"); });
 canvas.addEventListener("drop", event => {
   event.preventDefault(); canvas.classList.remove("drag-over");
+  const reference = event.dataTransfer.getData("text/uri-list") || event.dataTransfer.getData("text/plain");
+  if (reference.startsWith(location.origin + '/?strategy=')) {
+    void loadPublicReference(reference);
+    return;
+  }
   try {
     const data = JSON.parse(event.dataTransfer.getData("text/plain")), rect = canvas.getBoundingClientRect();
     if (data.kind === "palette") addBlock(data.type, {x: event.clientX - rect.left - 105, y: event.clientY - rect.top - 40});
@@ -359,3 +369,66 @@ window.addEventListener("creators:updated", event => {
 });
 window.addEventListener("beforeunload", event => { if (dirty) { event.preventDefault(); event.returnValue = ""; } });
 resetPositions(); render();
+
+async function loadPublicStrategy(key) {
+  const sequence = ++strategyLoad;
+  try {
+    announce('Reading and validating the public strategy…');
+    const {publicStrategies} = await import('/community/builder.js');
+    const version = await publicStrategies.getVersion({versionKey:key});
+    if (sequence !== strategyLoad || !mayReplace()) return;
+    replaceDraft(version.document.graph);
+    forkSource = version.versionKey;
+    announce('Public version loaded. Edit its blocks, then publish your fork.');
+    canvas.scrollIntoView({block:'center'});
+  } catch (error) { announce(error.message || 'Unable to load this public strategy.'); }
+}
+async function loadPublicReference(reference) {
+  try {
+    const {strategyReference} = await import('/community/builder.js');
+    await loadPublicStrategy(strategyReference(reference, location.origin));
+  } catch (error) { announce(error.message || 'Build the community app before loading public strategies.'); }
+}
+async function listPublicStrategies(append = false) {
+  const status = $('#community-strategies-status');
+  const refresh = $('#refresh-community-strategies'), more = $('#more-community-strategies');
+  refresh.disabled = true; more.disabled = true;
+  try {
+    status.textContent = 'Reading Arkiv…';
+    const {publicStrategies} = await import('/community/builder.js');
+    const page = await publicStrategies.listStrategies({page:{offset:append ? communityCursor : 0,limit:20}});
+    if (!append) $('#community-strategies').replaceChildren();
+    for (const row of page.items) {
+      const card = element('a','unlocked-card');
+      card.href = '/?strategy=' + row.rootVersionKey;
+      card.draggable = true;
+      card.append(element('strong','',row.name),element('small','','Drag to canvas · public version'));
+      card.addEventListener('click',event=>{event.preventDefault();void loadPublicStrategy(row.rootVersionKey);});
+      card.addEventListener('dragstart',event=>{
+        event.dataTransfer.setData('text/uri-list',card.href);
+        event.dataTransfer.setData('text/plain',card.href);
+        event.dataTransfer.effectAllowed='copy';
+      });
+      $('#community-strategies').append(card);
+    }
+    communityCursor = page.nextOffset;
+    more.hidden = communityCursor === null;
+    status.textContent = page.items.length ? 'Public strategies are ready to edit.' : 'Publish a strategy to share it here.';
+  } catch { status.textContent = 'Unable to read public strategies. Try refreshing.'; }
+  finally { refresh.disabled = false; more.disabled = false; }
+}
+$('#refresh-community-strategies').addEventListener('click',()=>void listPublicStrategies());
+$('#more-community-strategies').addEventListener('click',()=>void listPublicStrategies(true));
+$('#publish-community').addEventListener('click',async()=>{
+  try {
+    const {builderDocument} = await import('/community/builder.js');
+    const document = builderDocument(draft);
+    sessionStorage.setItem('poros.public-draft',JSON.stringify({document,...forkSource?{sourceVersionKey:forkSource}:{}}));
+    dirty = false;
+    location.href = '/community#/publish-draft';
+  } catch(error) { announce(error.message || 'Unable to prepare the public draft.'); }
+});
+void listPublicStrategies();
+if (new URLSearchParams(location.search).has('strategy')) {
+  void loadPublicReference(location.href);
+}

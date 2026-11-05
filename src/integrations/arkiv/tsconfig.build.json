@@ -1,0 +1,6 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": { "rootDir": ".", "outDir": "dist", "declaration": true },
+  "include": ["*.ts", "community/*.ts", "marketplace/contracts.ts"],
+  "exclude": ["node_modules", "dist"]
+}
