@@ -1,0 +1,14 @@
+{
+  "name": "@poros/web",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=24" },
+  "scripts": {
+    "dev": "node tooling/server.mjs",
+    "build": "node tooling/build.mjs",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test tests/*.test.ts"
+  },
+  "dependencies": { "canonicalize": "5.1.0", "viem": "2.57.16" },
+  "devDependencies": { "@types/node": "24.10.1", "esbuild": "0.28.2", "typescript": "5.9.3" }
+}

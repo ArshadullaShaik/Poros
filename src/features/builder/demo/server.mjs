@@ -9,6 +9,12 @@ import { runExecutionAgent } from "../execution/agent.ts";
 
 const assets = new Map([
   ["/", [new URL("./index.html", import.meta.url), "text/html"]],
+  ["/community", [new URL("../../../../apps/web/dist/index.html", import.meta.url), "text/html"]],
+  ["/community/", [new URL("../../../../apps/web/dist/index.html", import.meta.url), "text/html"]],
+  ["/community/app.js", [new URL("../../../../apps/web/dist/app.js", import.meta.url), "text/javascript"]],
+  ["/community/preview.js", [new URL("../../../../apps/web/dist/preview.js", import.meta.url), "text/javascript"]],
+  ["/community/app.css", [new URL("../../../../apps/web/dist/app.css", import.meta.url), "text/css"]],
+  ["/community/favicon.svg", [new URL("../../../../apps/web/dist/favicon.svg", import.meta.url), "image/svg+xml"]],
   ["/app.js", [new URL("./app.js", import.meta.url), "text/javascript"]],
   ["/focus.js", [new URL("./focus.js", import.meta.url), "text/javascript"]],
   ["/ai.js", [new URL("./ai.js", import.meta.url), "text/javascript"]],
@@ -79,7 +85,7 @@ export function createDemoServer({fetcher = fetch} = {}) {
   return createServer(async (request, response) => {
     response.setHeader("X-Content-Type-Options", "nosniff");
     response.setHeader("Cache-Control", "no-store");
-    response.setHeader("Content-Security-Policy", "default-src 'self'; style-src 'self' 'unsafe-inline'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'");
+    response.setHeader("Content-Security-Policy", "default-src 'self'; connect-src 'self' https://rpc.rabdi.db-chain.testnet.arkiv.network; style-src 'self' 'unsafe-inline'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'");
     if (!/^(127\.0\.0\.1|localhost)(:\d+)?$/.test(request.headers.host ?? "")) {
       response.writeHead(403).end("Local requests only.");
       return;
@@ -123,5 +129,5 @@ if (import.meta.main) {
     console.error(`Unable to start demo: ${error.message}`);
     process.exitCode = 1;
   });
-  server.listen(port, "127.0.0.1", () => console.log(`Strategy Lab: http://127.0.0.1:${port}`));
+  server.listen(port, "127.0.0.1", () => console.log(`Poros: http://127.0.0.1:${port}`));
 }
