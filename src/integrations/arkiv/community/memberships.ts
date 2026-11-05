@@ -9,7 +9,7 @@ import { verifyMembershipPayment, type PaymentClient } from './sepolia.ts';
 export const MEMBERSHIP_MS = 30 * 24 * 60 * 60 * 1000;
 export interface KeyBox { publicKey: string; salt: string; iv: string; ciphertext: string }
 export interface EncryptionIdentity { publicKey: string; backup: { iv: string; ciphertext: string } }
-export interface SignalContent { title: string; body: string }
+export interface SignalContent { title: string; body: string; strategy?: Json; communityKey?: Hex }
 export interface EncryptedSignal {
   iv: string; ciphertext: string; creatorKey: Hex; creatorBox: KeyBox;
   source: 'ai-proposal' | 'rule-engine' | 'manual'; sourceVersionKey?: Hex;
@@ -59,8 +59,46 @@ export function createCreatorMemberships(events: EventRepository, readers: {
     if (paidAt < planCreatedAt || activatedAt < paidAt) fail('PAYMENT_UNVERIFIED');
     return activatedAt;
   }
+  async function resolveClaims(rows: EventDTO[]) {
+    const seenPayments = new Set<string>();
+    const memberships = new Map<string, PaidMember & { creator: Hex }>();
+    for (const claim of ordered(rows)) {
+      const transactionHash = String(claim.data.transactionHash);
+      if (seenPayments.has(transactionHash)) continue;
+      let activatedAt: number;
+      try { activatedAt = await verifyClaim(claim); }
+      catch (error) {
+        if (error instanceof StorageError && ['PAYMENT_UNVERIFIED','INVALID_INPUT','UNTRUSTED_RECORD','NOT_FOUND_OR_EXPIRED'].includes(error.code)) continue;
+        throw error;
+      }
+      seenPayments.add(transactionHash);
+      const creator = address(claim.subject);
+      const id = creator + ':' + claim.actor;
+      const previous = memberships.get(id);
+      memberships.set(id, { creator, wallet: claim.actor,
+        expiresAt: Math.max(previous?.expiresAt ?? 0, activatedAt) + MEMBERSHIP_MS, lastClaim: claim.key });
+    }
+    return [...memberships.values()];
+  }
   const service = {
     getPlan: (creator: Hex) => current('creator-plan', creator),
+    async plans() {
+      const rows = await events.scan({type:'creator-plan',scope:'global'});
+      const plans: EventDTO[] = [];
+      for (const creator of new Set(rows.map(row => row.actor))) {
+        try {
+          const plan = latestEvent(rows.filter(row => row.actor === creator && row.subject === creator));
+          if (plan) plans.push(plan);
+        } catch (error) {
+          if (!(error instanceof StorageError) || !['INTEGRITY_FAILED','CONCURRENT_UPDATE','MULTIPLE_TIPS','HISTORY_INCOMPLETE'].includes(error.code)) throw error;
+        }
+      }
+      return plans;
+    },
+    async subscriptions(wallet: Hex) {
+      const rows = await events.scan({type:'subscription',actor:address(wallet),scope:'global'});
+      return (await resolveClaims(rows)).map(({creator,expiresAt,lastClaim}) => ({creator,expiresAt,lastClaim}));
+    },
     getKey: (wallet: Hex, beforeBlock?: bigint) => current('encryption-key', wallet, beforeBlock),
     readKey: (key: Hex) => typed(key, 'encryption-key'),
     readPlan: (key: Hex) => typed(key, 'creator-plan'),
@@ -79,25 +117,31 @@ export function createCreatorMemberships(events: EventRepository, readers: {
       revise('creator-plan', { priceWei: input.priceWei, termDays: 30 }, input.requestId, input.previousKey),
     registerKey: (input: { identity: EncryptionIdentity; requestId: string; previousKey?: Hex }) =>
       revise('encryption-key', input.identity as unknown as Record<string, Json>, input.requestId, input.previousKey),
-    async members(creator: Hex, beforeBlock?: bigint): Promise<PaidMember[]> {
-      const rows = ordered((await events.scan({ type: 'subscription', subject: address(creator), scope: 'global' }))
-        .filter(row => beforeBlock === undefined || BigInt(row.createdAtBlock) <= beforeBlock));
-      const seenPayments = new Set<string>();
-      const members = new Map<Hex, PaidMember>();
-      for (const claim of rows) {
-        const transactionHash = String(claim.data.transactionHash);
-        if (seenPayments.has(transactionHash)) continue;
-        let activatedAt: number;
-        try { activatedAt = await verifyClaim(claim); }
-        catch (error) {
-          if (error instanceof StorageError && ['PAYMENT_UNVERIFIED','INVALID_INPUT','UNTRUSTED_RECORD','NOT_FOUND_OR_EXPIRED'].includes(error.code)) continue;
+    async earnings(creator: Hex) {
+      const rows=ordered(await events.scan({type:'subscription',subject:address(creator),scope:'global'}));
+      const seen=new Set<string>();
+      const payments:{wallet:Hex;transactionHash:Hex;amountWei:string;activatedAt:number}[]=[];
+      let total=0n;
+      for(const claim of rows){
+        const transactionHash=entityKey(claim.data.transactionHash);
+        if(seen.has(transactionHash))continue;
+        let activatedAt:number;
+        try{activatedAt=await verifyClaim(claim);}
+        catch(error){
+          if(error instanceof StorageError && ['PAYMENT_UNVERIFIED','INVALID_INPUT','UNTRUSTED_RECORD','NOT_FOUND_OR_EXPIRED'].includes(error.code))continue;
           throw error;
         }
-        seenPayments.add(transactionHash);
-        const previous = members.get(claim.actor);
-        members.set(claim.actor, { wallet: claim.actor, expiresAt: Math.max(previous?.expiresAt ?? 0, activatedAt) + MEMBERSHIP_MS, lastClaim: claim.key });
+        const plan=await typed(entityKey(claim.data.planKey),'creator-plan');
+        const amountWei=String(plan.data.priceWei);
+        total+=BigInt(amountWei);seen.add(transactionHash);
+        payments.push({wallet:claim.actor,transactionHash,amountWei,activatedAt});
       }
-      return [...members.values()];
+      return {totalWei:total.toString(),payments:payments.reverse()};
+    },
+    async members(creator: Hex, beforeBlock?: bigint): Promise<PaidMember[]> {
+      const rows = (await events.scan({ type: 'subscription', subject: address(creator), scope: 'global' }))
+        .filter(row => beforeBlock === undefined || BigInt(row.createdAtBlock) <= beforeBlock);
+      return (await resolveClaims(rows)).map(({wallet,expiresAt,lastClaim}) => ({wallet,expiresAt,lastClaim}));
     },
     async claim(input: { planKey: Hex; transactionHash: Hex; keyRecord: Hex; requestId: string }) {
       const buyer = await events.actor();

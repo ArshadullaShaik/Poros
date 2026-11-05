@@ -9,6 +9,8 @@ import { createEncryptionIdentity, restoreEncryptionIdentity, supportsCreatorEnc
 import { clearMembershipPayment, readMembershipPayment, saveMembershipPayment, sendMembershipPayment } from './membership-payment.ts';
 import { escape as e, errorCode, failure, formatAmount, parseAmount, keyPattern, withWalletLock } from './core.ts';
 import { errors, field, notice } from './ui.ts';
+import { MEMBER_STRATEGY_TYPE, memberStrategy } from './member-strategy.ts';
+import type { SignalContent } from '../../../src/integrations/arkiv/community/memberships.ts';
 
 type WriteAction = { actor: Hex; requestId: string } & (
   | { kind: 'plan'; priceWei: string; previousKey?: Hex }
@@ -31,21 +33,38 @@ export class CreatorMembershipPanel {
   private identity?: { account: Hex; record: EventDTO; privateKey: CryptoKey };
   private generated?: Awaited<ReturnType<typeof createEncryptionIdentity>>;
   private expiryTimer?: ReturnType<typeof setTimeout>;
+  private signals = new Map<string, SignalContent>();
+  private accessDeadline = 0;
+  private onPageHide = () => this.lock();
+  private onPageShow = (event: PageTransitionEvent) => { if (event.persisted && this.root) void this.load(); };
 
-  constructor(private wallet: WalletBridge | undefined, private events: EventRepository, accessKey?: string) {
+  private wallet: WalletBridge | undefined;
+  private options: { openStrategy?: (entry: ReturnType<typeof memberStrategy>) => Promise<void>; getDraft?: () => unknown; saved?: () => void };
+
+  constructor(wallet: WalletBridge | undefined, events: EventRepository, accessKey?: string,
+    options: { openStrategy?: (entry: ReturnType<typeof memberStrategy>) => Promise<void>; getDraft?: () => unknown; saved?: () => void } = {}) {
+    this.wallet = wallet;
+    this.options = options;
     this.readers = createMembershipReaders(accessKey);
     this.service = createCreatorMemberships(events, this.readers);
-    window.addEventListener('pagehide', () => this.lock());
-    window.addEventListener('pageshow', event => { if (event.persisted && this.root) void this.load(); });
+    window.addEventListener('pagehide', this.onPageHide);
+    window.addEventListener('pageshow', this.onPageShow);
+  }
+  dispose() {
+    this.lock(); this.detach();
+    window.removeEventListener('pagehide',this.onPageHide);
+    window.removeEventListener('pageshow',this.onPageShow);
   }
   lock() {
     this.generation++;
     this.identity = undefined;
     this.generated = undefined;
+    this.signals.clear();
+    this.accessDeadline = 0;
     clearTimeout(this.expiryTimer);
     this.root?.replaceChildren();
   }
-  detach() { this.generation++; clearTimeout(this.expiryTimer); this.root = undefined; }
+  detach() { this.generation++; clearTimeout(this.expiryTimer); this.signals.clear(); this.accessDeadline = 0; this.root = undefined; }
   async mount(root: HTMLElement, creator: Hex, account: Hex | undefined, preview: boolean) {
     if (this.account !== account) this.lock();
     this.root = root; this.creator = creator; this.account = account;
@@ -59,6 +78,15 @@ export class CreatorMembershipPanel {
       event.preventDefault(); event.stopPropagation();
       const form = event.target as HTMLFormElement;
       void this.run(() => this.submit(form));
+    });
+    root.addEventListener('dragstart', event => {
+      const card = (event.target as Element).closest<HTMLElement>('[data-signal]');
+      if (!card) return;
+      const content = this.signals.get(card.dataset.signal!);
+      if (!content || performance.now() >= this.accessDeadline || !event.dataTransfer) { event.preventDefault(); return; }
+      event.dataTransfer.setData(MEMBER_STRATEGY_TYPE, JSON.stringify({versionId:card.dataset.signal,content}));
+      event.dataTransfer.effectAllowed = 'copy';
+      event.stopPropagation();
     });
     if (preview) { root.innerHTML = notice('Creator memberships are available in the live Rabdi view.'); return; }
     await this.load();
@@ -125,6 +153,9 @@ export class CreatorMembershipPanel {
     const root = this.root, creator = this.creator, account = this.account;
     if (!root || !creator) return;
     const generation = ++this.generation;
+    clearTimeout(this.expiryTimer);
+    this.signals.clear();
+    this.accessDeadline = 0;
     root.innerHTML = '<h2>Creator membership</h2><p data-member-status role="status">Reading membership…</p>' + actionButton('refresh','Refresh membership');
     try {
       const [plan, key, members, now, supported] = await Promise.all([
@@ -151,15 +182,15 @@ export class CreatorMembershipPanel {
       if (payment) html += `<section><h3>Recover your payment</h3><p>Creator <code>${e(payment.creator)}</code> · ${e(formatAmount(payment.priceWei,18))} Sepolia ETH</p><form data-member-form="claim">${field('hash','Original Sepolia transaction hash',{required:true,value:payment.hash,placeholder:'0x…'})}<button class="button primary">Verify payment and activate</button></form>${actionButton('failed-payment','Check and clear a failed transaction')}<p>An uncertain payment uses this original transaction for recovery.</p></section>`;
       else if (!owner && plan) html += `<form data-member-form="subscribe" data-plan="${plan.key}"><p>Pay <code>${e(creator)}</code> directly on Sepolia, chain 11155111. Access starts after the verified Arkiv claim.</p><label class="check-field"><input type="checkbox" name="reviewed" required> I reviewed the creator, price, network, and 30-day term.</label><button class="button primary" ${unlocked && !pending ? '' : 'disabled'}>${access?'Renew':'Subscribe'} · ${e(formatAmount(String(plan.data.priceWei),18))} Sepolia ETH</button></form>`;
       if (access) html += `<p>Membership expires ${e(new Date(access.expiresAt).toLocaleString())}.</p>`;
-      if (owner && unlocked) html += `<form data-member-form="signal"><h3>Approve an exclusive signal</h3>${field('title','Title',{required:true})}${field('body','Reviewed signal or agent output',{required:true,area:true})}<label class="field"><span>Source</span><select name="source"><option value="manual">Creator</option><option value="ai-proposal">AI proposal reviewed by creator</option><option value="rule-engine">Rule engine reviewed by creator</option></select></label><label class="check-field"><input name="approved" type="checkbox" required> I reviewed and approve this signal for my current members.</label><button class="button primary">Encrypt and publish</button></form>`;
+      if (owner && unlocked) html += `<form data-member-form="signal"><h3>Publish to your members</h3>${field('title','Title',{required:true})}${field('body','Reviewed signal or strategy instructions',{required:true,area:true})}<details><summary>Attach editable strategy rules</summary><p>Paste exported strategy JSON configured for virtual funds.</p>${field('strategy','Strategy JSON (optional)',{area:true})}${this.options.getDraft?actionButton('attach-draft','Attach current canvas'):''}</details><label class="field"><span>Source</span><select name="source"><option value="manual">Creator</option><option value="ai-proposal">AI proposal reviewed by creator</option><option value="rule-engine">Rule engine reviewed by creator</option></select></label><label class="check-field"><input name="approved" type="checkbox" required> I reviewed and approve this signal for my current members.</label><button class="button primary">Encrypt and publish</button></form>`;
       html += '<section data-private-feed><h3>Exclusive signals</h3>'+ (owner || access ? '<p>Unlock private access to read your signals.</p>' : '<p>An active paid membership gives access to future signals.</p>') + '</section>';
       html += '<p class="muted">Received signals can be saved or copied. Keep your recovery code safe. Poros cannot restore it.</p>';
       root.innerHTML = html;
-      if (unlocked && (owner || access)) await this.feed(generation, owner, access?.expiresAt);
-      clearTimeout(this.expiryTimer);
+      this.accessDeadline = owner ? Infinity : access ? performance.now() + Math.max(0,access.expiresAt-now) : 0;
       if (access) this.expiryTimer = setTimeout(()=>{
         void this.load();
       },Math.min(access.expiresAt-now,2147483647));
+      if (unlocked && (owner || access)) await this.feed(generation, owner, access?.expiresAt);
     } catch(error) {
       if (generation === this.generation && root === this.root) this.status(errors[errorCode(error)] ?? 'Membership verification is unavailable. Try refreshing.');
     }
@@ -183,7 +214,9 @@ export class CreatorMembershipPanel {
       const contentKey = await openContentKey(box,identity.privateKey,context+':'+identity.account);
       const content = await decryptSignal({iv:String(signal.data.iv),ciphertext:String(signal.data.ciphertext)},contentKey,context);
       const publishedAt = await this.readers.blockTimestamp(BigInt(signal.createdAtBlock));
-      items.push(`<article class="paper-panel"><h3>${e(content.title)}</h3><p class="preserve">${e(content.body)}</p><small>${e(signal.data.source)} · ${e(new Date(publishedAt).toLocaleString())}</small>${owner?actionButton('deliver','Complete delivery',`data-key="${signal.key}"`):''}</article>`);
+      if (generation !== this.generation) return;
+      this.signals.set(signal.key, content);
+      items.push(`<article class="paper-panel member-strategy-card" draggable="true" data-signal="${signal.key}"><h3>${e(content.title)}</h3><p class="preserve">${e(content.body)}</p>${content.communityKey?`<a href="/community#/community/${content.communityKey}">Selected community</a>`:''}<small>${e(signal.data.source)} · ${e(new Date(publishedAt).toLocaleString())}</small><p>${content.strategy?'Editable strategy attached.':'Text instructions require 0G interpretation before editing.'} Drag onto the strategy canvas.</p>${this.options.openStrategy?actionButton('open-strategy','Load on canvas',`data-key="${signal.key}"`):`<a class="button secondary" href="/?creator=${signal.actor}#memberships">Open memberships in builder</a>`}${owner?actionButton('deliver','Complete delivery',`data-key="${signal.key}"`):''}</article>`);
     }
     if (!owner && (!expiresAt || expiresAt <= await this.readers.now())) return;
     if (generation !== this.generation || !this.root?.isConnected) return;
@@ -193,7 +226,15 @@ export class CreatorMembershipPanel {
     if (action === 'refresh') { await this.load(); return; }
     if (action === 'lock') { this.lock(); await this.load(); return; }
     const account = await this.checkAccount();
-    if (action === 'create-key') {
+    if (action === 'open-strategy' && key) {
+      const content = this.signals.get(key);
+      if (!content || performance.now() >= this.accessDeadline) failure('MEMBERSHIP_EXPIRED');
+      await this.options.openStrategy?.(memberStrategy(content,key));
+      this.status('Strategy sent to the canvas for review.');
+    } else if (action === 'attach-draft' && this.options.getDraft) {
+      const input = this.root?.querySelector<HTMLTextAreaElement>('[name="strategy"]');
+      if (input) input.value = JSON.stringify(this.options.getDraft(),null,2);
+    } else if (action === 'create-key') {
       const generation = this.generation;
       const generated = await createEncryptionIdentity(account);
       await this.checkAccount(account);
@@ -282,21 +323,35 @@ export class CreatorMembershipPanel {
         break;
       }
       case 'signal': {
-        const identity = this.identity;
-        if (account !== creator || !identity || !data.has('approved')) failure('NOT_OWNER');
-        const context = account+':'+base.requestId;
-        const encrypted = await encryptSignal({title:text('title'),body:text('body')},context);
-        const box = await sealContentKey(encrypted.key,String(identity.record.data.publicKey),context+':'+account);
-        const signal = await this.write({...base,kind:'signal',encrypted:{iv:encrypted.iv,ciphertext:encrypted.ciphertext,creatorKey:identity.record.key,creatorBox:box,source:text('source') as EncryptedSignal['source']}});
+        if (!data.has('approved')) failure('INVALID_INPUT');
+        const strategy = text('strategy').trim();
+        await this.publishSignal({title:text('title'),body:text('body'),...(strategy?{strategy:JSON.parse(strategy)}:{})},text('source') as EncryptedSignal['source']);
         form.reset();
-        await this.load();
-        this.status('Signal saved. Approve the recipient envelope transactions to complete delivery.');
-        await this.deliver(signal);
         break;
       }
     }
     await this.load();
     this.status('Saved and verified.');
+    this.options.saved?.();
+  }
+  async publishPost(content: SignalContent) {
+    if (this.busy) failure('CONCURRENT_UPDATE');
+    this.busy = true;
+    try {
+      await this.publishSignal(content,'manual');
+      await this.load();
+      this.status('Exclusive post saved and delivery verified.');
+    } finally { this.busy = false; }
+  }
+  private async publishSignal(content: SignalContent, source: EncryptedSignal['source']) {
+    const account = await this.checkAccount(), identity = this.identity;
+    if (account !== this.creator || !identity) failure('KEY_REQUIRED');
+    const requestId = crypto.randomUUID(), context = account+':'+requestId;
+    const encrypted = await encryptSignal(content,context);
+    const box = await sealContentKey(encrypted.key,String(identity.record.data.publicKey),context+':'+account);
+    const signal = await this.write({actor:account,requestId,kind:'signal',encrypted:{iv:encrypted.iv,ciphertext:encrypted.ciphertext,creatorKey:identity.record.key,creatorBox:box,source}});
+    this.status('Post saved. Approve the remaining recipient transactions to finish delivery.');
+    await this.deliver(signal);
   }
   private async deliver(signal: EventDTO) {
     const account = await this.checkAccount(), identity = this.identity;

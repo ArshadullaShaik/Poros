@@ -5,3 +5,5 @@
 /CHANGE_LOG.md
 /COMMIT_LOG.md
 /Prompt.MD
+
+/.env.local

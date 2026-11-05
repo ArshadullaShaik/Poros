@@ -16,10 +16,17 @@ export const socialLifetimeDays=(type:EventInput['type'])=>type==='message'?CHAT
 const schema:Schema=defineSchema(SOCIAL_NAMESPACE,{eventType:str().indexed(),subject:str().indexed(),scope:str().indexed(),requestId:str().indexed(),record:bytes()});
 export function createArkivEventRepository(options:StoreOptions={}):EventRepository {
   const chain=rabdi({accessKey:options.accessKey??''});
-  const client=createPublicClient({chain,transport:options.publicTransport??http(undefined,{timeout:15000,retryCount:2})});
+  const client=createPublicClient({chain,transport:options.publicTransport??http(typeof window === 'undefined' ? undefined : '/api/arkiv-rpc',{timeout:10000,retryCount:0})});
   const locks=new Set<Hex>();
+  let pendingHead: Promise<bigint> | undefined;
   async function safe<T>(run:()=>Promise<T>):Promise<T>{try{return await run();}catch(e){throw mapError(e);}}
-  async function head(){if(await client.getChainId()!==CHAIN_ID)fail('WRONG_CHAIN');return BigInt((await client.getBlockTiming()).currentBlock);}
+  function head() {
+    if (!pendingHead) pendingHead = (async () => {
+      if (await client.getChainId() !== CHAIN_ID) fail('WRONG_CHAIN');
+      return BigInt((await client.getBlockTiming()).currentBlock);
+    })().finally(() => { pendingHead = undefined; });
+    return pendingHead;
+  }
   function decode(raw:FullEntity):EventDTO {
     const attrs=raw.$attributes;
     if(Object.keys(attrs).sort().join(',')!=='arkiv.schema,eventType,record,requestId,scope,subject'||attrs['arkiv.schema']?.value!==SOCIAL_NAMESPACE||attrs.record?.type!=='bytes')fail('UNTRUSTED_RECORD');
@@ -73,5 +80,17 @@ export function createArkivEventRepository(options:StoreOptions={}):EventReposit
         catch{throw new StorageError('WRITE_CONFIRMED_READ_PENDING',undefined,{requestId:record.requestId,txHash:result.txHash,entityKey:result.entityKey,included:true});}
       }finally{locks.delete(record.actor);}
     }),
-  };return repository;
+  };
+  const scan = repository.scan;
+  const pendingScans = new Map<string, Promise<EventDTO[]>>();
+  repository.scan = filter => {
+    const key = canonical(filter);
+    let pending = pendingScans.get(key);
+    if (!pending) {
+      pending = scan(filter).finally(() => { pendingScans.delete(key); });
+      pendingScans.set(key,pending);
+    }
+    return pending.then(rows => structuredClone(rows));
+  };
+  return repository;
 }

@@ -215,3 +215,22 @@ test('oversized or unsupported author state is isolated while trusted owner/netw
   await assert.rejects(hub.listMessages({communityKey}),{code:'NETWORK_UNAVAILABLE'});
   assert.ok(join.key);
 });
+
+
+test('feed reads reuse authorization evidence within a view and observe a ban on the next view',async()=>{
+  const {events,communityKey,store}=await communitySetup();
+  let reads=0;
+  const hub=createCommunityHub({events,strategies:{...store,getCommunity:input=>{reads++;return store.getCommunity(input);}}});
+  events.account=bob;
+  await hub.setMembership({requestId:crypto.randomUUID(),communityKey,state:'joined'});
+  await hub.createThread({requestId:crypto.randomUUID(),communityKey,title:'First',body:'Rules'});
+  await hub.createThread({requestId:crypto.randomUUID(),communityKey,title:'Second',body:'More rules'});
+  reads=0;
+  assert.equal((await hub.listThreads({communityKey})).length,2);
+  assert.equal(reads,1);
+  events.account=alice;
+  await hub.setBan({requestId:crypto.randomUUID(),communityKey,wallet:bob,banned:true});
+  reads=0;
+  assert.equal((await hub.listThreads({communityKey})).length,0);
+  assert.equal(reads,1);
+});

@@ -8,7 +8,7 @@ import { latestEvent as latest } from './state.ts';
 function invalidAuthorState(error:unknown){return !!error&&typeof error==='object'&&'code'in error&&
   ['CONCURRENT_UPDATE','HISTORY_INCOMPLETE','INTEGRITY_FAILED','UNTRUSTED_RECORD','INVALID_INPUT','PAYLOAD_TOO_LARGE','UNSUPPORTED_SCHEMA'].includes(String(error.code));}
 
-export function createCommunityHub({events,strategies}:HubOptions) {
+function communityHub({events,strategies}:HubOptions) {
   async function state(type:EventType,subject:string,scope:string,actor:Hex,atBlock?:bigint) {
     const rows=(await events.scan({type,subject,scope,actor})).filter(row=>atBlock===undefined||BigInt(row.createdAtBlock)<=atBlock);
     return latest(rows);
@@ -83,9 +83,12 @@ export function createCommunityHub({events,strategies}:HubOptions) {
     await owner(communityKey);if(afterBlock!==undefined)checkedBlock(afterBlock);
     const rows=await events.scan({type,subject:communityKey,scope:communityKey,...(afterBlock!==undefined?{afterBlock}:{})});
     const result:EventDTO[]=[];
-    for(const row of rows){try{if(await permitted(row,communityKey))result.push(row);}catch(e){
-      if(!e||typeof e!=='object'||!('code'in e)||!['NOT_OWNER','UNTRUSTED_RECORD'].includes(String(e.code)))throw e;
-    }}
+    for(let offset=0;offset<rows.length;offset+=4) {
+      await Promise.all(rows.slice(offset,offset+4).map(async row => {
+        try { if(await permitted(row,communityKey))result.push(row); }
+        catch(e) { if(!e||typeof e!=='object'||!('code'in e)||!['NOT_OWNER','UNTRUSTED_RECORD'].includes(String(e.code)))throw e; }
+      }));
+    }
     return result.sort((a,b)=>BigInt(a.createdAtBlock)<BigInt(b.createdAtBlock)?-1:BigInt(a.createdAtBlock)>BigInt(b.createdAtBlock)?1:a.key.localeCompare(b.key));
   }
   async function content(type:'thread'|'reply'|'message',args:{requestId:string;communityKey:Hex;body:string;title?:string;threadKey?:Hex;strategyVersionKey?:Hex}) {
@@ -167,4 +170,34 @@ export function createCommunityHub({events,strategies}:HubOptions) {
   };
   return hub;
 }
-export type CommunityHub = ReturnType<typeof createCommunityHub>;
+export type CommunityHub = ReturnType<typeof communityHub>;
+
+export function createCommunityHub(options: HubOptions): CommunityHub {
+  function readView() {
+    // Reuse verified reads within one view only; the next view and every write read fresh state.
+    const scans = new Map<string,Promise<EventDTO[]>>();
+    const communities = new Map<Hex,ReturnType<HubOptions['strategies']['getCommunity']>>();
+    return communityHub({
+      events:{source:options.events.source,actor:()=>options.events.actor(),read:key=>options.events.read(key),append:input=>options.events.append(input),scan(filter) {
+        const key = canonical(filter);
+        let result = scans.get(key);
+        if(!result) { result = options.events.scan(filter); scans.set(key,result); }
+        return result;
+      }},
+      strategies:{...options.strategies,getCommunity(input) {
+        let result = communities.get(input.communityKey);
+        if(!result) { result = options.strategies.getCommunity(input); communities.set(input.communityKey,result); }
+        return result;
+      }},
+    });
+  }
+  return {
+    ...communityHub(options),
+    listThreads:input=>readView().listThreads(input),
+    listReplies:input=>readView().listReplies(input),
+    listMessages:input=>readView().listMessages(input),
+    getVoteSummaries:input=>readView().getVoteSummaries(input),
+    getMembership:input=>readView().getMembership(input),
+    isModerator:input=>readView().isModerator(input),
+  };
+}

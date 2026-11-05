@@ -1,3 +1,4 @@
+import {createFlashPerformance} from "../execution/performance.ts";
 import { createServer } from "node:http";
 import { readFile } from "node:fs/promises";
 import { stripTypeScriptTypes } from "node:module";
@@ -10,10 +11,10 @@ import { createPriceMonitor, invokePriceExecution } from "../execution/monitor.t
 import { interpretCreatorStrategy } from "../ai/interpreter.ts";
 import { PaperError, runPaperStrategy } from "../execution/paper.ts";
 import { runExecutionAgent } from "../execution/agent.ts";
-import { createSepoliaProxy } from "./sepolia-rpc.mjs";
+import { createSepoliaProxy, createArkivProxy } from "./sepolia-rpc.mjs";
 
 const assets = new Map([
-  ...["/community","/community/"].map(path=>[path,[new URL("../../../../apps/web/dist/index.html",import.meta.url),"text/html"]]),
+  ...["/community","/community/","/home","/home/","/profile","/profile/","/0g-pot","/0g-pot/"].map(path=>[path,[new URL("../../../../apps/web/dist/index.html",import.meta.url),"text/html"]]),
   ...[["app.js","text/javascript"],["builder.js","text/javascript"],["preview.js","text/javascript"],["app.css","text/css"],["favicon.svg","image/svg+xml"]].map(([name,mime])=>[`/community/${name}`,[new URL(`../../../../apps/web/dist/${name}`,import.meta.url),mime]]),
   ["/", [new URL("./index.html", import.meta.url), "text/html"]],
   ["/app.js", [new URL("./app.js", import.meta.url), "text/javascript"]],
@@ -37,6 +38,8 @@ const assets = new Map([
 export function createDemoServer({fetcher = fetch, market = createLiveMarkets({fetcher})} = {}) {
   // shortcut: local demo concurrency gate, replace with authenticated per-user limits before hosting.
   const handleSepolia = createSepoliaProxy(fetcher);
+  const handleArkiv = createArkivProxy(fetcher);
+  const performance=createFlashPerformance({fetcher});
   let aiBusy = false;
   const monitor = createPriceMonitor({market,fetcher,invoke:async(options)=>{
     if(aiBusy)throw new AgentError("RATE_LIMITED");
@@ -143,6 +146,18 @@ export function createDemoServer({fetcher = fetch, market = createLiveMarkets({f
     let pathname;
     try { pathname = new URL(request.url ?? "/", "http://127.0.0.1").pathname; }
     catch { response.writeHead(400).end("Malformed request target."); return; }
+    if (pathname === "/api/performance") {
+      if(request.method!=="GET"){response.setHeader("Allow","GET");response.writeHead(405).end();return;}
+      if((request.headers.origin && request.headers.origin!==`http://${request.headers.host}`)||
+        (request.headers["sec-fetch-site"] && !["same-origin","none"].includes(request.headers["sec-fetch-site"]))){response.writeHead(403).end();return;}
+      response.setHeader("Content-Type","application/json; charset=utf-8");
+      const wallet=new URL(request.url,"http://127.0.0.1").searchParams.get("wallet");
+      if(!wallet || !/^0x[0-9a-f]{40}$/i.test(wallet)){response.writeHead(400).end(JSON.stringify({ok:false,error:"Invalid wallet"}));return;}
+      try{const data=await performance(wallet);response.writeHead(200).end(JSON.stringify({ok:true,data}));}
+      catch{response.writeHead(503).end(JSON.stringify({ok:false,error:"Flash performance could not be verified. Try again shortly."}));}
+      return;
+    }
+    if (pathname === "/api/arkiv-rpc") {await handleArkiv(request,response);return;}
     if (pathname === "/api/sepolia-rpc") {await handleSepolia(request,response);return;}
     if (pathname === "/api/market" || pathname === "/api/price" || pathname === "/api/chart-price") {
       if (request.method !== "GET") {response.setHeader("Allow","GET");response.writeHead(405).end("Method not allowed.");return;}

@@ -24,3 +24,39 @@ footer{min-height:64px;border-top:1px solid var(--line);padding:20px 35px;displa
 .primary-nav{display:flex;align-items:center;gap:18px;flex-shrink:0}.primary-nav a{font:600 13px/1.5 Inter,system-ui,sans-serif;color:#586579;padding:8px 0;text-decoration:none}.primary-nav a[aria-current=page]{color:#355ee8;border-bottom:2px solid #355ee8}.primary-nav a:focus-visible{outline:3px solid #91afff;outline-offset:4px}@media(max-width:620px){.primary-nav{gap:12px}.primary-nav a{font-size:12px}}
 
 #creator-membership form,#creator-membership>section{margin-top:24px;padding-top:20px;border-top:1px solid var(--line)}#creator-membership .field{margin:14px 0}#creator-membership .check-field{margin:14px 0;display:flex;gap:10px;align-items:flex-start}#creator-membership code{overflow-wrap:anywhere}#creator-membership [data-member-status]{color:#355ee8;white-space:pre-wrap}#creator-membership[aria-busy=true] button{opacity:.6}#creator-membership .preserve{white-space:pre-wrap}.strategy-transfer{font-size:12px;color:#355ee8}.hero-actions{flex-wrap:wrap}
+
+.membership-toolbar{display:flex;gap:10px;flex-wrap:wrap;margin:12px 0}.membership-card{display:inline-flex;flex-direction:column;align-items:flex-start;gap:6px;margin:6px 10px 6px 0;max-width:100%;text-align:left}.membership-card span{font-size:12px}.member-strategy-card{cursor:grab}.member-strategy-card:active{cursor:grabbing}
+
+#composer-private form[data-member-form="signal"] { display: none; }
+[data-form="strategy-post"] textarea[name="body"] { min-height: 240px; }
+
+/* Home and Profile use the full page; community tools keep their sidebar. */
+.app-layout.standalone-page{display:block}
+.app-layout.standalone-page>.sidebar{display:none!important}
+.app-layout.standalone-page>main{max-width:1400px;width:100%;margin:auto}
+.profile-metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:20px}
+.profile-metrics h2{font-size:18px;margin-top:0}
+.metric-value{display:block;font-size:28px;line-height:1.35;overflow-wrap:anywhere;margin:18px 0 8px}
+.profile-metrics small{color:#64748b;line-height:1.6}
+.profile-table-wrap{overflow-x:auto}
+.profile-table{width:100%;border-collapse:collapse;text-align:left;font-size:14px}
+.profile-table th,.profile-table td{padding:14px 10px;border-bottom:1px solid #e1e6ef;white-space:nowrap}
+.profile-table th{color:#64748b;font-weight:600}
+.topbar .header-actions{margin-left:auto}
+@media(max-width:850px){.profile-metrics{grid-template-columns:1fr}.primary-nav{gap:12px}.topbar{flex-wrap:wrap;height:auto;min-height:85px;padding-block:12px}.app-layout.standalone-page>main{padding-bottom:30px}}
+
+.pot-page{max-width:1120px;margin:0 auto;padding:20px 0}
+.pot-heading{text-align:center;max-width:620px;margin:0 auto 38px}
+.pot-heading h1{font-size:clamp(42px,6vw,68px);letter-spacing:-2px;margin:14px 0}
+.pot-heading>p{color:#64748b;line-height:1.75;font-size:17px}
+.pot-layout{display:grid;grid-template-columns:1.05fr 1fr;gap:26px;align-items:stretch}
+.pot-bank{background:#fbf5fc;border:1px solid #eadceb;border-radius:24px;padding:28px;text-align:center;display:flex;flex-direction:column;align-items:center}
+.pot-label,.pot-step{font-size:11px;letter-spacing:1.5px;font-weight:700;color:#93607c}
+.pot-pig{display:block;width:min(100%,350px);height:auto;margin:0 auto}
+.pot-total-label{font-size:15px;color:#795b72}.pot-total{font-size:48px;line-height:1.1;color:#49364f;margin:8px 0}
+.pot-bank-caption{font-size:13px;color:#795b72}.pot-totals{display:flex;width:100%;justify-content:space-around;gap:12px;border-top:1px solid #eadceb;padding-top:20px;margin:18px 0 0}
+.pot-totals dt{font-size:12px;color:#795b72}.pot-totals dd{font-size:22px;font-weight:600;margin:8px 0 0}
+.pot-actions{display:grid;gap:20px}.pot-action{border-radius:20px;margin:0;padding:30px}.pot-action h2{font-size:25px;margin:14px 0}
+.pot-action>p{line-height:1.75}.pot-action .button{width:100%;margin-top:12px;white-space:normal}
+.pot-action .pot-status{font-size:12px;line-height:1.6;color:#64748b;margin-bottom:0}.pot-setup{text-align:center;color:#64748b;font-size:13px;margin-top:24px}
+@media(max-width:740px){.pot-layout{grid-template-columns:1fr}.pot-heading{margin-bottom:24px}.pot-bank,.pot-action{padding:24px}.primary-nav{flex-wrap:wrap}.pot-heading>p{font-size:15px}}

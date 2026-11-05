@@ -20,7 +20,7 @@ export function createInjectedWallet(provider:InjectedProvider|undefined=typeof 
         return wallet.toLowerCase() as Hex;
     };
     const requireAccount=async(expected:Hex)=>{if(await account()!==expected.toLowerCase())failure('ACCOUNT_CHANGED');};
-    const switchChain=async(chainId:number)=>{
+    const performSwitch=async(chainId:number)=>{
         if(!Number.isSafeInteger(chainId)||chainId<=0)failure('INVALID_INPUT');
         const chainHex=`0x${chainId.toString(16)}`;
         if(BigInt(String(await provider.request({method:'eth_chainId'})))===BigInt(chainId))return;
@@ -34,9 +34,21 @@ export function createInjectedWallet(provider:InjectedProvider|undefined=typeof 
                 chainId:chainHex,chainName:chain.name,nativeCurrency:chain.nativeCurrency,
                 rpcUrls:[...chain.rpcUrls.default.http],blockExplorerUrls:[chain.blockExplorers.default.url],
             }]});
-            await provider.request({method:'wallet_switchEthereumChain',params:[{chainId:chainHex}]});
+            if(BigInt(String(await provider.request({method:'eth_chainId'})))!==BigInt(chainId))
+                await provider.request({method:'wallet_switchEthereumChain',params:[{chainId:chainHex}]});
         }
         if(BigInt(String(await provider.request({method:'eth_chainId'})))!==BigInt(chainId))failure('WRONG_CHAIN');
+    };
+    let switching: {chainId:number; promise:Promise<void>} | undefined;
+    const switchChain = async (chainId:number):Promise<void> => {
+        if (switching) {
+            if (switching.chainId === chainId) return switching.promise;
+            await switching.promise;
+            return switchChain(chainId);
+        }
+        const promise = performSwitch(chainId).finally(() => { switching = undefined; });
+        switching = {chainId,promise};
+        return promise;
     };
     return {
         async connect(){await provider.request({method:'eth_requestAccounts'});await account();},

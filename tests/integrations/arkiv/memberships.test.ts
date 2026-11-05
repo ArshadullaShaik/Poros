@@ -38,8 +38,22 @@ function setup() {
   };
   const { client, state } = chain();
   const service = createCreatorMemberships(events, { payments: client, blockTimestamp: async block => Number(block) * 100000 });
-  return { rows, service, state, account: (next: Hex) => { account = next; } };
+  return { rows, events, service, state, client, account: (next: Hex) => { account = next; } };
 }
+
+test('subscriptions restore from verified Arkiv claims for the connected wallet',async()=>{
+  const env=setup();
+  const plan=await env.service.publishPlan({priceWei:'100',requestId:crypto.randomUUID()});
+  assert.equal((await env.service.plans())[0]?.key,plan.key);
+  env.account(bob);
+  const key=await env.service.registerKey({identity:{publicKey:'a'.repeat(43),backup:{iv:'a'.repeat(16),ciphertext:'b'.repeat(80)}},requestId:crypto.randomUUID()});
+  const claim=await env.service.claim({planKey:plan.key,keyRecord:key.key,transactionHash:hash(9),requestId:crypto.randomUUID()});
+  const reloaded=createCreatorMemberships(env.events,{payments:env.client,blockTimestamp:async block=>Number(block)*100000});
+  assert.deepEqual(await reloaded.subscriptions(bob),[{creator:alice,expiresAt:10300000+MEMBERSHIP_MS,lastClaim:claim.key}]);
+  assert.deepEqual(await reloaded.subscriptions(alice),[]);
+  env.state.value=1n;
+  assert.deepEqual(await reloaded.subscriptions(bob),[]);
+});
 
 test('native Sepolia membership verification rejects wrong chain, parties, amount, failure, unconfirmed blocks, data and reorgs', async () => {
   const expected = { transactionHash: hash(9), buyer: bob, creator: alice, priceWei: '100' };
@@ -120,4 +134,22 @@ test('renewal evidence carries active claim dependencies and drops a completed t
   const ended=await env.service.renewalEvidence(alice,bob,now);
   assert.deepEqual(ended.records,[]);
   assert.equal(ended.expiresAt,now+MEMBERSHIP_MS);
+});
+
+test('creator earnings count verified payments once and retain historical plan prices',async()=>{
+  const env=setup();
+  const plan=await env.service.publishPlan({priceWei:'100',requestId:crypto.randomUUID()});
+  env.account(bob);
+  const key=await env.service.registerKey({identity:{publicKey:'a'.repeat(43),backup:{iv:'a'.repeat(16),ciphertext:'b'.repeat(80)}},requestId:crypto.randomUUID()});
+  const claim=await env.service.claim({planKey:plan.key,keyRecord:key.key,transactionHash:hash(9),requestId:crypto.randomUUID()});
+  env.rows.push({...claim,key:hash(200),createdAtBlock:'200'});
+  env.account(alice);
+  await env.service.publishPlan({priceWei:'500',previousKey:plan.key,requestId:crypto.randomUUID()});
+  const result=await env.service.earnings(alice);
+  assert.equal(result.totalWei,'100');assert.equal(result.payments.length,1);
+  assert.equal(result.payments[0]?.transactionHash,hash(9));
+  env.state.value=1n;
+  assert.equal((await env.service.earnings(alice)).totalWei,'0');
+  env.client.getTransaction=async()=>{throw new Error('offline');};
+  await assert.rejects(env.service.earnings(alice),{code:'NETWORK_UNAVAILABLE'});
 });

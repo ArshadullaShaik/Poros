@@ -58,3 +58,38 @@ test('nonempty raw RPC entity decodes through the actual SDK into a verified pub
   assert.equal(result.document.name,'Hold');assert.equal(result.contentHash,record.contentHash);assert.equal(result.lineageStatus,'verified');assert.equal(result.source,'arkiv');
   assert.equal((await store.listStrategies()).items[0]?.rootVersionKey,key);
 });
+
+test('wallet read failure before submission does not leave an uncertain write',async()=>{
+  let failRead=false;
+  const provider={request:async({method}:{method:string})=>{
+    if(failRead)throw new Error('wallet disconnected');
+    if(method==='eth_accounts')return [alice];
+    if(method==='eth_chainId')return '0x76edaf';
+    throw new Error(method);
+  }};
+  const backend=createSDKBackend({getWalletContext:async()=>({account:alice,provider:provider as never})});
+  const writer=await backend.writer();
+  failRead=true;
+  await assert.rejects(writer.delete(`0x${'1'.repeat(64)}`),{code:'NETWORK_UNAVAILABLE'});
+});
+
+for(const stage of ['estimate','submit','reject'] as const)test(`SDK ${stage} failure keeps the correct submission status`,async()=>{
+  let sends=0;
+  const provider={request:async({method}:{method:string})=>{
+    if(method==='eth_accounts')return [alice];
+    if(method==='eth_chainId')return '0x76edaf';
+    if(method==='eth_estimateGas'){
+      if(stage==='estimate')throw new Error('network disconnected');
+      return '0x100000';
+    }
+    if(method==='eth_sendTransaction'){
+      sends++;
+      if(stage==='reject')throw Object.assign(new Error('User rejected'),{code:4001});
+      throw new Error('connection lost');
+    }
+    throw new Error(`unexpected ${method}`);
+  }};
+  const writer=await createSDKBackend({getWalletContext:async()=>({account:alice,provider:provider as never})}).writer();
+  await assert.rejects(writer.delete(`0x${'1'.repeat(64)}`),{code:stage==='estimate'?'NETWORK_UNAVAILABLE':stage==='reject'?'USER_REJECTED':'WRITE_STATUS_UNKNOWN'});
+  assert.equal(sends,stage==='estimate'?0:1);
+});

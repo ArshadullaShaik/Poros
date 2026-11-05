@@ -11,8 +11,8 @@
 </head>
 <body>
   <header class="topbar">
-    <a class="brand" href="/" aria-label="Poros home"><span class="brand-mark">↗</span>Poros</a>
-    <nav class="primary-nav" aria-label="Main navigation"><a href="/" aria-current="page">Home</a><a href="/community">Communities</a></nav>
+    <a class="brand" href="/home" aria-label="Poros Home"><span class="brand-mark">↗</span>Poros</a>
+    <nav class="primary-nav" aria-label="Main navigation"><a href="/home">Home</a><a href="/" aria-current="page">Trade</a><a href="/community">Communities</a><a href="/profile">Profile</a><a href="/0g-pot">0G Pot</a></nav>
     <span class="demo-label"><span class="status-dot"></span>LOCAL DEMO</span>
     <button id="wallet-connect" class="button secondary" type="button">Connect wallet</button>
   </header>
@@ -99,11 +99,13 @@
         <p class="small muted">Creators whose paid memberships are active on the community page.</p>
         <button id="refresh-creator-library" class="button secondary" type="button">Refresh</button>
         <p id="creators-status" class="small muted" role="status"></p>
+        <a href="#memberships">Manage memberships</a>
         <div id="creator-library" class="creator-list"></div>
         <p id="creators-empty" class="library-empty small muted">No active creator memberships to show yet.</p>
         </section>
       </aside>
     </section>
+    <details id="memberships" class="membership-workspace panel"><summary>Memberships and exclusive strategies</summary><p>Connect your membership wallet to restore subscriptions. Unlock a creator feed, then drag a strategy onto the canvas.</p><div id="builder-memberships"></div></details>
     <footer class="page-footer"><p>Review your draft before publishing it publicly.</p><div><button id="publish-community" class="button primary">Publish to community</button><button id="import" class="button secondary">↑ Import JSON</button><button id="export" class="button secondary">↓ Export JSON</button></div></footer>
     <p id="notice" class="notice" role="status" aria-live="polite"></p>
   </main>

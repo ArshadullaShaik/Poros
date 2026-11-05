@@ -36,7 +36,7 @@ function decoded(raw:FullEntity):StoredEntity {
 }
 export function createSDKBackend(options:StoreOptions={}):Backend {
   const chain=rabdi({accessKey:options.accessKey??''});
-  const publicClient=createPublicClient({chain,transport:options.publicTransport??http(undefined,{retryCount:2,retryDelay:500,timeout:15_000})});
+  const publicClient=createPublicClient({chain,transport:options.publicTransport??http(typeof window === 'undefined' ? undefined : '/api/arkiv-rpc',{retryCount:0,timeout:10_000})});
   const safe=async<T>(operation:()=>Promise<T>,writing=false):Promise<T>=>{try{return await operation();}catch(e){throw mapError(e,writing);}};
   return {
     source:'arkiv',
@@ -72,15 +72,25 @@ export function createSDKBackend(options:StoreOptions={}):Backend {
         if(!context.requestRabdiSwitch)fail('WRONG_CHAIN');await context.requestRabdiSwitch();
       }
       await assertCurrent();
-      const client=createWalletClient({chain,account,transport:custom(context.provider,{retryCount:0})});
+      let submissionStarted=false;
+      const provider={request:((args:{method:string;params?:unknown})=>{
+        if(['eth_sendTransaction','eth_sendRawTransaction','wallet_sendCalls'].includes(args.method))submissionStarted=true;
+        return context.provider.request(args as never);
+      }) as typeof context.provider.request};
+      const client=createWalletClient({chain,account,transport:custom(provider,{retryCount:0})});
+      const write=async<T>(operation:()=>Promise<T>):Promise<T>=>{
+        submissionStarted=false;
+        try{await assertCurrent();return await operation();}
+        catch(error){throw mapError(error,submissionStarted);}
+      };
       return {
         account,assertCurrent,
-        create:(kind,values,readonly)=>safe(async()=>{await assertCurrent();return client.createEntity(Schemas[kind] as Schema,encodeValues(values),{
+        create:(kind,values,readonly)=>write(async()=>{return client.createEntity(Schemas[kind] as Schema,encodeValues(values),{
           expiration:ExpirationTime.fromDays(DURABLE_LIFETIME_DAYS),flags:{readonly,permissionlessExtension:false},
-        });},true),
-        patch:(entity,values)=>safe(async()=>{await assertCurrent();return client.patchEntity(Schemas.communities,entity,{set:encodeValues(values)});},true),
-        extend:entity=>safe(async()=>{await assertCurrent();return client.extendEntity({entityKey:entity,expiration:ExpirationTime.fromDays(DURABLE_LIFETIME_DAYS)});},true),
-        delete:entity=>safe(async()=>{await assertCurrent();return client.deleteEntity({entityKey:entity});},true),
+        });}),
+        patch:(entity,values)=>write(async()=>{return client.patchEntity(Schemas.communities,entity,{set:encodeValues(values)});}),
+        extend:entity=>write(async()=>{return client.extendEntity({entityKey:entity,expiration:ExpirationTime.fromDays(DURABLE_LIFETIME_DAYS)});}),
+        delete:entity=>write(async()=>{return client.deleteEntity({entityKey:entity});}),
       };
     }),
   };

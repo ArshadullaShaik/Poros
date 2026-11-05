@@ -1,4 +1,7 @@
+import {zeroGPotPage} from './zero-g-pot.ts';
+import {readPaperRuns} from './performance.ts';
 import serialize from 'canonicalize';
+import {archiveUnsubmittedWrite} from './pending-write.ts';
 import {createPublicReadCache,browserStorage,cachedPublicLists,validProfile} from './public-cache.ts';
 import { keccak256, toBytes, type Hex } from 'viem';
 import type { CommunityDTO, StrategySummaryDTO, VersionDTO, Json, StrategyDocumentV1 } from '../../../src/integrations/arkiv/index.ts';
@@ -13,6 +16,7 @@ import type { PreviewData } from './preview.ts';
 import {createInjectedWallet} from './wallet.ts';
 import {validateBuilderDocument} from './strategy-document.ts';
 import {CreatorMembershipPanel} from './creator-membership.ts';
+import {mountMembershipWorkspace} from './membership-workspace.ts';
 interface PendingWrite {
     account: Hex;
     requestId: string;
@@ -84,6 +88,7 @@ class Application {
     } | undefined;
     dialog: HTMLDialogElement | undefined;
     creatorMembership: CreatorMembershipPanel;
+    membershipWorkspace?: ReturnType<typeof mountMembershipWorkspace>;
     constructor(readonly host: AppIntegration) { this.creatorMembership = new CreatorMembershipPanel(host.wallet,this.api.events,host.accessKey); }
     async start() {
         try {
@@ -134,12 +139,19 @@ class Application {
         setInterval(() => void this.poll(), 1000);
     }
     shell() {
-        return `<header class="topbar"><a class="brand" href="/" aria-label="Poros home"><span class="brand-mark">${mark}</span><span>Poros<small>COMMUNITY</small></span></a><nav class="primary-nav" aria-label="Workspace"><a href="/">Home</a><a href="/community" aria-current="page">Communities</a></nav><form class="global-search" data-form="search">${icon('search')}<input name="q" aria-label="Find a strategy by name prefix" placeholder="Find your next idea…"><kbd>↵</kbd></form><div class="header-actions"><span class="source-badge">${this.preview ? 'DESIGN PREVIEW' : 'RABDI · TESTNET'}<i></i></span><button class="button wallet-button" data-action="connect">${icon('wallet')}<span id="wallet-label">Connect wallet</span></button></div></header>
+        return `<header class="topbar"><a class="brand" href="/home" aria-label="Poros Home"><span class="brand-mark">${mark}</span><span>Poros<small>COMMUNITY</small></span></a><nav class="primary-nav" aria-label="Workspace"><a href="/home" data-workspace="home">Home</a><a href="/">Trade</a><a href="/community" data-workspace="community">Communities</a><a href="/profile" data-workspace="profile">Profile</a><a href="/0g-pot" data-workspace="pot">0G Pot</a></nav><div class="header-actions"><span class="source-badge">${this.preview ? 'DESIGN PREVIEW' : 'RABDI · TESTNET'}<i></i></span><button class="button wallet-button" data-action="connect">${icon('wallet')}<span id="wallet-label">Connect wallet</span></button></div></header>
     ${this.preview ? `<div class="preview-banner">${icon('info')}<span>Read-only design preview. Every profile, strategy and price here is illustrative.</span><button data-action="live">Switch to real Rabdi ${icon('arrow')}</button></div>` : ''}
-    <div class="app-layout"><aside class="sidebar"><span class="nav-label">POROS COMMUNITY</span><nav aria-label="Main navigation">${[['/discover', 'grid', 'Discover'], ['/communities', 'people', 'Communities'], ['/profile/me', 'user', 'Your profile']].map(([route, glyph, label]) => `<a href="#${route}" data-nav="${route}">${icon(glyph!)}<span>${label}</span></a>`).join('')}</nav><div class="sidebar-divider"></div><div class="nav-label nav-label-row">OPEN ROOMS <a href="#/communities" aria-label="Browse communities">${icon('plus')}</a></div><div id="rooms" class="room-links"></div><div class="sidebar-bottom"><div class="sidebar-note">${icon('leaf')}<p>Better ideas grow<br>in good company.</p></div><button class="settings-button" data-action="setup">${icon('settings')} Connection details</button><small>Built in public. Stored on Arkiv.</small></div></aside><main id="main" tabindex="-1"><div id="pending"></div><p id="public-cache-status" class="muted" role="status"></p><div id="content"></div></main></div><footer><span>POROS COMMUNITY</span><p>Ideas are public. Trading decisions are yours.</p><button data-action="${this.preview ? 'live' : 'preview'}">${this.preview ? 'Return to Rabdi' : 'Explore the design preview'} ${icon('arrow')}</button></footer>`;
+    <div class="app-layout"><aside class="sidebar"><span class="nav-label">POROS COMMUNITY</span><nav aria-label="Main navigation">${[['/communities', 'people', 'Communities'], ['/compose', 'plus', 'Write a strategy'], ['/memberships', 'lock', 'Memberships']].map(([route, glyph, label]) => `<a href="#${route}" data-nav="${route}">${icon(glyph!)}<span>${label}</span></a>`).join('')}</nav><div class="sidebar-divider"></div><div class="nav-label nav-label-row">OPEN ROOMS <a href="#/communities" aria-label="Browse communities">${icon('plus')}</a></div><div id="rooms" class="room-links"></div><div class="sidebar-bottom"><div class="sidebar-note">${icon('leaf')}<p>Better ideas grow<br>in good company.</p></div><button class="settings-button" data-action="setup">${icon('settings')} Connection details</button><small>Built in public. Stored on Arkiv.</small></div></aside><main id="main" tabindex="-1"><div id="pending"></div><p id="public-cache-status" class="muted" role="status"></p><div id="content"></div></main></div><footer><span>POROS COMMUNITY</span><p>Ideas are public. Trading decisions are yours.</p><button data-action="${this.preview ? 'live' : 'preview'}">${this.preview ? 'Return to Rabdi' : 'Explore the design preview'} ${icon('arrow')}</button></footer>`;
     }
     label(wallet: string) { return this.profiles.get(wallet)?.displayName ?? short(wallet); }
     updateChrome() {
+        const section=this.route()[0];
+        const workspace=section==='discover'||section==='strategies'?'home':section==='dashboard'||section==='profile'?'profile':section==='pot'?'pot':'community';
+        document.querySelector('.app-layout')?.classList.toggle('standalone-page',workspace!=='community');
+        document.querySelectorAll<HTMLElement>('[data-workspace]').forEach(item=>{
+            if(item.dataset.workspace===workspace)item.setAttribute('aria-current','page');
+            else item.removeAttribute('aria-current');
+        });
         const walletLabel = document.querySelector('#wallet-label');
         if (walletLabel)
             walletLabel.textContent = this.account ? short(this.account) : 'Connect wallet';
@@ -153,11 +165,11 @@ class Application {
                 item.removeAttribute('aria-current');
         });
         document.querySelector('#rooms')!.innerHTML = this.rooms.length ? this.rooms.slice(0, 5).map((room, i) => `<a href="#/community/${room.communityKey}"><span class="room-dot dot-${i % 3}"></span>${e(room.name)}</a>`).join('') : '<a href="#/communities">' + icon('plus') + ' Find a community</a>';
-        document.querySelector('#pending')!.innerHTML = this.pending ? `<div class="pending-bar">${icon('info')}<span>A write needs verification. ${e(short(this.pending.requestId))}</span>${button('reconcile', 'Check status', 'secondary')}</div>` : '';
+        document.querySelector('#pending')!.innerHTML = this.pending ? `<div class="pending-bar">${icon('info')}<span>A write needs verification. ${e(short(this.pending.requestId))}</span>${button('reconcile', 'Check status', 'secondary')}${!this.pending.txHash && !this.pending.entityKey ? button('recover-write', 'No transaction?', 'secondary') : ''}</div>` : '';
         if (this.lastHidden && this.lastHidden.owner === this.account)
             document.querySelector('#pending')!.insertAdjacentHTML('beforeend', `<div class="pending-bar">${icon('shield')}<span>Content hidden from the community view.</span>${button('unhide', 'Undo hide', 'secondary', `data-key="${this.lastHidden.key}" data-room="${this.lastHidden.room}"`)}</div>`);
     }
-    route() { return (location.hash.slice(1).split('?')[0] || '/discover').split('/').filter(Boolean); }
+    route() { return (location.hash.slice(1).split('?')[0] || (location.pathname.startsWith('/home') ? '/discover' : location.pathname.startsWith('/profile') ? '/dashboard' : location.pathname.startsWith('/0g-pot') ? '/pot' : '/communities')).split('/').filter(Boolean); }
     async accountChanged() {
         let current: Hex | undefined;
         try { current = (await this.host.wallet!.getContext()).account.toLowerCase() as Hex; }
@@ -221,25 +233,37 @@ class Application {
     }
     async render() {
         this.creatorMembership.detach();
+        this.membershipWorkspace?.dispose();
+        this.membershipWorkspace = undefined;
         const serial = ++this.pageSerial;
         const generation = this.generation;
         const [route = 'discover', id, thread] = this.route();
+        const page=route==='discover'||route==='strategies'?'/home':route==='dashboard'?'/profile':route==='pot'?'/0g-pot':'/community';
+        if(location.pathname!==page)history.replaceState(null,'',page+location.hash);
         this.activeCommunity = undefined;
         this.membership = undefined;
         this.updateChrome();
         const content = document.querySelector<HTMLElement>('#content')!;
         content.setAttribute('aria-busy', 'true');
         let html = '';
-        const routeKey = location.hash || '#/discover';
+        const routeKey = location.pathname + (location.hash || '#/' + route);
         const changed = this.renderedRoute !== routeKey;
         if (!content.innerHTML || changed)
-            content.innerHTML = route === 'discover' ? this.discoverHTML([], this.rooms, '', true) : '<div class="loading-view"><span></span>Gathering the ideas…</div>';
+            content.innerHTML = route === 'discover' ? this.discoverHTML([], this.rooms, '', true) : '<div class="loading-view"><span></span>Loading from Arkiv…</div>';
         if (changed)
             window.scrollTo(0, 0);
         this.renderedRoute = routeKey;
         try {
-            if (['marketplace','listing','purchases'].includes(route))
-                html = heading('Not available yet', 'Private checkout is not live.', 'Creator memberships are being built with Arkiv-only storage.', link('/discover', 'Back to Discover'));
+            if (route === 'pot')
+                html = zeroGPotPage();
+            else if (route === 'dashboard')
+                html = this.dashboardView();
+            else if (route === 'compose')
+                html = this.composerView();
+            else if (route === 'memberships')
+                html = heading('Creator memberships', 'Memberships and exclusive strategies', 'Subscribe with Sepolia ETH, manage your creator plan, and read member-only signals.') + '<section id="membership-workspace" class="paper-panel"></section>';
+            else if (['marketplace','listing','purchases'].includes(route))
+                html = heading('Creator memberships', 'Get exclusive creator signals.', 'Open memberships to subscribe or publish your creator plan.', link('/memberships', 'Open memberships'));
             else if (route === 'discover')
                 html = await this.discover();
             else if (route === 'create-community')
@@ -273,6 +297,14 @@ class Application {
             content.removeAttribute('aria-busy');
             this.updateChrome();
             document.title = (content.querySelector('h1')?.textContent ?? 'Discover') + ' — Poros Community';
+            if (route === 'dashboard') void this.mountDashboard(content,serial);
+            if (route === 'compose') this.mountComposer(content,serial);
+            const workspaceRoot = content.querySelector<HTMLElement>('#membership-workspace');
+            if (workspaceRoot) {
+                if (this.preview) workspaceRoot.innerHTML = notice('Switch to real Rabdi to use creator memberships.') + button('live','Open live community');
+                else this.membershipWorkspace = mountMembershipWorkspace(workspaceRoot,{wallet:this.host.wallet,events:this.api.events,community:this.api.community,accessKey:this.host.accessKey,
+                    creator:new URLSearchParams(location.hash.split('?')[1] ?? '').get('creator') ?? undefined});
+            }
             const membershipRoot = content.querySelector<HTMLElement>('#creator-membership');
             const profileWallet = id === 'me' ? this.account : id;
             if (membershipRoot && profileWallet && walletPattern.test(profileWallet))
@@ -294,15 +326,43 @@ class Application {
             }
         }
     }
+    composerView() {
+        return heading('Strategy post','Share your strategy','Explain your reasoning, choose a community, and select who can read it.') +
+          `<section class="paper-panel"><form data-form="strategy-post">${field('title','Title',{required:true})}${field('body','Strategy and reasoning',{required:true,area:true})}<div data-public-attachment>${field('version','Public strategy version (optional)',{placeholder:'0x…'})}<a href="/">Build an editable strategy</a></div><div data-exclusive-attachment hidden>${field('strategy','Editable strategy JSON (optional)',{area:true})}</div><label class="field"><span>Community</span><select name="communityKey" required><option value="">Loading communities…</option></select></label><p data-composer-rooms role="status"></p><label class="field"><span>Audience</span><select name="audience"><option value="public">Everyone · public post</option><option value="exclusive">My paid subscribers · encrypted post</option></select></label><label class="check-field"><input type="checkbox" name="approved" required>I reviewed this strategy and approve publication to the selected audience.</label><p data-composer-help>Join the community before posting. Public posts are visible to everyone.</p><button class="button primary" ${this.account && !this.preview?'':'disabled'}>Publish strategy post</button>${this.account?'':button('connect','Connect wallet','secondary')}</form></section><section id="composer-private" class="paper-panel" hidden></section>`;
+    }
+    mountComposer(content: HTMLElement, serial: number) {
+        const form = content.querySelector<HTMLFormElement>('[data-form="strategy-post"]')!;
+        const audience = form.elements.namedItem('audience') as HTMLSelectElement;
+        const privateRoot = content.querySelector<HTMLElement>('#composer-private')!;
+        let mounted = false;
+        audience.addEventListener('change',()=>{
+            const exclusive = audience.value === 'exclusive';
+            privateRoot.hidden = !exclusive;
+            form.querySelector<HTMLElement>('[data-public-attachment]')!.hidden = exclusive;
+            form.querySelector<HTMLElement>('[data-exclusive-attachment]')!.hidden = !exclusive;
+            form.querySelector('[data-composer-help]')!.textContent = exclusive ? 'Unlock your private access below before publishing. Your current paid members receive the encrypted post.' : 'Join the community before posting. Public posts are visible to everyone.';
+            if(exclusive && this.account && !mounted) {
+                mounted = true;
+                void this.creatorMembership.mount(privateRoot,this.account,this.account,!!this.preview);
+            }
+        });
+        void this.getCommunities().then(rooms=>{
+            if(serial!==this.pageSerial)return;
+            const select = form.elements.namedItem('communityKey') as HTMLSelectElement;
+            select.innerHTML = '<option value="">Choose a community</option>'+rooms.map(room=>`<option value="${room.communityKey}">${e(room.name)}</option>`).join('');
+            form.querySelector('[data-composer-rooms]')!.textContent = rooms.length ? '' : 'Create or join a community first.';
+        }).catch(()=>{
+            if(serial===this.pageSerial)form.querySelector('[data-composer-rooms]')!.innerHTML = 'Communities could not load. '+button('refresh','Try again','secondary');
+        });
+    }
     async discover() {
         const q = new URLSearchParams(location.hash.split('?')[1] ?? '').get('q') ?? '';
-        const rooms = await this.getCommunities();
-        const rows = await this.getStrategies(q);
+        const [rooms,rows] = await Promise.all([this.getCommunities(),this.getStrategies(q)]);
         await this.profilesFor(rows.map(row => row.creator));
         return this.discoverHTML(rows, rooms, q);
     }
     discoverHTML(rows: StrategySummaryDTO[], rooms: CommunityDTO[], q = '', loading = false) {
-        return `<section class="hero"><div class="hero-copy"><span class="eyebrow"><span class="little-star">✳</span> IDEAS GROW BETTER TOGETHER</span><h1>Good strategies.<br><em>Common ground.</em></h1><p>A place to build trading ideas in public.<br>Find your people, share your reasoning,<br class="desktop-break"> and make the next version better.</p><div class="hero-actions">${link('/communities', 'Find your community ' + icon('right'))}${button('new-community', icon('plus') + ' Create community', 'secondary')}${button('publish', 'Share a strategy', 'text-button')}</div><div class="hero-footnote"><span class="small-mark">${mark}</span><span>Yours to create. Ours to explore.</span></div></div><div class="hero-art">${garden}<span class="art-caption">FROM A LITTLE IDEA TO A CLEARER STRATEGY ↗</span></div></section>
+        return `<section class="hero"><div class="hero-copy"><span class="eyebrow"><span class="little-star">✳</span> IDEAS GROW BETTER TOGETHER</span><h1>Good strategies.<br><em>Common ground.</em></h1><p>A place to build trading ideas in public.<br>Find your people, share your reasoning,<br class="desktop-break"> and make the next version better.</p><div class="hero-actions">${link('/memberships', 'Creator memberships ' + icon('right'))}${button('new-community', icon('plus') + ' Create community', 'secondary')}${button('publish', 'Share a strategy', 'text-button')}</div><div class="hero-footnote"><span class="small-mark">${mark}</span><span>Yours to create. Ours to explore.</span></div></div><div class="hero-art">${garden}<span class="art-caption">FROM A LITTLE IDEA TO A CLEARER STRATEGY ↗</span></div></section>
     <div class="principles"><span>${icon('user')} Wallet-owned identity</span><span>${icon('fork')} Source-pinned versions</span><span>${icon('shield')} Exclusive signals are encrypted</span></div>
     <div class="discovery-columns"><section class="discovery-feed"><div class="section-title"><div><span class="eyebrow">THE IDEA EXCHANGE</span><h2>Something worth building on.</h2></div><a href="#/communities" class="text-link">Explore ${icon('arrow')}</a></div><div class="feed-tabs"><span class="selected">Public strategies</span><a href="#/communities">Communities</a></div>
     ${q ? notice('Showing names starting with “' + q + '”.') : ''}${this.skipped ? notice('Some unverified records were skipped.') : ''}
@@ -315,16 +375,18 @@ class Application {
         if (!id || !keyPattern.test(id))
             failure('INVALID_INPUT');
         const room = await this.getCommunity(id as Hex);
-        const threads = await this.getEvents('thread', room.communityKey);
-        const messages = thread ? [] : await this.getEvents('message', room.communityKey);
-        const membership = !this.preview && this.account ? await this.api.community.getMembership({ communityKey: room.communityKey, wallet: this.account }) : undefined;
+        const [threads,messages,membership] = await Promise.all([
+            this.getEvents('thread', room.communityKey),
+            thread ? [] : this.getEvents('message', room.communityKey),
+            !this.preview && this.account ? this.api.community.getMembership({ communityKey: room.communityKey, wallet: this.account }) : undefined,
+        ]);
         if (serial !== this.pageSerial)
             failure('STALE_VIEW');
         this.membership = membership;
         const owner = !!this.account && room.owner === this.account;
         const joined = owner || this.membership?.event?.data.state === 'joined';
         const canPost = joined && !this.membership?.banned && !this.preview;
-        const canModerate = !this.preview && !!this.account && await this.api.community.isModerator({communityKey:room.communityKey,wallet:this.account});
+        const canModerate = !this.preview && !!this.account && (owner || await this.api.community.isModerator({communityKey:room.communityKey,wallet:this.account}));
         this.votes = await this.votesFor(room.communityKey,threads);
         await this.profilesFor([...threads, ...messages].map(row => row.actor));
         if (serial !== this.pageSerial)
@@ -361,6 +423,56 @@ class Application {
         this.historyCursor = history.nextOffset;
         const writable = !!this.host.validateStrategyDocument && !this.preview;
         return `<a href="#/discover" class="back-link">← All public strategies</a><p><a class="button secondary strategy-transfer" draggable="true" href="/?strategy=${version.versionKey}">Open in builder · drag to canvas</a> ${this.preview ? '' : button('share-strategy','Share in a community','secondary')}</p>` + heading('PUBLIC STRATEGY', version.document.name, version.document.description, button('fork', icon('fork') + ' Fork this version', 'primary', writable ? '' : 'disabled')) + `<div class="community-meta">${tag(version.document.category)}${tag(version.document.license)}<span>by <a href="#/profile/${version.creator}">${e(this.label(version.creator))}</a></span>${this.account === version.creator ? button('revise', 'Publish a revision', 'secondary', writable && history.complete && history.tipVersionKeys.length === 1 ? '' : 'disabled') : ''}</div>${version.lineageStatus !== 'verified' ? notice('Some ancestors are missing. This is not a fully verified version history.', 'warning') : ''}${!history.complete ? notice('The version history is incomplete. Revision is blocked.', 'warning') : ''}<div class="detail-columns"><section class="paper-panel"><div class="section-title"><h2>${icon('code')} The strategy document</h2>${tag(this.preview ? 'Illustrative' : 'Read-back verified', 'green')}</div><pre class="code-panel">${e(JSON.stringify(version.document, null, 2))}</pre>${notice('A stored strategy is public data. It is not permission to trade.')}</section><aside><div class="paper-panel"><span class="eyebrow">PINNED TO THIS VERSION</span><dl><dt>Version key</dt><dd><code>${e(version.versionKey)}</code></dd><dt>Content hash</dt><dd><code>${e(version.contentHash)}</code></dd><dt>Execution network</dt><dd>Chain ${version.document.executionChainId}</dd><dt>Expiry block</dt><dd>${e(version.expiresAtBlock)}</dd></dl></div><div class="paper-panel"><h2>Version history</h2>${history.versions.map((row, i) => `<a class="history-row ${row.versionKey === version.versionKey ? 'selected' : ''}" href="#/strategies/${row.versionKey}"><span class="version-dot"></span><span>${i === 0 ? 'Root publication' : 'Revision'}<small>${e(short(row.versionKey))}</small></span>${icon('arrow')}</a>`).join('')}${this.historyCursor !== null ? button('more-history', 'Load more versions', 'secondary') : ''}<p class="muted">Forks preserve the selected source, including older versions.</p></div></aside></div>`;
+    }
+    dashboardView() {
+        if(!this.account || this.preview)return heading('YOUR PROFILE','Profile','Connect your wallet to see membership income and saved trading results.',button('connect','Connect wallet'));
+        return heading('YOUR PROFILE','Your activity','Membership income and trading results, in one place.',button('refresh','Refresh','secondary'))+
+            `<div class="profile-panel">${avatar(this.account)}<div><strong>Connected wallet</strong><p><code>${e(this.account)}</code></p></div><a class="button secondary" href="/community#/profile/me">Edit public profile</a></div>`+
+            `<section class="profile-metrics" aria-label="Income and profit summary"><article class="paper-panel"><h2>Membership income</h2><strong class="metric-value" id="membership-income">Loading…</strong><p>Sepolia ETH · testnet</p><small>Verified payments in available Arkiv records. Not lifetime income; expired records may be missing.</small></article><article class="paper-panel"><h2>Paper trading profit</h2><strong class="metric-value" id="paper-profit">—</strong><p>Realized P/L · simulated USD</p><small>After simulated fees. Last 100 runs saved in this browser for this wallet. Open positions excluded.</small></article><article class="paper-panel"><h2>Real trading profit</h2><strong class="metric-value" id="real-profit">Loading…</strong><p>Realized fill P/L · by settlement currency</p><small>Finalized Flash fills only. Reported fees shown separately; excludes external trades, transfers and open-position gains.</small></article></section>`+
+            `<section class="paper-panel"><div class="section-title"><h2>Membership payments</h2><a href="/community#/memberships">Manage memberships →</a></div><div id="income-payments" role="status">Checking payments…</div></section><section class="paper-panel"><h2>Real trading results</h2><div id="real-results" role="status">Reading finalized Flash fills…</div></section><section class="paper-panel"><div class="section-title"><h2>Recent paper runs</h2><a href="/">Open Trade →</a></div><div id="paper-runs"></div></section>`;
+    }
+    async mountDashboard(content:HTMLElement,serial:number){
+        const account=this.account;
+        if(!account || this.preview)return;
+        void this.mountRealPerformance(content,serial,account);
+        const money=(value:number)=>new Intl.NumberFormat('en-US',{style:'currency',currency:'USD'}).format(value);
+        try{
+            const runs=readPaperRuns(localStorage,account);
+            content.querySelector('#paper-profit')!.textContent=runs.length?money(runs.reduce((sum,run)=>sum+run.realizedPnl,0)):'No saved runs';
+            content.querySelector('#paper-runs')!.innerHTML=runs.length?`<div class="profile-table-wrap"><table class="profile-table"><thead><tr><th>Market</th><th>Last update</th><th>Fills</th><th>Realized P/L</th></tr></thead><tbody>${runs.slice(0,10).map(run=>`<tr><td>${e(run.pair)}</td><td>${e(new Date(run.updatedAt).toLocaleString())}</td><td>${run.fills}</td><td>${money(run.realizedPnl)}</td></tr>`).join('')}</tbody></table></div>`:'<p>Connect this wallet on Trade and run a paper strategy to start tracking.</p>';
+        }catch{
+            content.querySelector('#paper-profit')!.textContent='Unavailable';
+            content.querySelector('#paper-runs')!.textContent='Saved paper results could not be read in this browser.';
+        }
+        try{
+            const result=await this.creatorMembership.service.earnings(account);
+            if(serial!==this.pageSerial || account!==this.account)return;
+            content.querySelector('#membership-income')!.textContent=formatAmount(result.totalWei,18)+' ETH';
+            content.querySelector('#income-payments')!.innerHTML=result.payments.length?`<div class="profile-table-wrap"><table class="profile-table"><thead><tr><th>Member</th><th>Activated</th><th>Received</th></tr></thead><tbody>${result.payments.slice(0,20).map(payment=>`<tr><td><code>${e(short(payment.wallet))}</code></td><td>${e(new Date(payment.activatedAt).toLocaleDateString())}</td><td>${e(formatAmount(payment.amountWei,18))} ETH</td></tr>`).join('')}</tbody></table></div><p>${result.payments.length} verified payment(s) in available records.</p>`:'<p>No verified membership payments found.</p>';
+        }catch{
+            if(serial!==this.pageSerial || account!==this.account)return;
+            content.querySelector('#membership-income')!.textContent='Unavailable';
+            content.querySelector('#income-payments')!.textContent='Payment verification could not finish. Refresh to try again.';
+        }
+    }
+    async mountRealPerformance(content:HTMLElement,serial:number,account:Hex){
+        try{
+            const response=await fetch('/api/performance?wallet='+encodeURIComponent(account),{cache:'no-store',signal:AbortSignal.timeout(50000)});
+            if(!response.ok)throw new Error('Unavailable');
+            const payload=await response.json();
+            const result=payload.data;
+            if(!payload.ok || !Array.isArray(result?.markets) || typeof result.complete!=='boolean')throw new Error('Invalid results');
+            if(serial!==this.pageSerial || account!==this.account)return;
+            const known=result.markets.filter((row:{realizedPnl:string|null})=>row.realizedPnl!==null);
+            const summary=content.querySelector('#real-profit')!;
+            summary.textContent=!result.fills?'No finalized fills':!result.complete?'History incomplete':!known.length?'Cost basis missing':result.markets.length===1?known[0].realizedPnl+' '+known[0].currency:'See markets below';
+            const body=result.markets.length?`<div class="profile-table-wrap"><table class="profile-table"><thead><tr><th>Market</th><th>Network</th><th>Realized fill P/L</th></tr></thead><tbody>${result.markets.map((row:{market:string;chain:string;realizedPnl:string|null;currency:string})=>`<tr><td>${e(row.market)}</td><td>${e(row.chain)}</td><td>${row.realizedPnl===null?'Unavailable — incomplete cost basis':e(row.realizedPnl)+' '+e(row.currency)}</td></tr>`).join('')}</tbody></table></div>`:'<p>No finalized fills found for this wallet in the available Flash history.</p>';
+            content.querySelector('#real-results')!.innerHTML=body+`<p>Reported fill fees: $${e(result.feesUsd)} USD. Shown separately, not deducted again from fill amounts.</p><p class="muted">Average purchase cost for matched Flash buys and sells. Up to 50 recent orders; ${result.complete?'all available orders were loaded':'older orders exist, so P/L is withheld'}. Wallet gas paid separately and trades outside this Flash history are not included. This is not your total wallet profit.</p>`;
+        }catch{
+            if(serial!==this.pageSerial || account!==this.account)return;
+            content.querySelector('#real-profit')!.textContent='Unavailable';
+            content.querySelector('#real-results')!.textContent='Flash fill history could not be verified. Use Refresh to try again.';
+        }
     }
     async profileView(id?: string) {
         const wallet = id === 'me' ? this.account : id;
@@ -539,8 +651,7 @@ class Application {
         return withWalletLock(async () => {
             try {
                 const stored = localStorage.getItem('common-ground.pending-write');
-                if (stored)
-                    this.pending = JSON.parse(stored);
+                this.pending = stored ? JSON.parse(stored) : undefined;
             }
             catch {
                 failure('DEPENDENCY_UNAVAILABLE');
@@ -762,7 +873,7 @@ class Application {
             }
             await this.busyAction(async () => {
                 await this.host.wallet!.connect();
-                await this.host.wallet!.switchChain?.(7794095);
+
                 await this.accountChanged();
             });
             return;
@@ -799,6 +910,15 @@ class Application {
                 this.closeDialog();
                 await this.render();
             }
+            return;
+        }
+        if (action === 'recover-write' && this.pending) {
+            const pending=this.pending;
+            if(pending.txHash || pending.entityKey)failure('WRITE_STATUS_UNKNOWN');
+            this.openDialog('Recover an unsubmitted request',
+                `<p>Request: <code>${e(pending.requestId)}</code></p><p>Wallet: <code>${e(pending.account)}</code> · Rabdi</p>` +
+                notice('Only continue if you checked this account on Rabdi and no transaction was submitted or is still awaiting wallet approval. An empty activity list alone may be incomplete. This does not cancel any transaction. Retrying a submitted request could create a duplicate.') +
+                `<form data-form="recover-write" data-request="${e(pending.requestId)}"><label class="check-field"><input name="confirmed" type="checkbox" required> I checked the original account and confirm no transaction was submitted or remains pending.</label><button class="button primary">Archive request and unlock</button></form>`);
             return;
         }
         if (action === 'reconcile') {
@@ -940,7 +1060,42 @@ class Application {
             return;
         }
         await this.busyAction(async () => {
-            if (kind === 'community') {
+            if (kind === 'recover-write') {
+                const account=await this.requireAccount();
+                await withWalletLock(async()=>{
+                    const pending=this.pending;
+                    if(!pending || form.dataset.request!==pending.requestId)failure('INTENT_CONFLICT');
+                    archiveUnsubmittedWrite(localStorage,pending,account,data.has('confirmed'));
+                    this.pending=undefined;
+                    this.updateChrome();
+                },navigator.locks);
+                this.closeDialog();
+                this.toast('Original request archived locally. You can try again; no transaction was sent by recovery.');
+                return;
+            }
+            if (kind === 'strategy-post') {
+                const account = await this.requireAccount();
+                if(!data.has('approved') || !['public','exclusive'].includes(value('audience')))failure('INVALID_INPUT');
+                const communityKey = value('communityKey') as Hex;
+                if(!keyPattern.test(communityKey))failure('INVALID_INPUT');
+                const title = checkedText(value('title'),1,80), body = checkedText(value('body'),1,4096);
+                if(value('audience') === 'exclusive') {
+                    const [room,membership] = await Promise.all([this.getCommunity(communityKey),this.api.community.getMembership({communityKey,wallet:account})]);
+                    if(membership.banned || (room.owner!==account && membership.event?.data.state!=='joined'))failure('NOT_OWNER');
+                    const strategy = value('strategy').trim();
+                    await this.creatorMembership.publishPost({title,body,communityKey,...(strategy?{strategy:JSON.parse(strategy)}:{})});
+                    form.reset();
+                    form.querySelector('select[name=audience]')!.dispatchEvent(new Event('change'));
+                    this.toast('Exclusive post saved and delivered to eligible subscribers.');
+                } else {
+                    const version = value('version').trim();
+                    if(version && !keyPattern.test(version))failure('INVALID_INPUT');
+                    const expected = {title,body,...(version?{strategyVersionKey:version as Hex}:{})};
+                    const post = await this.write('thread',expected,requestId=>this.api.community.createThread({requestId,communityKey,...expected}),communityKey);
+                    location.hash = '/thread/'+communityKey+'/'+post.key;
+                }
+            }
+            else if (kind === 'community') {
                 const name = checkedText(value('name').trim(), 1, 80), description = checkedText(value('description'), 0, 4096);
                 const result = await this.write('community', { name, description }, requestId => this.api.strategies.createCommunity({ requestId, name, description }));
                 const communityKey = result.state === 'written' ? result.receipt.entityKey : result.entityKey;

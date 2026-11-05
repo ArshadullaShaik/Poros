@@ -4,6 +4,19 @@ import { createArkivEventRepository } from '../../../src/integrations/arkiv/comm
 import {buildEvent} from '../../../src/integrations/arkiv/community/events.ts';
 import {recordBytes} from '../../../src/integrations/arkiv/codec.ts';
 import {alice} from './fixtures.ts';
+test('concurrent profile and membership reads share a head check without retaining stale heads',async()=>{
+  let timings=0;
+  const repository=createArkivEventRepository({publicTransport:(()=>({config:{key:'head-test',name:'head-test',type:'custom',retryCount:0},request:async({method}:{method:string})=>{
+    if(method==='eth_chainId')return '0x76edaf';
+    if(method==='arkiv_getBlockTiming'){timings++;return {current_block:'0x64',current_block_time:1,duration:2};}
+    if(method==='arkiv_query')return {data:[],blockNumber:'0x64'};
+    throw new Error(method);
+  }})) as never});
+  await Promise.all([repository.scan({type:'creator-plan'}),repository.scan({type:'subscription'}),repository.scan({type:'encryption-key'}),repository.scan({type:'profile'})]);
+  assert.equal(timings,1);
+  await repository.scan({type:'subscription'});
+  assert.equal(timings,2);
+});
 test('social SDK uses a separate typed namespace and bounded inclusive block polling without a wallet',async()=>{
   const queries:string[]=[];
   const repository=createArkivEventRepository({publicTransport:(()=>({config:{key:'test',name:'test',type:'custom',retryCount:0,retryDelay:0,timeout:1000},request:async({method,params=[]}:{method:string;params?:unknown[]})=>{

@@ -1,6 +1,9 @@
+import { loadEnvFile } from 'node:process';
+import { fileURLToPath } from 'node:url';
 import { bundle } from './build.mjs';
 import { createDemoServer } from '../../../src/features/builder/demo/server.mjs';
 
+try { loadEnvFile(fileURLToPath(new URL('../../../.env.local',import.meta.url))); } catch(error) { if(error.code !== 'ENOENT') throw error; }
 await bundle();
 const port = Number(process.env.PORT ?? 4317);
 if (!Number.isInteger(port) || port < 0 || port > 65535) throw new Error('PORT must be from 0 to 65535.');

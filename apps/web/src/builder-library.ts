@@ -2,6 +2,7 @@ import type {Hex} from 'viem';
 import type {EventRepository} from '../../../src/integrations/arkiv/community/contracts.ts';
 import type {CreatorMemberships,EncryptionIdentity,KeyBox} from '../../../src/integrations/arkiv/community/memberships.ts';
 import {restoreEncryptionIdentity,openContentKey,decryptSignal} from './creator-crypto.ts';
+import {memberStrategy} from './member-strategy.ts';
 
 type Readers={now:()=>Promise<number>};
 export async function readMemberLibrary({account,events,service,readers,getProfile,recoveryCode}: {
@@ -17,7 +18,7 @@ export async function readMemberLibrary({account,events,service,readers,getProfi
     const member=(await service.members(id as Hex)).find(row=>row.wallet===account&&row.expiresAt>now);
     if(member){const profile=await getProfile(id as Hex);creators.push({id:id as Hex,name:profile?.displayName??id,expiresAt:member.expiresAt});}
   }
-  const entries:{id:string;name:string;text:string;versionId:string;expiresAt:number}[]=[];
+  const entries:(ReturnType<typeof memberStrategy> & {expiresAt:number})[]=[];
   if(!recoveryCode)return {creators,entries,locked:true};
   const record=await service.getKey(account);
   if(!record)throw new Error('Set up private access on the community page first.');
@@ -30,7 +31,7 @@ export async function readMemberLibrary({account,events,service,readers,getProfi
       const key=await openContentKey(envelope.data.box as unknown as KeyBox,privateKey,context+':'+account);
       const content=await decryptSignal({iv:String(signal.data.iv),ciphertext:String(signal.data.ciphertext)},key,context);
       if(content.body.length>4000)throw new Error('A creator strategy exceeds the interpreter limit. Open it on the community page.');
-      entries.push({id:signal.key,versionId:signal.key,name:content.title,text:content.body,expiresAt:creator.expiresAt});
+      entries.push({...memberStrategy(content,signal.key),expiresAt:creator.expiresAt});
       if(entries.length>20)throw new Error('More than 20 unlocked strategies are available. Open the community page.');
     }
   }

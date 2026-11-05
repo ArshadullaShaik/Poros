@@ -10,10 +10,12 @@ test('one origin serves builder and community with isolated assets and private f
     const home=await fetch(base);assert.equal(home.status,200);const homeHtml=await home.text();assert.match(homeHtml,/Poros.*Strategy builder/);
     assert.doesNotMatch(homeHtml,/community-marquee|execution-workspace/);
     assert.match(homeHtml,/href="\/community">Communities/);
+    assert.match(homeHtml,/href="\/home">Home/);assert.match(homeHtml,/href="\/profile">Profile/);
+    for(const path of ['/home','/profile','/0g-pot'])assert.equal((await fetch(base+path)).status,200);
     assert.equal((await fetch(base+'/community/builder.js')).status,200);
     const community=await fetch(base+'/community');assert.equal(community.status,200);assert.match(await community.text(),/Poros Community/);
     const script=await fetch(base+'/community/app.js');assert.match(script.headers.get('content-type')!,/javascript/);assert.equal(script.headers.get('cache-control'),'no-store');
-    const bundle=await script.text();assert.doesNotMatch(bundle,/node:sqlite|createWalletAuth|openMarketplace|diagnostic-private|Weekly accumulation/);
+    const bundle=await script.text();assert.doesNotMatch(bundle,/Find your next idea/);assert.match(bundle,/Membership income/);assert.doesNotMatch(bundle,/node:sqlite|createWalletAuth|openMarketplace|diagnostic-private|Weekly accumulation/);
     assert.equal((await fetch(base+'/api/community-marketplace/orders')).status,404);
     assert.equal((await fetch(base+'/api/community-marketplace/orders',{method:'POST'})).status,405);
     assert.equal((await fetch(base+'/.env')).status,404);assert.equal((await fetch(base+'/vault.sqlite')).status,404);

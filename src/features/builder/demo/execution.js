@@ -74,9 +74,12 @@ export function mountExecution({root=document,getDraft,applyDraft,validateDraft,
     }catch(error){if(current===sequence)status(error.message);}
     finally{if(current===sequence){busy=false;controller=undefined;refresh();}}
   }
-  function addUnlockedStrategy(entry) {
+  function validateEntry(entry) {
     if(!entry||typeof entry.versionId!=="string"||!entry.versionId.trim()||entry.versionId.length>128||
       (entry.strategy? !validateDraft(entry.strategy).valid||entry.strategy.riskPolicy.paperTradingOnly!==true : typeof entry.id!=="string"||!entry.id.trim()||entry.id.length>128||typeof entry.name!=="string"||!entry.name.trim()||entry.name.length>100||typeof entry.text!=="string"||!entry.text.trim()||entry.text.length>4000))throw new Error("Supply an unlocked creator text strategy with ID, name and version, or validated price rules.");
+  }
+  function addUnlockedStrategy(entry) {
+    validateEntry(entry);
     const key=JSON.stringify([entry.strategy?.strategyId??entry.id,entry.versionId]);
     if(entries.has(key)&&JSON.stringify(entries.get(key))!==JSON.stringify(entry))throw new Error("This version is already loaded with different rules.");
     if(!entries.has(key)&&entries.size>=20)throw new Error("This demo supports up to 20 unlocked strategy cards.");
@@ -105,6 +108,7 @@ export function mountExecution({root=document,getDraft,applyDraft,validateDraft,
     $("creators-empty").hidden=creators.length>0;
   }
   $("canvas").addEventListener("drop",event=>{
+    if (!event.dataTransfer.getData("text/plain").startsWith('{')) return;
     try {
       const payload=JSON.parse(event.dataTransfer.getData("text/plain"));
       if(payload.kind!=="unlocked-strategy")return;
@@ -202,5 +206,5 @@ export function mountExecution({root=document,getDraft,applyDraft,validateDraft,
   root.defaultView?.ethereum?.on?.("chainChanged",()=>invalidate("Wallet network changed. Reconnect on the selected network before Run."));
   root.defaultView?.addEventListener("pagehide",()=>invalidate("Monitoring stopped because this tab closed."));
   $("execution-results").hidden=true;refresh();
-  return {clearUnlockedStrategies(){entries.clear();$("execution-library").replaceChildren();},addUnlockedStrategy,setFollowedCreators,refreshMarket,invalidate,draftChanged(){const now=JSON.stringify(getDraft());if(now!==lastDraft){lastDraft=now;$("execution-selected").textContent="Current edited draft · live price monitor";invalidate("Draft changed. Review it before starting a new run.");if((market?.pairId??"eth-usdc")!==getPair().id){market=undefined;void refreshMarket();}}}};
+  return {clearUnlockedStrategies(){entries.clear();$("execution-library").replaceChildren();},addUnlockedStrategy,openUnlockedStrategy(entry){validateEntry(entry);return choose(structuredClone(entry));},setFollowedCreators,refreshMarket,invalidate,draftChanged(){const now=JSON.stringify(getDraft());if(now!==lastDraft){lastDraft=now;$("execution-selected").textContent="Current edited draft · live price monitor";invalidate("Draft changed. Review it before starting a new run.");if((market?.pairId??"eth-usdc")!==getPair().id){market=undefined;void refreshMarket();}}}};
 }

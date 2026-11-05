@@ -7,7 +7,7 @@ import { fail } from '../errors.ts';
 import type { EventDTO } from './contracts.ts';
 
 export function createMembershipReaders(accessKey?: string) {
-  const arkiv = arkivClient({ chain: rabdi({ accessKey: accessKey ?? '' }), transport: http(undefined, { timeout: 15000, retryCount: 1 }) });
+  const arkiv = arkivClient({ chain: rabdi({ accessKey: accessKey ?? '' }), transport: http(typeof window === 'undefined' ? undefined : '/api/arkiv-rpc', { timeout: 10000, retryCount: 0 }) });
   return {
     payments: createPublicClient({ chain: sepolia, transport: http('/api/sepolia-rpc', { timeout: 15000, retryCount: 0 }) }),
     async now() { return Number((await arkiv.getBlock()).timestamp) * 1000; },
