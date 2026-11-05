@@ -1,4 +1,6 @@
 import {stringToHex,type EIP1193Provider,type Hex} from 'viem';
+import {sepolia} from 'viem/chains';
+import {rabdi} from '../../../src/integrations/arkiv/index.ts';
 import type {WalletBridge,Transfer} from './integration.ts';
 import {failure,keyPattern,walletPattern} from './core.ts';
 
@@ -20,7 +22,21 @@ export function createInjectedWallet(provider:InjectedProvider|undefined=typeof 
     const requireAccount=async(expected:Hex)=>{if(await account()!==expected.toLowerCase())failure('ACCOUNT_CHANGED');};
     const switchChain=async(chainId:number)=>{
         if(!Number.isSafeInteger(chainId)||chainId<=0)failure('INVALID_INPUT');
-        await provider.request({method:'wallet_switchEthereumChain',params:[{chainId:`0x${chainId.toString(16)}`}]});
+        const chainHex=`0x${chainId.toString(16)}`;
+        if(BigInt(String(await provider.request({method:'eth_chainId'})))===BigInt(chainId))return;
+        try {
+            await provider.request({method:'wallet_switchEthereumChain',params:[{chainId:chainHex}]});
+        } catch(error) {
+            if(!error||typeof error!=='object'||!('code' in error)||error.code!==4902)throw error;
+            const chain=chainId===7794095?rabdi({accessKey:''}):chainId===sepolia.id?sepolia:undefined;
+            if(!chain)throw error;
+            await provider.request({method:'wallet_addEthereumChain',params:[{
+                chainId:chainHex,chainName:chain.name,nativeCurrency:chain.nativeCurrency,
+                rpcUrls:[...chain.rpcUrls.default.http],blockExplorerUrls:[chain.blockExplorers.default.url],
+            }]});
+            await provider.request({method:'wallet_switchEthereumChain',params:[{chainId:chainHex}]});
+        }
+        if(BigInt(String(await provider.request({method:'eth_chainId'})))!==BigInt(chainId))failure('WRONG_CHAIN');
     };
     return {
         async connect(){await provider.request({method:'eth_requestAccounts'});await account();},
