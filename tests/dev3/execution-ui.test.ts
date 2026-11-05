@@ -48,6 +48,14 @@ test("unlocked host strategies become whole draggable cards with a click equival
   assert.throws(()=>ui.module.addUnlockedStrategy({strategy:{...rsiStrategy,name:"tampered version"},versionId:"bought-v1"}));
 });
 
+test("private member strategy loads only into the canvas without retaining a library card or starting execution",async()=>{
+  const ui=await setup();
+  await ui.module.openUnlockedStrategy({strategy:rsiStrategy,versionId:"member-v1"});
+  assert.equal(ui.applied,1);
+  assert.equal(ui.controls.get("#execution-library")!.children.length,0);
+  assert.equal(ui.sent.length,0);
+});
+
 test("canvas drops ignore block drags and reject unknown unlocked cards",async()=>{
   const ui=await setup();
   const previousStatus=ui.controls.get("#execution-status")!.textContent;

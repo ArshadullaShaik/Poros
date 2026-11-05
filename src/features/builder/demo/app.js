@@ -22,6 +22,8 @@ let connectFrom;
 let dirty = false;
 let executionUI,pricesUI,communityUI,chartUI;
 let pricesPairId=pairForStrategy(draft).id;
+let forkSource;
+let strategyLoad=0;
 
 function element(tag, className, text) {
   const node = document.createElement(tag);
@@ -43,6 +45,7 @@ function edit(operation) {
 }
 function select(id) { selected = id; render(); $("#strategy-settings").showModal(); }
 function replaceDraft(next,preserveMode=false) {
+  forkSource = undefined;
   draft = structuredClone(next);
   if(!preserveMode)$("#execution-mode").value = draft.riskPolicy.paperTradingOnly ? "AI" : "LIVE";
   selected = draft.nodes[0]?.id;
@@ -247,6 +250,7 @@ function renderValidation(result) {
     item.append(button); list.append(item);
   });
   $("#export").disabled = !result.valid;
+  $("#publish-community").disabled = !result.valid || !draft.riskPolicy.paperTradingOnly;
   $("#export").title = result.valid ? "Save validated strategy JSON" : "Fix validation errors before exporting";
 }
 
@@ -287,6 +291,10 @@ canvas.addEventListener("dragover", event => { event.preventDefault(); canvas.cl
 canvas.addEventListener("dragleave", event => { if (!canvas.contains(event.relatedTarget)) canvas.classList.remove("drag-over"); });
 canvas.addEventListener("drop", event => {
   event.preventDefault(); canvas.classList.remove("drag-over");
+  const member = event.dataTransfer.getData('application/x-poros-member-strategy');
+  if (member) { void loadMemberTransfer(member); return; }
+  const reference = event.dataTransfer.getData('text/uri-list') || event.dataTransfer.getData('text/plain');
+  if (reference.startsWith(location.origin + '/?strategy=')) { void loadPublicReference(reference); return; }
   try {
     const data = JSON.parse(event.dataTransfer.getData("text/plain")), rect = canvas.getBoundingClientRect();
     if(data.kind === "public-strategy"){void communityUI.load(data.versionKey);return;}
@@ -355,10 +363,10 @@ executionUI = mountExecution({
   getApiKey: ai.getKey,
   onActivity:event=>chartUI.activity(event),
 });
-communityUI=mountCommunityLibrary({onLoad(next){
+communityUI=mountCommunityLibrary({onLoad(next,versionKey){
   if(!validateMarketStrategy(next).valid)throw new Error("This public strategy uses unsupported rules or a market outside this live-price builder.");
   if(!mayReplace())throw new Error("Your draft was kept.");
-  replaceDraft(next);dirty=true;
+  replaceDraft(next);dirty=true;forkSource=versionKey;
 }});
 const memberUI=mountMemberLibrary({
   onEntries(entries){executionUI.clearUnlockedStrategies();for(const entry of entries)executionUI.addUnlockedStrategy(entry);},
@@ -391,3 +399,47 @@ window.addEventListener("creators:updated", event => {
 });
 window.addEventListener("beforeunload", event => { if (dirty) { event.preventDefault(); event.returnValue = ""; } });
 resetPositions(); render();
+
+async function loadMemberTransfer(raw) {
+  try {
+    const {readMemberStrategy} = await import('/community/builder.js');
+    await executionUI.openUnlockedStrategy(readMemberStrategy(raw));
+  } catch (error) { announce(error.message || 'Unable to load this member strategy.'); }
+}
+
+async function loadPublicReference(reference) {
+  try {
+    const {strategyReference} = await import('/community/builder.js');
+    await communityUI.load(strategyReference(reference,location.origin));
+  } catch (error) { announce(error.message || 'Unable to read the strategy reference.'); }
+}
+
+$('#publish-community').addEventListener('click',async()=>{
+  try {
+    const {builderDocument} = await import('/community/builder.js');
+    const document = builderDocument(draft);
+    sessionStorage.setItem('poros.public-draft',JSON.stringify({document,...forkSource?{sourceVersionKey:forkSource}:{}}));
+    dirty = false;
+    location.href = '/community#/publish-draft';
+  } catch(error) { announce(error.message || 'Unable to prepare the public draft.'); }
+});
+if (new URLSearchParams(location.search).has('strategy')) void loadPublicReference(location.href);
+let membershipWorkspace;
+const membershipDetails = $('#memberships');
+async function openMemberships() {
+  if (!membershipDetails.open || membershipWorkspace) return;
+  try {
+    const {mountBuilderMemberships} = await import('/community/builder.js');
+    membershipWorkspace = mountBuilderMemberships($('#builder-memberships'),{
+      getDraft:()=>structuredClone(draft),
+      openStrategy:entry=>executionUI.openUnlockedStrategy(entry),
+      onCreators:creators=>executionUI.setFollowedCreators(creators),
+    });
+  } catch { $('#builder-memberships').textContent = 'Memberships could not load. Open the community and try again.'; }
+}
+membershipDetails.addEventListener('toggle',()=>void openMemberships());
+window.addEventListener('pagehide',()=>membershipWorkspace?.dispose());
+if (new URLSearchParams(location.search).has('creator') || location.hash === '#memberships') {
+  membershipDetails.open = true;
+  void openMemberships();
+}

@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { builderDocument, validateBuilderDocument } from '../src/strategy-document.ts';
 import { strategyReference } from '../src/builder.ts';
 import { rsiStrategy } from '../../../src/features/builder/fixtures/rsi-strategy.ts';
+import { priceStrategy, strategyForPair } from '../../../src/features/builder/market/config.ts';
 
 test('builder publications use the real validator and bind their envelope to the graph', () => {
   const document = builderDocument(rsiStrategy);
@@ -21,11 +22,12 @@ test('drag references accept only exact version keys on this application origin'
   }
 });
 
-test('community documents support the registered live-price builder graphs and retain envelope checks',async()=>{
- const {strategyForPair}=await import('../../../src/features/builder/market/config.ts');
+test('community documents support current price graphs and retain envelope checks',()=>{
  for(const pair of ['eth-usdc','btc-usdt','ethereum-native-eth-usdc']){
-  const graph=strategyForPair(pair),document=builderDocument(graph);assert.deepEqual(validateBuilderDocument(document),document);
+  const graph=strategyForPair(pair),document=builderDocument(graph);
+  assert.deepEqual(validateBuilderDocument(document),document);
   assert.throws(()=>validateBuilderDocument({...document,executionChainId:999}));
   assert.throws(()=>validateBuilderDocument({...document,graph:{...graph,tokenOut:'0x'+'f'.repeat(40)}}));
+  assert.throws(()=>builderDocument({...graph,riskPolicy:{...graph.riskPolicy,paperTradingOnly:false}}));
  }
 });

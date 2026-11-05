@@ -5,7 +5,7 @@ export function mountCommunityLibrary({root=document,loadApi=()=>import('/commun
   const text=(tag,value)=>{const node=root.createElement(tag);node.textContent=value;return node;};
   async function load(versionKey){
     if(!key(versionKey))return;
-    try{const {publicStrategies}=await loadApi();const version=await publicStrategies.getVersion({versionKey});await onLoad(version.document.graph);$('community-strategies-status').textContent='Community strategy loaded. Review its rules before Run.';}
+    try{const {publicStrategies}=await loadApi();const version=await publicStrategies.getVersion({versionKey});await onLoad(version.document.graph,version.versionKey);$('community-strategies-status').textContent='Community strategy loaded. Review its rules before Run.';}
     catch(error){$('community-strategies-status').textContent=error.message??'Could not load this community strategy.';}
   }
   async function refresh(append=false){

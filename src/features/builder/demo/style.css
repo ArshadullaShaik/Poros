@@ -31,3 +31,6 @@ main{max-width:1700px;padding:36px 42px 20px;margin:auto}.page-heading{display:f
 .chart-plot{overflow-x:auto}.market-chart-svg{min-width:640px}.chart-plot::-webkit-scrollbar{height:5px}.chart-plot::-webkit-scrollbar-thumb{background:#2b4260;border-radius:4px}
 
 .chart-price [data-state=fallback],.chart-price [data-state=cached]{color:#f6c85b}
+.membership-toolbar{display:flex;gap:10px;flex-wrap:wrap;margin:12px 0}.membership-card{display:inline-flex;flex-direction:column;align-items:flex-start;gap:6px;margin:6px 10px 6px 0;max-width:100%;text-align:left}.membership-card span{font-size:12px}.member-strategy-card{cursor:grab}.member-strategy-card:active{cursor:grabbing}
+
+.membership-workspace{padding:20px;margin:24px 0}.membership-workspace>summary{font-weight:600;cursor:pointer}.membership-workspace p{font-size:13px;line-height:1.6}.membership-workspace section{margin:20px 0}.membership-workspace .paper-panel{border:1px solid var(--line);border-radius:10px;padding:20px}.membership-workspace .field{display:grid;gap:8px;margin:14px 0}.membership-workspace textarea{width:100%;min-height:110px}.membership-workspace input{max-width:100%}.membership-workspace .check-field{display:flex;gap:8px;margin:14px 0}.membership-workspace .preserve{white-space:pre-wrap;overflow-wrap:anywhere}

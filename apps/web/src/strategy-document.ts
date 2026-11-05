@@ -10,7 +10,7 @@ export function validateBuilderDocument(input: unknown): StrategyDocumentV1 {
   return parseDocument(input, parsed => {
     const document = parsed as StrategyDocumentV1;
     if (document.graphSchema !== 'poros-builder/1') fail('UNSUPPORTED_SCHEMA');
-    // Keep legacy paper documents readable alongside registered price-range strategies.
+    // Legacy RSI fixtures remain readable alongside registered price strategies.
     const price=validatePriceStrategy(document.graph);
     const result=price.valid?price:validateStrategy(document.graph,fixtureContext);
     if (!result.valid) fail('INVALID_INPUT', 'The builder rejected this strategy.');
