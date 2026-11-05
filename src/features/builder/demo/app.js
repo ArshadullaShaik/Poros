@@ -1,8 +1,10 @@
 import { editStrategy, importStrategyJson, exportStrategyJson } from "/core/adapters/editor.ts";
-import { tradingContext as marketContext, tradingPairs, pairForStrategy, strategyForPair, contextForPair, networks, priceStrategy as defaultStrategy, validatePriceStrategy as validateMarketStrategy } from "/core/market/config.ts";
+import { tradingPairs, pairForStrategy, contextForPair, priceStrategy as defaultStrategy, validatePriceStrategy as validateMarketStrategy } from "/core/market/config.ts";
 import { keepFocus } from "/focus.js";
 import { mountStrategyAi } from "/ai.js";
 import { mountExecution } from "/execution.js";
+import { mountLivePrices } from "/prices.js";
+import { mountCommunityLibrary, mountLibraryTabs, mountMemberLibrary } from "/community-library.js";
 
 const $ = selector => document.querySelector(selector);
 const canvas = $("#canvas");
@@ -17,7 +19,8 @@ let selected = draft.nodes[0]?.id;
 let positions = new Map();
 let connectFrom;
 let dirty = false;
-let executionUI;
+let executionUI,pricesUI,communityUI;
+let pricesPairId=pairForStrategy(draft).id;
 
 function element(tag, className, text) {
   const node = document.createElement(tag);
@@ -181,11 +184,6 @@ function field(labelText, value, attributes, change) {
 }
 
 function renderSettings() {
-  $("#trading-network").value=pairForStrategy(draft).network.key;
-  renderPairChoices();
-  $("#trading-pair").value=pairForStrategy(draft).id;
-  const pair=pairForStrategy(draft);
-  $("#pair-details").textContent=`${pair.network.name}: ${pair.base.symbol} / ${pair.quote.symbol}${pair.base.native?" · buys receive wrapped tokens; sells use wrapped balances first, otherwise wrap native coins":""}. Check the network and actual token; wrapped coins are not native-chain balances. Targets and sizes are USD values.`;
   $("#strategy-name").value = draft.name;
   $("#max-notional").value = draft.riskPolicy.maxNotionalUsd;
   $("#max-slippage").value = draft.riskPolicy.maxSlippageBps;
@@ -259,6 +257,8 @@ function render() {
     $("#json-preview").textContent = JSON.stringify(draft, null, 2);
   });
   executionUI?.draftChanged();
+  const pairId=pairForStrategy(draft).id;
+  if(pricesUI&&pairId!==pricesPairId){pricesPairId=pairId;void pricesUI.refresh();void executionUI.refreshMarket();}
 }
 
 function addBlock(type, position) {
@@ -287,29 +287,10 @@ canvas.addEventListener("drop", event => {
   event.preventDefault(); canvas.classList.remove("drag-over");
   try {
     const data = JSON.parse(event.dataTransfer.getData("text/plain")), rect = canvas.getBoundingClientRect();
+    if(data.kind === "public-strategy"){void communityUI.load(data.versionKey);return;}
     if (data.kind === "palette") addBlock(data.type, {x: event.clientX - rect.left - 105, y: event.clientY - rect.top - 40});
     else if (data.kind === "move" && positions.has(data.id) && Number.isFinite(data.offsetX) && Number.isFinite(data.offsetY)) moveNode(data.id, event.clientX - rect.left - data.offsetX, event.clientY - rect.top - data.offsetY);
   } catch { announce("Drag a block from the palette onto the canvas."); }
-});
-function renderPairChoices(){
-  const selector=$("#trading-pair"),network=$("#trading-network").value,term=$("#pair-search").value.trim().toLowerCase();
-  selector.replaceChildren();
-  for(const pair of tradingPairs.filter(pair=>pair.network.key===network&&(pair.id===pairForStrategy(draft).id||`${pair.label} ${pair.base.symbol}`.toLowerCase().includes(term)))){const option=element("option","",`${pair.label} · ${pair.base.symbol}/${pair.quote.symbol}`);option.value=pair.id;selector.append(option);}
-  selector.value=pairForStrategy(draft).id;
-}
-for(const network of Object.values(networks)){const option=element("option","",network.name);option.value=network.key;$("#trading-network").append(option);}
-$("#trading-network").value="base";
-$("#trading-network").addEventListener("change",()=>{
-  const pair=tradingPairs.find(pair=>pair.network.key===$("#trading-network").value);
-  if(pair){replaceDraft(strategyForPair(pair.id,draft),true);dirty=true;void executionUI?.refreshMarket();}
-});
-$("#pair-search").addEventListener("input",renderPairChoices);
-renderPairChoices();
-$("#trading-pair").addEventListener("change",event=>{
-  const next=strategyForPair(event.target.value,draft);
-  replaceDraft(next,true);dirty=true;$("#creator-text").textContent="";
-  announce("Pair changed. Your USD targets were retained; review the price ranges and amounts before Run.");
-  void executionUI?.refreshMarket();
 });
 $("#strategy-name").addEventListener("change", event => { draft = {...draft, name: event.target.value}; dirty = true; render(); });
 for (const [selector, key] of [["#max-notional", "maxNotionalUsd"], ["#max-slippage", "maxSlippageBps"]]) {
@@ -371,8 +352,24 @@ executionUI = mountExecution({
   validateDraft: next => validateMarketStrategy(next),
   getApiKey: ai.getKey,
 });
-executionUI.addUnlockedStrategy({id:"public-demo",name:"Creator price-range example",text:"On Base, buy $20 of WETH using USDC once when ETH/USD is between $2000 and $2100 inclusive. Maximum slippage 0.5%.",versionId:"public-demo-v2"});
-executionUI.addUnlockedStrategy({id:"public-btc",name:"Creator BTC / USDT example",text:"On Base, buy $20 of Coinbase cbBTC using USDT once when BTC/USD is between $60000 and $70000 inclusive. Maximum slippage 0.5%.",versionId:"public-btc-v1"});
+communityUI=mountCommunityLibrary({onLoad(next){
+  if(!validateMarketStrategy(next).valid)throw new Error("This public strategy uses unsupported rules or a market outside this live-price builder.");
+  if(!mayReplace())throw new Error("Your draft was kept.");
+  replaceDraft(next);dirty=true;
+}});
+const memberUI=mountMemberLibrary({
+  onEntries(entries){executionUI.clearUnlockedStrategies();for(const entry of entries)executionUI.addUnlockedStrategy(entry);},
+  onCreators:creators=>executionUI.setFollowedCreators(creators),
+  onReset:()=>executionUI.invalidate("Private library locked. Review your draft before starting a new run."),
+});
+mountLibraryTabs({onCommunity:()=>communityUI.refresh(),onSelect:tab=>{if(tab!=="community")void memberUI.refresh();}});
+window.addEventListener("pagehide",()=>memberUI.stop());
+pricesUI=mountLivePrices({
+  getPairs:()=>tradingPairs.filter(pair=>pair.network.key===pairForStrategy(draft).network.key).sort((a,b)=>Number(b.id===pairForStrategy(draft).id)-Number(a.id===pairForStrategy(draft).id)),
+});
+void pricesUI.refresh();
+setInterval(()=>{if(!document.hidden)void pricesUI.refresh();},30000);
+window.addEventListener("pagehide",()=>pricesUI.stop());
 void executionUI.refreshMarket();
 setInterval(() => {void executionUI.refreshMarket();}, 10000);
 // The host verifies purchase access before calling this demo handoff; this hook is not authorization.

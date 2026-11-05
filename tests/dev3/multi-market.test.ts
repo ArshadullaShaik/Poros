@@ -46,3 +46,16 @@ test("changing pairs preserves existing risk limits and rules while replacing th
   assert.equal(next.riskPolicy.maxSlippageBps,10);assert.equal(next.riskPolicy.maxNotionalUsd,10);assert.equal(next.riskPolicy.paperTradingOnly,false);assert.deepEqual(next.nodes,previous.nodes);
   assert.deepEqual(next.riskPolicy.allowlistedTokenAddresses,[next.tokenIn,next.tokenOut]);assert.notEqual(next.strategyId,previous.strategyId);
 });
+
+test('AMP display reads a fresh Chainlink price without requiring a Flash route; execution still requires Flash',async()=>{
+ const time=1800000000000,word=(n:number)=>BigInt(n).toString(16).padStart(64,'0');let calls=0,stale=false;
+ const markets=createLiveMarkets({now:()=>time,fetcher:async(url:any,init:any)=>{
+  calls++;
+  if(String(url).includes('flash'))return Response.json({error:'No route'},{status:400});
+  return Response.json(JSON.parse(init.body).map((call:any)=>({jsonrpc:'2.0',id:call.id,result:call.method==='eth_chainId'?'0x2105':call.params[0].data==='0x313ce567'?'0x'+word(8):'0x'+[1,call.params[0].to.toLowerCase()==='0xbcf85224fc0756b9fa45aa7892530b47e10b6433'?0:120000,time/1000-7200,time/1000-(stale?90000:0),1].map(word).join('')})));
+ }});
+ const price=await markets.displayPrice('base-amp-usdc');assert.equal(price.source,'CHAINLINK');assert.equal(price.priceUsd,'0.001200');assert.equal(calls,1);
+ await markets.displayPrice('base-amp-usdc');assert.equal(calls,1);
+ await assert.rejects(markets.refresh('base-amp-usdc'),/HTTP 400/);assert.equal(markets.read('base-amp-usdc').stale,true);
+ stale=true;await assert.rejects(markets.displayPrice('eth-usdc'));
+});

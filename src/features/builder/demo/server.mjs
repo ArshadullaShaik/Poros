@@ -21,6 +21,8 @@ const assets = new Map([
   ["/wallet.js", [new URL("./wallet.js", import.meta.url), "text/javascript"]],
   ["/focus.js", [new URL("./focus.js", import.meta.url), "text/javascript"]],
   ["/ai.js", [new URL("./ai.js", import.meta.url), "text/javascript"]],
+  ["/community-library.js", [new URL("./community.js", import.meta.url), "text/javascript"]],
+  ["/prices.js", [new URL("./prices.js", import.meta.url), "text/javascript"]],
   ["/execution.js", [new URL("./execution.js", import.meta.url), "text/javascript"]],
   ["/replay.js", [new URL("./replay.js", import.meta.url), "text/javascript"]],
   ["/style.css", [new URL("./style.css", import.meta.url), "text/css"]],
@@ -141,12 +143,12 @@ export function createDemoServer({fetcher = fetch, market = createLiveMarkets({f
     try { pathname = new URL(request.url ?? "/", "http://127.0.0.1").pathname; }
     catch { response.writeHead(400).end("Malformed request target."); return; }
     if (pathname === "/api/sepolia-rpc") {await handleSepolia(request,response);return;}
-    if (pathname === "/api/market") {
+    if (pathname === "/api/market" || pathname === "/api/price") {
       if (request.method !== "GET") {response.setHeader("Allow","GET");response.writeHead(405).end("Method not allowed.");return;}
       if ((request.headers.origin && request.headers.origin !== `http://${request.headers.host}`) ||
           (request.headers["sec-fetch-site"] && !["same-origin","none"].includes(request.headers["sec-fetch-site"]))) {response.writeHead(403).end("Open market data from this local demo only.");return;}
       response.setHeader("Content-Type","application/json; charset=utf-8");
-      try {const pairId=new URL(request.url,"http://127.0.0.1").searchParams.get("pair")??"eth-usdc";pairForStrategy(pairId);const data=await market.refresh(pairId);response.writeHead(200).end(JSON.stringify({ok:true,data}));}
+      try {const pairId=new URL(request.url,"http://127.0.0.1").searchParams.get("pair")??"eth-usdc";pairForStrategy(pairId);const data=await (pathname==="/api/price"?market.displayPrice(pairId):market.refresh(pairId));response.writeHead(200).end(JSON.stringify({ok:true,data}));}
       catch (error) {if(error?.message==="Choose a supported trading pair and network."){response.writeHead(400).end(JSON.stringify({ok:false,error:{message:error.message}}));return;}const safe=error instanceof FlashError?error:new FlashError("Historical, Chainlink or Flash market data is unavailable.");response.writeHead(safe.status).end(JSON.stringify({ok:false,error:{code:safe.code,message:safe.message}}));}
       return;
     }

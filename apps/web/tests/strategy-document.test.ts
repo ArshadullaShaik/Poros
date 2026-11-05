@@ -20,3 +20,12 @@ test('drag references accept only exact version keys on this application origin'
     assert.throws(()=>strategyReference(url,'http://localhost:4323'));
   }
 });
+
+test('community documents support the registered live-price builder graphs and retain envelope checks',async()=>{
+ const {strategyForPair}=await import('../../../src/features/builder/market/config.ts');
+ for(const pair of ['eth-usdc','btc-usdt','ethereum-native-eth-usdc']){
+  const graph=strategyForPair(pair),document=builderDocument(graph);assert.deepEqual(validateBuilderDocument(document),document);
+  assert.throws(()=>validateBuilderDocument({...document,executionChainId:999}));
+  assert.throws(()=>validateBuilderDocument({...document,graph:{...graph,tokenOut:'0x'+'f'.repeat(40)}}));
+ }
+});

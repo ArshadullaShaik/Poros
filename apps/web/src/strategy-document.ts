@@ -1,4 +1,5 @@
 import { validateStrategy } from '../../../src/features/builder/validation/strategy.ts';
+import {validatePriceStrategy} from '../../../src/features/builder/market/config.ts';
 import { fixtureContext } from '../../../src/features/builder/fixtures/rsi-strategy.ts';
 import type { StrategyDefinition } from '../../../src/features/builder/validation/strategy.ts';
 import type { Json, StrategyDocumentV1 } from '../../../src/integrations/arkiv/contracts.ts';
@@ -9,8 +10,9 @@ export function validateBuilderDocument(input: unknown): StrategyDocumentV1 {
   return parseDocument(input, parsed => {
     const document = parsed as StrategyDocumentV1;
     if (document.graphSchema !== 'poros-builder/1') fail('UNSUPPORTED_SCHEMA');
-    // The current editor and simulator use the trusted paper registry.
-    const result = validateStrategy(document.graph, fixtureContext);
+    // Keep legacy paper documents readable alongside registered price-range strategies.
+    const price=validatePriceStrategy(document.graph);
+    const result=price.valid?price:validateStrategy(document.graph,fixtureContext);
     if (!result.valid) fail('INVALID_INPUT', 'The builder rejected this strategy.');
     const graph = result.strategy;
     if (!graph.riskPolicy.paperTradingOnly || document.executionChainId !== graph.networkId ||

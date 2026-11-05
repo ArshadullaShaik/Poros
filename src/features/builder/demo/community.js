@@ -1,0 +1,95 @@
+export function mountCommunityLibrary({root=document,loadApi=()=>import('/community/builder.js'),onLoad}){
+  const $=id=>root.querySelector(`#${id}`);
+  let cursor=null,busy=false,community;
+  const key=value=>typeof value==='string'&&/^0x[0-9a-f]{64}$/i.test(value);
+  const text=(tag,value)=>{const node=root.createElement(tag);node.textContent=value;return node;};
+  async function load(versionKey){
+    if(!key(versionKey))return;
+    try{const {publicStrategies}=await loadApi();const version=await publicStrategies.getVersion({versionKey});await onLoad(version.document.graph);$('community-strategies-status').textContent='Community strategy loaded. Review its rules before Run.';}
+    catch(error){$('community-strategies-status').textContent=error.message??'Could not load this community strategy.';}
+  }
+  async function refresh(append=false){
+    if(busy)return;busy=true;$('refresh-community-strategies').disabled=true;$('more-community-strategies').disabled=true;
+    $('community-strategies-status').textContent=community?'Loading community strategies…':'Loading communities…';
+    try{
+      const {publicStrategies}=await loadApi(),pageInput={offset:append?cursor:0,limit:20};
+      const page=community?await publicStrategies.listStrategies({communityKey:community.communityKey,page:pageInput}):await publicStrategies.listCommunities({page:pageInput});
+      if(!Array.isArray(page.items)||page.items.length>20||page.items.some(row=>!key(community?row.rootVersionKey:row.communityKey)||typeof row.name!=='string'||row.name.length>128||community&&row.communityKey!==community.communityKey))throw new Error('Invalid community response.');
+      if(!append)$('community-strategies').replaceChildren();
+      for(const row of page.items){
+        const card=text('button','');card.type='button';card.className='unlocked-card';card.draggable=!!community;
+        card.append(text('strong',row.name),text('small',community?'Public strategy · drag or click to load':row.description||'View community strategies'));
+        if(community){
+          card.addEventListener('click',()=>load(row.rootVersionKey));
+          card.addEventListener('dragstart',event=>{event.dataTransfer.setData('text/plain',JSON.stringify({kind:'public-strategy',versionKey:row.rootVersionKey}));event.dataTransfer.effectAllowed='copy';});
+        }else card.addEventListener('click',()=>{if(busy)return;community=row;return refresh();});
+        $('community-strategies').append(card);
+      }
+      cursor=Number.isSafeInteger(page.nextOffset)&&page.nextOffset>=(append?cursor:0)+page.items.length?page.nextOffset:null;
+      $('more-community-strategies').hidden=cursor===null;
+      $('back-to-communities').hidden=!community;
+      $('community-library-title').textContent=community?.name??'Communities';
+      $('community-page-link').href=community?`/community#/community/${community.communityKey}`:'/community#/communities';
+      $('community-strategies-status').textContent=page.items.length?(community?'Strategies in this community.':'Communities from the community page.'):(community?'No public strategies in this community.':'No communities found.');
+    }catch(error){$('community-strategies-status').textContent=error.message??'Community data is unavailable.';}
+    finally{busy=false;$('refresh-community-strategies').disabled=false;$('more-community-strategies').disabled=cursor===null;}
+  }
+  $('refresh-community-strategies').addEventListener('click',()=>refresh());
+  $('more-community-strategies').addEventListener('click',()=>refresh(true));
+  $('back-to-communities').addEventListener('click',()=>{if(busy)return;community=undefined;void refresh();});
+  return {refresh,load};
+}
+
+export function mountLibraryTabs({root=document,onCommunity,onSelect}){
+  const tabs=[...root.querySelectorAll('[data-library-tab]')];
+  function select(tab){
+    for(const item of tabs){
+      const active=item===tab;
+      item.setAttribute('aria-selected',String(active));item.tabIndex=active?0:-1;
+      root.querySelector(`#library-${item.dataset.libraryTab}`).hidden=!active;
+    }
+    if(tab.dataset.libraryTab==='community')void onCommunity();
+    void onSelect?.(tab.dataset.libraryTab);
+  }
+  tabs.forEach((tab,index)=>{
+    tab.addEventListener('click',()=>select(tab));
+    tab.addEventListener('keydown',event=>{
+      let next;
+      if(event.key==='ArrowRight')next=(index+1)%tabs.length;
+      else if(event.key==='ArrowLeft')next=(index+tabs.length-1)%tabs.length;
+      else if(event.key==='Home')next=0;
+      else if(event.key==='End')next=tabs.length-1;
+      else return;
+      event.preventDefault();select(tabs[next]);tabs[next].focus();
+    });
+  });
+  select(tabs[0]);
+}
+
+export function mountMemberLibrary({root=document,loadApi=()=>import('/community/builder.js'),onEntries,onCreators,onReset=()=>{}}){
+  const $=id=>root.querySelector(`#${id}`);
+  let generation=0,expiryTimer,unsubscribe,stopped=false;
+  const status=message=>{for(const id of ['unlocked-status','creators-status'])$(id).textContent=message;};
+  function lock(message='Private library locked. Refresh to verify memberships.'){
+    generation++;clearTimeout(expiryTimer);onEntries([]);onCreators([]);$('library-recovery').value='';status(message);onReset();
+  }
+  async function refresh(recoveryCode){
+    const current=++generation;clearTimeout(expiryTimer);onEntries([]);onCreators([]);
+    status('Verifying wallet memberships…');
+    try{
+      const api=await loadApi();
+      const result=await api.readPersonalLibrary(recoveryCode);
+      if(current!==generation)return;
+      onCreators(result.creators);onEntries(result.entries);
+      $('unlocked-status').textContent=result.locked?'Enter your community recovery code to decrypt purchased creator strategies.':result.entries.length?'Drag an unlocked creator strategy onto the canvas.':'No delivered strategies for your active memberships yet.';
+      $('creators-status').textContent=result.creators.length?'Creators with verified active paid memberships.':'No active paid creator memberships.';
+      if(result.creators.length)expiryTimer=setTimeout(()=>lock('Membership expired. Refresh to verify access.'),Math.max(0,Math.min(2147483647,Math.min(...result.creators.map(row=>row.expiresAt))-Date.now())));
+    }catch(error){if(current===generation)status(error.message??'Could not verify your community library.');}
+  }
+  $('unlock-library-form').addEventListener('submit',event=>{event.preventDefault();const code=$('library-recovery').value;$('library-recovery').value='';void refresh(code);});
+  $('lock-library').addEventListener('click',()=>lock());
+  for(const id of ['refresh-member-library','refresh-creator-library'])$(id).addEventListener('click',()=>refresh());
+  $('connect-library-wallet').addEventListener('click',async()=>{try{const api=await loadApi();await api.connectLibraryWallet();void refresh();}catch(error){status(error.message);}});
+  void loadApi().then(api=>{if(stopped)return;unsubscribe=api.subscribeLibraryWallet(()=>lock('Wallet changed. Refresh to load this account’s library.'));}).catch(()=>{});
+  return {refresh,stop(){stopped=true;lock();unsubscribe?.();}};
+}

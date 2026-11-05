@@ -176,3 +176,10 @@ test("an ETH feed cannot enable Run for a selected BTC pair",async()=>{
   assert.equal(ui.controls.get("#execution-start")!.disabled,true);assert.match(ui.controls.get("#market-status")!.textContent,/another trading pair/);
   await ui.event("execution-start");assert.equal(ui.sent.length,0);
 });
+
+ test("market readiness works without the removed price-status box",async()=>{
+  const ui=await setup();
+  ui.controls.delete("#market-price");ui.controls.delete("#market-status");
+  await ui.module.refreshMarket();
+  assert.equal(ui.controls.get("#execution-start")!.disabled,false);
+ });

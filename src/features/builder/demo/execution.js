@@ -2,6 +2,7 @@ import {connectSolanaWallet,signSolanaSetup,signSolanaOrderMessage} from "./sola
 import {connectBrowserWallet,signFlashOrder} from "./wallet.js";
 export function mountExecution({root=document,getDraft,applyDraft,validateDraft,getApiKey,mayReplace=()=>true,request=fetch,getPair=()=>({id:"eth-usdc",base:{symbol:"WETH",reference:"ETH"},quote:{symbol:"USDC"}})}) {
   const $=id=>root.querySelector(`#${id}`);
+  const setText=(id,text)=>{const node=$(id);if(node)node.textContent=text;};
   const entries=new Map();
   let sessionId,timer,wallet,walletNetwork,solanaConnection,walletBusy=false;
   let busy=false,sequence=0,controller,lastDraft=JSON.stringify(getDraft()),market,marketLoading=false;
@@ -32,9 +33,9 @@ export function mountExecution({root=document,getDraft,applyDraft,validateDraft,
       if(getPair().id!==pairId)return;
       if(data.pairId&&data.pairId!==pairId)throw new Error("Market data is for another trading pair.");
       market=data;
-      $("market-price").textContent=data.priceUsd?`${getPair().base.reference} $${data.priceUsd} · ${getPair().base.symbol}/${getPair().quote.symbol} · ${getPair().network?.name??"Base"}`:"Loading price sources…";
-      $("market-status").textContent=data.stale?"Prices are stale or failed their checks. Waiting for fresh sources.":"Live Chainlink + Flash checks passed · Checks every 10 seconds · Ready to monitor.";
-    } catch(error) {market=undefined;$("market-price").textContent="Market data unavailable";$("market-status").textContent=error.message??"Market data is unavailable.";}
+      setText("market-price",data.priceUsd?`${getPair().base.reference} $${data.priceUsd} · ${getPair().base.symbol}/${getPair().quote.symbol} · ${getPair().network?.name??"Base"}`:"Loading price sources…");
+      setText("market-status",data.stale?"Prices are stale or failed their checks. Waiting for fresh sources.":"Live Chainlink + Flash checks passed · Checks every 10 seconds · Ready to monitor.");
+    } catch(error) {market=undefined;setText("market-price","Market data unavailable");setText("market-status",error.message??"Market data is unavailable.");}
     finally {marketLoading=false;refresh();}
   }
   function invalidate(message="Run cleared because its inputs changed.",keepResults=false) {
@@ -95,8 +96,9 @@ export function mountExecution({root=document,getDraft,applyDraft,validateDraft,
     )||new Set(creators.map(creator=>creator.id)).size!==creators.length)throw new Error("Supply a list of followed creators with unique IDs and names.");
     $("creator-library").replaceChildren();
     for(const creator of creators) {
-      const card=element("div",undefined,"creator-card");
-      card.append(element("strong",creator.name),element("small","Following"));
+      const card=element("a",undefined,"creator-card");
+      card.href=`/community#/profile/${encodeURIComponent(creator.id)}`;
+      card.append(element("strong",creator.name),element("small","View creator on community page ↗"));
       $("creator-library").append(card);
     }
     $("creators-empty").hidden=creators.length>0;
@@ -198,5 +200,5 @@ export function mountExecution({root=document,getDraft,applyDraft,validateDraft,
   root.defaultView?.ethereum?.on?.("chainChanged",()=>invalidate("Wallet network changed. Reconnect on the selected network before Run."));
   root.defaultView?.addEventListener("pagehide",()=>invalidate("Monitoring stopped because this tab closed."));
   $("execution-results").hidden=true;refresh();
-  return {addUnlockedStrategy,setFollowedCreators,refreshMarket,invalidate,draftChanged(){const now=JSON.stringify(getDraft());if(now!==lastDraft){lastDraft=now;$("execution-selected").textContent="Current edited draft · live price monitor";invalidate("Draft changed. Review it before starting a new run.");if((market?.pairId??"eth-usdc")!==getPair().id){market=undefined;void refreshMarket();}}}};
+  return {clearUnlockedStrategies(){entries.clear();$("execution-library").replaceChildren();},addUnlockedStrategy,setFollowedCreators,refreshMarket,invalidate,draftChanged(){const now=JSON.stringify(getDraft());if(now!==lastDraft){lastDraft=now;$("execution-selected").textContent="Current edited draft · live price monitor";invalidate("Draft changed. Review it before starting a new run.");if((market?.pairId??"eth-usdc")!==getPair().id){market=undefined;void refreshMarket();}}}};
 }

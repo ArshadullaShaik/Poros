@@ -1,6 +1,10 @@
 import {readChainlink} from "./chainlink.ts";
 import {createFlashMarket,FlashError} from "./flash.ts";
 import {pairForStrategy,tradingPairs,networks} from "./config.ts";
+function readOracle(pair:ReturnType<typeof pairForStrategy>,token:ReturnType<typeof pairForStrategy>["base"],fetcher:typeof fetch,now:()=>number){
+  const network=networks[(token.oracleNetwork??pair.network.oracleNetwork??pair.network.key) as keyof typeof networks]??pair.network;
+  return readChainlink({fetcher,now,feed:token.feed,maxAgeSeconds:token.maxAgeSeconds,networkId:network.id,rpcUrl:network.rpc,sequencer:"sequencer" in network?network.sequencer??null:null});
+}
 export function createLiveMarket({fetcher=fetch,now=Date.now,pair=pairForStrategy()}={}) {
   const flash=createFlashMarket({fetcher,now,pair});
   let reference:Awaited<ReturnType<typeof readChainlink>>|undefined,quoteReference:typeof reference,checkedAt=-Infinity,lastAttempt=-Infinity,error:FlashError|undefined,pending:Promise<ReturnType<typeof read>>|undefined;
@@ -13,11 +17,7 @@ export function createLiveMarket({fetcher=fetch,now=Date.now,pair=pairForStrateg
   }
   async function collect() {
     try {
-      const oracle=(token:typeof pair.base)=>{
-        const network=networks[(token.oracleNetwork??pair.network.oracleNetwork??pair.network.key) as keyof typeof networks]??pair.network;
-        return readChainlink({fetcher,now,feed:token.feed,maxAgeSeconds:token.maxAgeSeconds,networkId:network.id,rpcUrl:network.rpc,sequencer:"sequencer" in network?network.sequencer??null:null});
-      };
-      const results=await Promise.allSettled([oracle(pair.base),oracle(pair.quote),flash.refresh()]);
+      const results=await Promise.allSettled([readOracle(pair,pair.base,fetcher,now),readOracle(pair,pair.quote,fetcher,now),flash.refresh()]);
       for(const result of results)if(result.status==="rejected")throw result.reason;
       const answer=(results[0] as PromiseFulfilledResult<Awaited<ReturnType<typeof readChainlink>>>).value;
       const funding=(results[1] as PromiseFulfilledResult<Awaited<ReturnType<typeof readChainlink>>>).value,quote=flash.read();
@@ -35,5 +35,14 @@ export function createLiveMarket({fetcher=fetch,now=Date.now,pair=pairForStrateg
 export function createLiveMarkets(options:Parameters<typeof createLiveMarket>[0]={}){
   const markets=new Map(tradingPairs.map(pair=>[pair.id,createLiveMarket({...options,pair})]));
   const select=(input?:unknown)=>markets.get(pairForStrategy(input).id)!;
-  return {read:(input?:unknown)=>select(input).read(),refresh:(input?:unknown)=>select(input).refresh()};
+  const prices=new Map<string,{at:number;pending:Promise<{source:"CHAINLINK";pairId:string;priceUsd:string;stale:false;observedAtMs:number}>}>();
+  const now=options.now??Date.now;
+  function displayPrice(input?:unknown){
+    const pair=pairForStrategy(input),cached=prices.get(pair.id);
+    if(cached&&now()>=cached.at&&now()-cached.at<10000)return cached.pending;
+    const pending=readOracle(pair,pair.base,options.fetcher??fetch,now).then(price=>({source:"CHAINLINK" as const,pairId:pair.id,priceUsd:price.priceUsd,stale:false as const,observedAtMs:price.updatedAtMs}));
+    prices.set(pair.id,{at:now(),pending});
+    return pending;
+  }
+  return {read:(input?:unknown)=>select(input).read(),refresh:(input?:unknown)=>select(input).refresh(),displayPrice};
 }
