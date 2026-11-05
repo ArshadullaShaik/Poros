@@ -63,6 +63,18 @@ export function createCreatorMemberships(events: EventRepository, readers: {
     getPlan: (creator: Hex) => current('creator-plan', creator),
     getKey: (wallet: Hex, beforeBlock?: bigint) => current('encryption-key', wallet, beforeBlock),
     readKey: (key: Hex) => typed(key, 'encryption-key'),
+    readPlan: (key: Hex) => typed(key, 'creator-plan'),
+    async retentionEvidence(records: EventDTO[]) {
+      const found = new Map(records.map(row=>[row.key,row]));
+      for (const record of found.values()) {
+        if (!record.data.previousKey) continue;
+        const parent = await typed(entityKey(record.data.previousKey),record.type);
+        if (parent.actor !== record.actor || BigInt(parent.createdAtBlock) > BigInt(record.createdAtBlock)) fail('INTEGRITY_FAILED');
+        if (!found.has(parent.key)) found.set(parent.key,parent);
+        if (found.size > 500) fail('HISTORY_INCOMPLETE');
+      }
+      return [...found.values()];
+    },
     publishPlan: (input: { priceWei: string; requestId: string; previousKey?: Hex }) =>
       revise('creator-plan', { priceWei: input.priceWei, termDays: 30 }, input.requestId, input.previousKey),
     registerKey: (input: { identity: EncryptionIdentity; requestId: string; previousKey?: Hex }) =>
@@ -102,6 +114,27 @@ export function createCreatorMemberships(events: EventRepository, readers: {
       return events.append({ type: 'subscription', actor: buyer, subject: plan.actor, scope: 'global', requestId: input.requestId,
         data: { planKey: plan.key, transactionHash: entityKey(input.transactionHash), keyRecord: key.key } });
     },
+    async renewalEvidence(creator: Hex, buyer: Hex, now: number) {
+      let expiresAt = 0;
+      let records: EventDTO[] = [];
+      const seen = new Set<string>();
+      const claims = ordered(await events.scan({type:'subscription',subject:address(creator),actor:address(buyer),scope:'global'}));
+      for (const claim of claims) {
+        const hash = String(claim.data.transactionHash);
+        if (seen.has(hash)) continue;
+        let activatedAt: number;
+        try { activatedAt = await verifyClaim(claim); }
+        catch (error) {
+          if (error instanceof StorageError && ['PAYMENT_UNVERIFIED','INVALID_INPUT','UNTRUSTED_RECORD','NOT_FOUND_OR_EXPIRED'].includes(error.code)) continue;
+          throw error;
+        }
+        seen.add(hash);
+        if (activatedAt >= expiresAt) records = [];
+        records.push(claim, await typed(entityKey(claim.data.planKey),'creator-plan'), await typed(entityKey(claim.data.keyRecord),'encryption-key'));
+        expiresAt = Math.max(expiresAt,activatedAt) + MEMBERSHIP_MS;
+      }
+      return {expiresAt:Math.max(now,expiresAt)+MEMBERSHIP_MS,records:expiresAt > now ? records : []};
+    },
     async publishSignal(input: { encrypted: EncryptedSignal; requestId: string }) {
       const creator = await events.actor();
       const key = await typed(input.encrypted.creatorKey, 'encryption-key');
@@ -115,10 +148,12 @@ export function createCreatorMemberships(events: EventRepository, readers: {
     readSignal: (key: Hex) => typed(key, 'private-signal'),
     async recipients(signal: EventDTO) {
       const at = await readers.blockTimestamp(BigInt(signal.createdAtBlock));
-      const members = await service.members(signal.actor, BigInt(signal.createdAtBlock));
+      // Claims in the same block have no reliable transaction ordering in this event model.
+      const before = BigInt(signal.createdAtBlock) - 1n;
+      const members = await service.members(signal.actor, before);
       const recipients: { wallet: Hex; key: EventDTO }[] = [];
       for (const member of members.filter(member => member.expiresAt > at)) {
-        const key = await service.getKey(member.wallet, BigInt(signal.createdAtBlock));
+        const key = await service.getKey(member.wallet, before);
         if (!key) fail('KEY_REQUIRED', 'A subscriber encryption key is unavailable. Delivery remains pending.');
         recipients.push({ wallet: member.wallet, key });
       }
@@ -134,6 +169,8 @@ export function createCreatorMemberships(events: EventRepository, readers: {
       if (creator !== signal.actor) fail('NOT_OWNER');
       const key = await typed(input.keyRecord, 'encryption-key');
       if (key.actor !== address(input.recipient) || BigInt(key.createdAtBlock) > BigInt(signal.createdAtBlock)) fail('KEY_REQUIRED');
+      const recipient = (await service.recipients(signal)).find(row => row.wallet === key.actor);
+      if (!recipient || recipient.key.key !== key.key) fail('NOT_OWNER');
       return events.append({ type: 'signal-envelope', actor: creator, subject: key.actor, scope: signal.key,
         requestId: envelopeRequestId(signal.key, key.actor), data: { keyRecord: key.key, box: input.box as unknown as Json } });
     },

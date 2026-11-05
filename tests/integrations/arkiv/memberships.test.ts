@@ -77,3 +77,47 @@ test('raw duplicate payment claims and claims for another wallet do not add acce
   env.state.from = alice;
   assert.deepEqual(await env.service.members(alice), []);
 });
+
+test('private delivery includes only members active before publication and recovers one recipient envelope',async()=>{
+  const env=setup();
+  const identity={publicKey:'a'.repeat(43),backup:{iv:'a'.repeat(16),ciphertext:'b'.repeat(80)}};
+  const creatorKey=await env.service.registerKey({identity,requestId:crypto.randomUUID()});
+  const plan=await env.service.publishPlan({priceWei:'100',requestId:crypto.randomUUID()});
+  env.account(bob);
+  const buyerKey=await env.service.registerKey({identity,requestId:crypto.randomUUID()});
+  env.account(alice);
+  const box={publicKey:'a'.repeat(43),salt:'a'.repeat(43),iv:'a'.repeat(16),ciphertext:'b'.repeat(64)};
+  const encrypted={iv:'a'.repeat(16),ciphertext:'b'.repeat(80),creatorKey:creatorKey.key,creatorBox:box,source:'manual' as const};
+  const oldSignal=await env.service.publishSignal({encrypted,requestId:crypto.randomUUID()});
+  env.account(bob);
+  const claim=await env.service.claim({planKey:plan.key,keyRecord:buyerKey.key,transactionHash:hash(8),requestId:crypto.randomUUID()});
+  env.account(alice);
+  const signal=await env.service.publishSignal({encrypted,requestId:crypto.randomUUID()});
+  assert.deepEqual(await env.service.recipients(oldSignal),[]);
+  assert.deepEqual((await env.service.recipients(signal)).map(row=>row.wallet),[bob]);
+  const input={signal,recipient:bob,keyRecord:buyerKey.key,box};
+  const envelope=await env.service.grantSignal(input);
+  assert.equal((await env.service.grantSignal(input)).key,envelope.key);
+  assert.equal((await env.service.getEnvelope(signal,bob))?.key,envelope.key);
+  await assert.rejects(env.service.grantSignal({...input,signal:oldSignal}),{code:'NOT_OWNER'});
+  claim.createdAtBlock=signal.createdAtBlock;
+  assert.deepEqual(await env.service.recipients(signal),[]);
+  claim.createdAtBlock='105';
+  signal.createdAtBlock='100000';
+  assert.deepEqual(await env.service.recipients(signal),[]);
+});
+
+test('renewal evidence carries active claim dependencies and drops a completed term',async()=>{
+  const env=setup();
+  const plan=await env.service.publishPlan({priceWei:'100',requestId:crypto.randomUUID()});
+  env.account(bob);
+  const key=await env.service.registerKey({identity:{publicKey:'a'.repeat(43),backup:{iv:'a'.repeat(16),ciphertext:'b'.repeat(80)}},requestId:crypto.randomUUID()});
+  const claim=await env.service.claim({planKey:plan.key,keyRecord:key.key,transactionHash:hash(9),requestId:crypto.randomUUID()});
+  const active=await env.service.renewalEvidence(alice,bob,10400000);
+  assert.equal(active.expiresAt,10300000+2*MEMBERSHIP_MS);
+  assert.deepEqual(active.records.map(row=>row.key),[claim.key,plan.key,key.key]);
+  const now=10300000+MEMBERSHIP_MS;
+  const ended=await env.service.renewalEvidence(alice,bob,now);
+  assert.deepEqual(ended.records,[]);
+  assert.equal(ended.expiresAt,now+MEMBERSHIP_MS);
+});

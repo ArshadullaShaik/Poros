@@ -6,6 +6,7 @@ import { AgentError, readBoundedJson, runStrategyAgent, validateInferenceKey } f
 import { fixtureContext, rsiStrategy } from "../fixtures/rsi-strategy.ts";
 import { PaperError, runPaperStrategy } from "../execution/paper.ts";
 import { runExecutionAgent } from "../execution/agent.ts";
+import { createSepoliaProxy } from "./sepolia-rpc.mjs";
 
 const assets = new Map([
   ["/", [new URL("./index.html", import.meta.url), "text/html"]],
@@ -27,6 +28,7 @@ const assets = new Map([
 ]);
 
 export function createDemoServer({fetcher = fetch} = {}) {
+  const handleSepolia = createSepoliaProxy(fetcher);
   // shortcut: local demo concurrency gate, replace with authenticated per-user limits before hosting.
   let aiBusy = false;
   async function handleAi(request, response, execution = false) {
@@ -93,6 +95,7 @@ export function createDemoServer({fetcher = fetch} = {}) {
     let pathname;
     try { pathname = new URL(request.url ?? "/", "http://127.0.0.1").pathname; }
     catch { response.writeHead(400).end("Malformed request target."); return; }
+    if (pathname === "/api/sepolia-rpc") { await handleSepolia(request, response); return; }
     if (pathname === "/api/ai" || pathname === "/api/execution") {
       if (request.method === "POST") { await handleAi(request, response, pathname === "/api/execution"); return; }
       response.setHeader("Allow", "POST");
