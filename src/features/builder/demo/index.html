@@ -4,14 +4,14 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="A local playground for building and validating crypto strategy rules.">
-  <title>Strategy Lab · Builder demo</title>
+  <title>Poros · Builder demo</title>
   <link rel="icon" href="data:,">
   <link rel="stylesheet" href="/style.css">
   <script type="module" src="/app.js"></script>
 </head>
 <body>
   <header class="topbar">
-    <a class="brand" href="/" aria-label="Strategy Lab home"><span class="brand-mark">↗</span>Strategy<span class="brand-light">Lab</span></a>
+    <a class="brand" href="/" aria-label="Poros home"><span class="brand-mark">↗</span>Poros</a>
     <span class="top-divider"></span><span class="top-label">Strategy workspace</span>
     <span class="demo-label"><span class="status-dot"></span>LOCAL DEMO</span>
   </header>
@@ -31,7 +31,7 @@
         <div class="fixture-note"><span aria-hidden="true">◌</span><div><strong>A safe place to experiment</strong><p>Local test tokens. No wallet, real trades, or performance simulation.</p></div></div>
       </aside>
       <div class="editor-column">
-        <div class="canvas-toolbar"><div><span class="canvas-symbol" aria-hidden="true">⌘</span><strong>Strategy canvas</strong></div><div class="view-switch" role="group" aria-label="View"><button id="canvas-view" class="active" aria-pressed="true">Canvas</button><button id="json-view" aria-pressed="false">JSON</button></div></div>
+        <div class="canvas-toolbar"><div><span class="canvas-symbol" aria-hidden="true">⌘</span><strong>Strategy canvas</strong></div><button id="open-strategy-settings" class="button secondary compact" type="button" aria-haspopup="dialog" aria-controls="strategy-settings">Settings</button><div class="view-switch" role="group" aria-label="View"><button id="canvas-view" class="active" aria-pressed="true">Canvas</button><button id="json-view" aria-pressed="false">JSON</button></div></div>
         <div class="canvas-runbar"><span id="execution-selected" class="tiny muted">Current draft · paper replay only</span><div class="heading-actions"><button id="execution-start" class="button primary compact" type="button" aria-describedby="execution-help">Run strategy</button><button id="execution-stop" class="button secondary compact" type="button" disabled>Stop</button></div></div>
         <details class="execution-settings"><summary>Run settings <span class="small-tag">PAPER ONLY</span></summary>
           <label class="field"><span>Execution mode</span><select id="execution-mode"><option value="AI">0G AI agent + paper execution</option><option value="RULES_ONLY">Local rules replay (no AI cost)</option></select></label>
@@ -51,30 +51,8 @@
         </div>
         <div id="json-panel" class="json-panel" hidden><p class="muted small">Strategy rules only. Canvas positions are kept separately.</p><pre id="json-preview" tabindex="0" aria-label="Strategy JSON preview"></pre></div>
         <div class="canvas-footer"><span id="block-count">6 blocks · 4 connections</span><span>Move blocks with drag, or focus a block title and use arrow keys.</span></div>
-        <section id="validation" class="validation" aria-labelledby="validation-title">
-          <div class="validation-top"><div><span id="validation-icon" class="validation-icon">✓</span><div><h2 id="validation-title">Strategy is valid</h2><p id="validation-description">All paths have a signal, risk guard, and action.</p></div></div><button id="validate" class="button secondary compact">Validate strategy</button></div>
-          <ul id="issues" class="issues" hidden></ul>
-        </section>
         <p id="execution-status" class="small" role="status" aria-live="polite"></p>
         <div id="execution-results" class="execution-results" aria-live="polite" hidden></div>
-        <details id="strategy-settings" class="strategy-inspector"><summary>Strategy settings</summary>
-        <div class="inspector panel" aria-label="Strategy settings">
-        <div class="panel-title"><h2>Strategy settings</h2><span class="small-tag">DRAFT</span></div>
-        <label class="field"><span>Strategy name</span><input id="strategy-name" maxlength="100" autocomplete="off"></label>
-        <div class="section-divider"></div>
-        <div class="inspector-heading"><span class="eyebrow">SELECTED BLOCK</span><span id="selected-kind" class="muted small"></span></div>
-        <div id="node-settings"></div>
-        <button id="delete-node" class="delete-button" hidden>Remove block</button>
-        <div class="section-divider"></div>
-        <p class="eyebrow">ORDER LIMITS</p>
-        <label class="field"><span>Maximum per order <span class="unit">USD</span></span><input id="max-notional" type="number" min="0.01" step="0.01"></label>
-        <label class="field"><span>Maximum slippage <span class="unit">BPS</span></span><input id="max-slippage" type="number" min="0" max="500" step="1"></label>
-        <p class="muted tiny">100 bps = 1%. These limits apply to every action.</p>
-        <div class="paper-label"><span aria-hidden="true">▣</span> Paper-only strategy</div>
-        <div class="section-divider"></div>
-        <p class="eyebrow">CONNECTIONS</p><div id="connection-list" class="connection-list"></div>
-        </div>
-        </details>
       </div>
       <aside class="library panel" aria-label="Your strategies and creators">
         <div class="panel-title"><h2>Unlocked strategies</h2><span class="small-tag">YOUR LIBRARY</span></div>
@@ -114,6 +92,28 @@
       </div>
       </details>
     </dialog>
+  <dialog id="strategy-settings" class="strategy-dialog" aria-labelledby="strategy-settings-title">
+    <div class="dialog-heading"><h2 id="strategy-settings-title">Strategy settings</h2><button id="close-strategy-settings" class="icon-button" type="button" aria-label="Close strategy settings">×</button></div>
+    <section id="validation" class="validation" aria-labelledby="validation-title" aria-live="polite" hidden>
+      <h2 id="validation-title">Strategy needs changes</h2>
+      <ul id="issues" class="issues" hidden></ul>
+    </section>
+    <div class="inspector panel">
+        <label class="field"><span>Strategy name</span><input id="strategy-name" maxlength="100" autocomplete="off"></label>
+        <div class="section-divider"></div>
+        <div class="inspector-heading"><span class="eyebrow">SELECTED BLOCK</span><span id="selected-kind" class="muted small"></span></div>
+        <div id="node-settings"></div>
+        <button id="delete-node" class="delete-button" hidden>Remove block</button>
+        <div class="section-divider"></div>
+        <p class="eyebrow">ORDER LIMITS</p>
+        <label class="field"><span>Maximum per order <span class="unit">USD</span></span><input id="max-notional" type="number" min="0.01" step="0.01"></label>
+        <label class="field"><span>Maximum slippage <span class="unit">BPS</span></span><input id="max-slippage" type="number" min="0" max="500" step="1"></label>
+        <p class="muted tiny">100 bps = 1%. These limits apply to every action.</p>
+        <div class="paper-label"><span aria-hidden="true">▣</span> Paper-only strategy</div>
+        <div class="section-divider"></div>
+        <p class="eyebrow">CONNECTIONS</p><div id="connection-list" class="connection-list"></div>
+    </div>
+  </dialog>
   <dialog id="import-dialog" aria-labelledby="import-title">
     <form id="import-form"><div class="dialog-heading"><div><p class="eyebrow">BRING YOUR RULES</p><h2 id="import-title">Import a strategy</h2></div><button type="button" id="close-import" class="icon-button" aria-label="Close import">×</button></div>
       <p class="muted small">Paste strategy JSON or choose a file. It must pass validation before replacing your draft.</p>

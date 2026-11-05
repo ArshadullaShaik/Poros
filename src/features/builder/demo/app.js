@@ -38,7 +38,7 @@ function edit(operation) {
     return true;
   } catch (error) { announce(error.message); return false; }
 }
-function select(id) { selected = id; $("#strategy-settings").open = true; render(); }
+function select(id) { selected = id; render(); $("#strategy-settings").showModal(); }
 function replaceDraft(next) {
   draft = structuredClone(next);
   selected = draft.nodes[0]?.id;
@@ -59,7 +59,7 @@ function connect(target) {
   if (!connectFrom) { announce("First choose the right-hand dot on a source block."); return; }
   const source = connectFrom;
   connectFrom = undefined;
-  if (edit({type: "connect", edge: {id: crypto.randomUUID(), source, target}})) announce("Connection added. Check validation below the canvas.");
+  if (edit({type: "connect", edge: {id: crypto.randomUUID(), source, target}})) announce("Connection added.");
 }
 
 function port(node, direction) {
@@ -221,10 +221,8 @@ function renderConnections() {
 }
 
 function renderValidation(result) {
-  $("#validation").classList.toggle("needs-fixes", !result.valid);
-  $("#validation-icon").textContent = result.valid ? "✓" : "!";
+  $("#validation").hidden = result.valid;
   $("#validation-title").textContent = result.valid ? "Strategy is valid" : `${result.issues.length} ${result.issues.length === 1 ? "thing" : "things"} to fix`;
-  $("#validation-description").textContent = result.valid ? "All paths have a signal, risk guard, and action. Ready to export." : "Connect complete paths and check the highlighted settings before exporting.";
   const list = $("#issues"); list.replaceChildren(); list.hidden = result.valid;
   if (!result.valid) result.issues.forEach(issue => {
     const item = element("li");
@@ -261,8 +259,7 @@ function addBlock(type, position) {
   const point = position ?? defaultPosition(draft.nodes.length);
   positions.set(id, {x: Math.max(20, Math.min(canvas.clientWidth - 235, point.x)), y: Math.max(40, Math.min(3000, point.y))});
   selected = id;
-  $("#strategy-settings").open = true;
-  edit({type: "addNode", node});
+  if (edit({type: "addNode", node})) $("#strategy-settings").showModal();
   announce(`${kinds[type].label} added. Connect it into a complete path.`);
 }
 
@@ -288,7 +285,8 @@ for (const [selector, key] of [["#max-notional", "maxNotionalUsd"], ["#max-slipp
   $(selector).addEventListener("change", event => { draft = {...draft, riskPolicy: {...draft.riskPolicy, [key]: Number(event.target.value)}}; dirty = true; render(); });
 }
 $("#delete-node").addEventListener("click", () => removeNode(selected));
-$("#validate").addEventListener("click", () => { const result = validateStrategy(draft, fixtureContext); renderValidation(result); announce(result.valid ? "Validation passed. This checks rules, not trading performance." : `Validation found ${result.issues.length} issues. Review the list below the canvas.`); });
+$("#open-strategy-settings").addEventListener("click", () => $("#strategy-settings").showModal());
+$("#close-strategy-settings").addEventListener("click", () => $("#strategy-settings").close());
 $("#load-example").addEventListener("click", () => { if (mayReplace()) { replaceDraft(rsiStrategy); announce("RSI example loaded: buy below 30, sell above 70, $20 per order."); } });
 $("#new-strategy").addEventListener("click", () => { if (mayReplace()) { replaceDraft({...rsiStrategy, strategyId: crypto.randomUUID(), name: "Untitled strategy", description: "Paper strategy draft", nodes: [], edges: []}); announce("Blank canvas ready. Add blocks from the left."); } });
 for (const view of ["canvas", "json"]) $("#" + view + "-view").addEventListener("click", () => {
