@@ -22,15 +22,32 @@ const messages = {
   INSUFFICIENT_COMPUTE_BALANCE: [402, "Your 0G account has insufficient eligible balance for this request."],
   FORBIDDEN: [403, "This key is not permitted to use the selected model."],
   RATE_LIMITED: [429, "An AI request is already running or 0G is rate limiting requests. Try again later."],
-  INVALID_OUTPUT: [502, "0G returned an invalid or incomplete proposal. Your draft is unchanged."],
+  INVALID_OUTPUT: [502, "0G returned an invalid or incomplete AI response. No AI result was applied."],
   TIMEOUT: [504, "The AI request timed out. Check 0G usage before manually trying again; it may have been charged."],
-  UNAVAILABLE: [503, "No compatible priced model is available, or 0G could not complete the request."],
+  UNAVAILABLE: [503, "No compatible priced Qwen model is available, or 0G could not complete the request."],
+} as const;
+const failureReasons = {
+  REQUEST_REJECTED: "0G rejected the AI request (HTTP 400). The selected model or provider may not support the request options. No automatic retry was made.",
+  MODEL_MISMATCH: "0G reported a different model than requested. The response was rejected; no automatic retry was made.",
+  EMPTY_RESPONSE: "0G returned no assistant message. No automatic retry was made.",
+  TRUNCATED_TOOL: "0G reached the output-token limit before completing the required paper execution tool call. No paper run was started.",
+  MISSING_TOOL: "0G did not return the required paper execution tool call. No paper run was started.",
+  INVALID_TOOL: "0G returned an unsupported execution tool call. No paper run was started.",
+  INVALID_ARGUMENTS: "0G returned invalid execution tool arguments. No paper run was started.",
+  CATALOG_UNAVAILABLE: "0G could not load its public model catalog. No inference request was sent.",
+  INVALID_CATALOG: "0G returned an invalid model catalog. No inference request was sent.",
+  NO_COMPATIBLE_MODEL: "No eligible Qwen Flash model with pricing and tool calling is available in the catalog. No inference request was sent.",
+  UPSTREAM_500: "0G returned HTTP 500 while processing inference. No automatic retry was made.",
+  UPSTREAM_502: "0G returned HTTP 502 from its inference provider. No automatic retry was made.",
+  UPSTREAM_503: "0G returned HTTP 503: inference is unavailable for the selected model. No automatic retry was made.",
+  CATALOG_NETWORK: "A network connection failed while fetching the 0G model catalog. No inference request was sent.",
+  INFERENCE_NETWORK: "A network connection failed while contacting 0G inference. The request may have reached 0G; check usage before retrying.",
 } as const;
 export class AgentError extends Error {
   code: keyof typeof messages;
   status: number;
-  constructor(code: keyof typeof messages) {
-    super(messages[code][1]);
+  constructor(code: keyof typeof messages, reason?: keyof typeof failureReasons) {
+    super((code === "INVALID_OUTPUT" || code === "UNAVAILABLE") && reason ? failureReasons[reason] : messages[code][1]);
     this.code = code;
     this.status = messages[code][0];
   }
@@ -83,12 +100,13 @@ function perMillion(value: unknown): string | undefined {
 }
 
 function selectModel(catalog: unknown, inputBytes: number) {
-  if (!record(catalog) || !Array.isArray(catalog.data)) throw new AgentError("UNAVAILABLE");
-  let best: {id: string; promptCap: string; completionCap: string; cost: bigint} | undefined;
+  if (!record(catalog) || !Array.isArray(catalog.data)) throw new AgentError("UNAVAILABLE", "INVALID_CATALOG");
+  let best: {id: string; promptCap: string; completionCap: string; cost: bigint; jsonMode: boolean} | undefined;
   for (const model of catalog.data) {
-    if (!record(model) || !text(model.id, 128) || model.type !== "chatbot" || !Number.isSafeInteger(model.provider_count) || model.provider_count < 1 ||
+    if (!record(model) || !text(model.id, 128) || !["qwen3.7-flash", "qwen-flash"].includes(model.id.toLowerCase()) ||
+        model.type !== "chatbot" || !Number.isSafeInteger(model.provider_count) || model.provider_count < 1 ||
         !Array.isArray(model.supported_formats) || !model.supported_formats.includes("openai") || !Array.isArray(model.supported_parameters) ||
-        !["tools", "response_format", "max_tokens"].every(parameter => model.supported_parameters.includes(parameter)) ||
+        !model.supported_parameters.includes("tools") ||
         !Array.isArray(model.architecture?.input_modalities) || !model.architecture.input_modalities.includes("text") ||
         !Array.isArray(model.architecture?.output_modalities) || !model.architecture.output_modalities.includes("text") ||
         !Number.isSafeInteger(model.context_length) || model.context_length < inputBytes + 2048 ||
@@ -98,9 +116,9 @@ function selectModel(catalog: unknown, inputBytes: number) {
     if (typeof prompt !== "string" || !/^\d{1,40}$/.test(prompt) || typeof completion !== "string" || !/^\d{1,40}$/.test(completion) || promptCap === undefined || completionCap === undefined) continue;
     // shortcut: byte-based token estimate, use model tokenizers if precise cross-model quotes become necessary.
     const cost = BigInt(inputBytes) * BigInt(prompt) + 2048n * BigInt(completion);
-    if (!best || cost < best.cost || (cost === best.cost && model.id < best.id)) best = {id: model.id, promptCap, completionCap, cost};
+    if (!best || cost < best.cost || (cost === best.cost && model.id < best.id)) best = {id: model.id, promptCap, completionCap, cost, jsonMode: model.supported_parameters.includes("response_format")};
   }
-  if (!best) throw new AgentError("UNAVAILABLE");
+  if (!best) throw new AgentError("UNAVAILABLE", "NO_COMPATIBLE_MODEL");
   return best;
 }
 
@@ -143,11 +161,13 @@ export async function requestZeroG(options: {
   if (JSON.stringify(options.messages).includes(options.apiKey)) throw new AgentError("INVALID_INPUT");
   const signal = options.signal ? AbortSignal.any([AbortSignal.timeout(30000), options.signal]) : AbortSignal.timeout(30000);
   const start = Date.now();
+  let inference = false;
   try {
     const catalogResponse = await fetcher("https://router-api.0g.ai/v1/models", {signal, redirect: "error"});
-    if (!catalogResponse.ok) { void catalogResponse.body?.cancel().catch(() => {}); throw new AgentError("UNAVAILABLE"); }
+    if (!catalogResponse.ok) { void catalogResponse.body?.cancel().catch(() => {}); throw new AgentError("UNAVAILABLE", "CATALOG_UNAVAILABLE"); }
     const catalog = await readBoundedJson(catalogResponse, 2097152, "INVALID_OUTPUT", signal);
     const model = selectModel(catalog, encoder.encode(JSON.stringify(options.messages)).length + encoder.encode(JSON.stringify(options.tool ?? {})).length + 256);
+    inference = true;
     const response = await fetcher("https://router-api.0g.ai/v1/chat/completions", {
       method: "POST", signal, redirect: "error",
       headers: {
@@ -157,15 +177,27 @@ export async function requestZeroG(options: {
         "X-0G-Provider-Max-Price-Usd-Completion": model.completionCap,
       },
       body: JSON.stringify({model: model.id, messages: options.messages, max_tokens: 2048, stream: false,
-        ...(options.tool ? {tools: [options.tool], tool_choice: {type: "function", function: {name: options.tool.function.name}}} : {response_format: {type: "json_object"}})}),
+        ...(options.tool ? {tools: [options.tool], tool_choice: {type: "function", function: {name: options.tool.function.name}}} : model.jsonMode ? {response_format: {type: "json_object"}} : {})}),
     });
     if (!response.ok) {
-      void response.body?.cancel().catch(() => {});
       const code = ({400: "INVALID_OUTPUT", 401: "UNAUTHORIZED", 402: "INSUFFICIENT_COMPUTE_BALANCE", 403: "FORBIDDEN", 429: "RATE_LIMITED"} as Partial<Record<number, keyof typeof messages>>)[response.status];
-      throw new AgentError(code ?? "UNAVAILABLE");
+      const reason = ({400: "REQUEST_REJECTED", 500: "UPSTREAM_500", 502: "UPSTREAM_502", 503: "UPSTREAM_503"} as Partial<Record<number, keyof typeof failureReasons>>)[response.status];
+      const error = new AgentError(code ?? "UNAVAILABLE", reason);
+      // Keep the HTTP failure even if the provider's diagnostic body is malformed.
+      const details = await readBoundedJson(response, 16384, "INVALID_OUTPUT", signal).catch(() => undefined);
+      error.message += ` Model: ${model.id}.`;
+      const providerCode = details?.error?.code;
+      if (["provider_error", "no_available_provider", "internal_error"].includes(providerCode)) error.message += ` Provider code: ${providerCode}.`;
+      const requestId = [details?.request_id, response.headers.get("x-request-id")].find(value =>
+        typeof value === "string" && !value.includes(options.apiKey) &&
+        /^(?:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|req[_-][a-z0-9_-]{1,100})$/i.test(value));
+      if (requestId) error.message += ` 0G request ID: ${requestId}.`;
+      throw error;
     }
     const data = await readBoundedJson(response, 262144, "INVALID_OUTPUT", signal);
-    if (data?.model !== model.id || !record(data?.choices?.[0]?.message) || JSON.stringify(data).includes(options.apiKey)) throw new AgentError("INVALID_OUTPUT");
+    if (JSON.stringify(data).includes(options.apiKey)) throw new AgentError("INVALID_OUTPUT");
+    if (data?.model !== model.id) throw new AgentError("INVALID_OUTPUT", "MODEL_MISMATCH");
+    if (!record(data?.choices?.[0]?.message)) throw new AgentError("INVALID_OUTPUT", "EMPTY_RESPONSE");
     const trace = data.x_0g_trace;
     const inferenceMetadata: AgentProposal["inferenceMetadata"] = {
       mode: "REAL_0G", model: model.id, latencyMs: Date.now() - start,
@@ -177,7 +209,7 @@ export async function requestZeroG(options: {
   } catch (error) {
     if (signal.aborted) throw new AgentError("TIMEOUT");
     if (error instanceof AgentError) throw error;
-    throw new AgentError("UNAVAILABLE");
+    throw new AgentError("UNAVAILABLE", inference ? "INFERENCE_NETWORK" : "CATALOG_NETWORK");
   }
 }
 

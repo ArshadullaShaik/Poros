@@ -2,6 +2,7 @@
 export type Address = `0x${string}`;
 
 export type StrategyNode =
+  | { id: string; type: "signal.price"; minPriceUsd: number; maxPriceUsd: number }
   | { id: string; type: "indicator.rsi"; period: number; comparison: "lt" | "gt"; threshold: number }
   | { id: string; type: "guard.risk" }
   | { id: string; type: "action.intent"; side: "BUY" | "SELL"; notionalUsd: number };
@@ -163,6 +164,7 @@ export function validateStrategy(input: unknown, context: ValidationContext): Va
     const raw = nodes[i];
     const kind = raw && typeof raw === "object" && "type" in raw ? raw.type : undefined;
     const fields = kind === "indicator.rsi" ? ["period", "comparison", "threshold"] :
+      kind === "signal.price" ? ["minPriceUsd", "maxPriceUsd"] :
       kind === "action.intent" ? ["side", "notionalUsd"] : [];
     const node = object(raw, path, ["id", "type", ...fields]);
     if (!node) continue;
@@ -171,6 +173,10 @@ export function validateStrategy(input: unknown, context: ValidationContext): Va
       number(node.period, `${path}.period`, 2, 200, true);
       number(node.threshold, `${path}.threshold`, 0, 100);
       if (node.comparison !== "lt" && node.comparison !== "gt") add("INVALID_COMPARISON", `${path}.comparison`, "Use lt or gt.");
+    } else if (node.type === "signal.price") {
+      number(node.minPriceUsd, `${path}.minPriceUsd`, 0.000001, 1000000);
+      number(node.maxPriceUsd, `${path}.maxPriceUsd`, 0.000001, 1000000);
+      if (typeof node.minPriceUsd === "number" && typeof node.maxPriceUsd === "number" && node.minPriceUsd > node.maxPriceUsd) add("INVALID_RANGE", path, "Minimum price must not exceed maximum price.");
     } else if (node.type === "action.intent") {
       if (node.side !== "BUY" && node.side !== "SELL") add("INVALID_SIDE", `${path}.side`, "Use BUY or SELL.");
       number(node.notionalUsd, `${path}.notionalUsd`, Number.MIN_VALUE, Number.MAX_SAFE_INTEGER);
@@ -178,7 +184,7 @@ export function validateStrategy(input: unknown, context: ValidationContext): Va
         add("RISK_CAP_EXCEEDED", `${path}.notionalUsd`, "Order exceeds the policy cap.", typeof node.id === "string" ? node.id : undefined);
       }
     } else if (node.type !== "guard.risk") {
-      add("UNKNOWN_NODE_TYPE", `${path}.type`, "Only RSI, risk guard and action blocks are supported.");
+      add("UNKNOWN_NODE_TYPE", `${path}.type`, "Only price signal, RSI, risk guard and action blocks are supported.");
     }
   }
   if (edges) for (let i = 0; i < edges.length; i++) {
@@ -212,14 +218,14 @@ export function validateStrategy(input: unknown, context: ValidationContext): Va
     if (!source) add("MISSING_NODE", `${path}.source`, "Source node does not exist.");
     if (!target) add("MISSING_NODE", `${path}.target`, "Target node does not exist.");
     if (!source || !target) return;
-    const permitted = (source.type === "indicator.rsi" && target.type === "guard.risk") ||
+    const permitted = ((source.type === "indicator.rsi" || source.type === "signal.price") && target.type === "guard.risk") ||
       (source.type === "guard.risk" && target.type === "action.intent");
     if (!permitted) add("INVALID_CONNECTION", path, "Connect RSI to risk guard, then risk guard to action.", target.id);
     incoming.set(target.id, incoming.get(target.id)! + 1);
     outgoing.set(source.id, outgoing.get(source.id)! + 1);
   });
   strategy.nodes.forEach((node, i) => {
-    const expectedIn = node.type === "indicator.rsi" ? 0 : 1;
+    const expectedIn = (node.type === "indicator.rsi" || node.type === "signal.price") ? 0 : 1;
     const expectedOut = node.type === "action.intent" ? 0 : 1;
     if (incoming.get(node.id) !== expectedIn || outgoing.get(node.id) !== expectedOut) {
       add("INVALID_EXECUTION_PATH", `$.nodes[${i}]`, "Each action requires one complete RSI → risk guard → action path, without branching.", node.id);

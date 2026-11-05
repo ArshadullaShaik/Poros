@@ -3,7 +3,11 @@ import { readFile } from "node:fs/promises";
 import { stripTypeScriptTypes } from "node:module";
 import { Readable } from "node:stream";
 import { AgentError, readBoundedJson, runStrategyAgent, validateInferenceKey } from "../ai/zero-g.ts";
-import { fixtureContext, rsiStrategy } from "../fixtures/rsi-strategy.ts";
+import { marketContext, marketStrategy } from "../market/config.ts";
+import { FlashError } from "../market/flash.ts";
+import { createLiveMarket } from "../market/live.ts";
+import { createPriceMonitor, invokePriceExecution } from "../execution/monitor.ts";
+import { interpretCreatorStrategy } from "../ai/interpreter.ts";
 import { PaperError, runPaperStrategy } from "../execution/paper.ts";
 import { runExecutionAgent } from "../execution/agent.ts";
 import { createSepoliaProxy } from "./sepolia-rpc.mjs";
@@ -18,6 +22,7 @@ const assets = new Map([
   ["/community/app.css", [new URL("../../../../apps/web/dist/app.css", import.meta.url), "text/css"]],
   ["/community/favicon.svg", [new URL("../../../../apps/web/dist/favicon.svg", import.meta.url), "image/svg+xml"]],
   ["/app.js", [new URL("./app.js", import.meta.url), "text/javascript"]],
+  ["/wallet.js", [new URL("./wallet.js", import.meta.url), "text/javascript"]],
   ["/focus.js", [new URL("./focus.js", import.meta.url), "text/javascript"]],
   ["/ai.js", [new URL("./ai.js", import.meta.url), "text/javascript"]],
   ["/execution.js", [new URL("./execution.js", import.meta.url), "text/javascript"]],
@@ -26,12 +31,17 @@ const assets = new Map([
   ["/core/validation/strategy.ts", [new URL("../validation/strategy.ts", import.meta.url), "text/javascript"]],
   ["/core/adapters/editor.ts", [new URL("../adapters/editor.ts", import.meta.url), "text/javascript"]],
   ["/core/fixtures/rsi-strategy.ts", [new URL("../fixtures/rsi-strategy.ts", import.meta.url), "text/javascript"]],
+  ["/core/market/config.ts", [new URL("../market/config.ts", import.meta.url), "text/javascript"]],
 ]);
 
 export function createDemoServer({fetcher = fetch} = {}) {
   const handleSepolia = createSepoliaProxy(fetcher);
   // shortcut: local demo concurrency gate, replace with authenticated per-user limits before hosting.
   let aiBusy = false;
+  const monitor = createPriceMonitor({market,fetcher,invoke:async(options)=>{
+    if(aiBusy)throw new AgentError("RATE_LIMITED");
+    aiBusy=true;try{return await invokePriceExecution(options,fetcher);}finally{aiBusy=false;}
+  }});
   async function handleAi(request, response, execution = false) {
     const json = (status, payload) => {
       response.setHeader("Content-Type", "application/json; charset=utf-8");
@@ -63,20 +73,27 @@ export function createDemoServer({fetcher = fetch} = {}) {
       clearTimeout(uploadTimer);
       let data;
       if (execution) {
-        if (!body || typeof body !== "object" || Array.isArray(body) || !["AI","RULES_ONLY"].includes(body.mode) || Object.keys(body).some(key => !["mode","strategy","candles","initialCashUsd","maxTurnoverUsd","feeBps","slippageBps"].includes(key))) throw new PaperError("Use AI or RULES_ONLY paper execution with strategy, candles and limits.");
+        if (!body || typeof body !== "object" || Array.isArray(body) || !["AI","RULES_ONLY"].includes(body.mode) || Object.keys(body).some(key => !["mode","strategy","initialCashUsd","maxTurnoverUsd","feeBps","slippageBps"].includes(key))) throw new PaperError("Use AI or RULES_ONLY paper execution with a strategy and limits. Historical candles are supplied by the server.");
         const {mode, ...fields} = body;
-        const input = {...fields,context:fixtureContext};
         if (mode === "AI") {
           apiKey = request.headers.authorization?.match(/^Bearer (sk-[A-Za-z0-9_-]+)$/)?.[1];
           validateInferenceKey(apiKey);
-          data = await runExecutionAgent({apiKey,input,signal:abort.signal},fetcher);
-        } else {
-          data = {agentMode:"RULES_ONLY",execution:runPaperStrategy(input),explanation:"Local rules replay completed. No AI inference, wallet or Flash order was used.",reportStatus:"NOT_REQUESTED",inference:[]};
         }
-      } else data = await runStrategyAgent({apiKey, input: body, defaults: rsiStrategy, context: fixtureContext, signal: abort.signal}, fetcher);
+        if (!market.candlesFor) throw new PaperError("Historical replay is disabled. Use the live price monitor.");
+        await market.refresh();
+        const input = {...fields,context:marketContext,candles:market.candlesFor(fields.strategy)};
+        const marketData = market.read();
+        if (mode === "AI") {
+          data = await runExecutionAgent({apiKey,input,signal:abort.signal,marketData:{source:marketData.source,chain:marketData.chain,pair:marketData.pair,referenceSource:"CHAINLINK_ETH_USD",quoteSource:"DEFINITIVE_FLASH"}},fetcher);
+        } else {
+          data = {agentMode:"RULES_ONLY",execution:runPaperStrategy(input),explanation:"Paper replay completed using Coinbase ETH/USD historical candles as a WETH proxy, checked against Chainlink and a live Flash quote. No AI inference, wallet or Flash order was used.",reportStatus:"NOT_REQUESTED",inference:[]};
+        }
+        data.marketData = {...marketData,firstOpenTimeMs:input.candles[0].openTimeMs,lastCloseTimeMs:input.candles.at(-1).closeTimeMs};
+        data.execution.assumptions.unshift("Coinbase ETH/USD minute candles are a proxy for Base WETH/USDC, not historical Flash fills. Chainlink and Flash check current prices only. Fills, fees and balances are simulated.");
+      } else data = await runStrategyAgent({apiKey, input: body, defaults: marketStrategy, context: marketContext, signal: abort.signal}, fetcher);
       json(200, {ok: true, data});
     } catch (error) {
-      const safe = error instanceof AgentError || error instanceof PaperError ? error : new AgentError("UNAVAILABLE");
+      const safe = error instanceof AgentError || error instanceof PaperError || error instanceof FlashError ? error : new AgentError("UNAVAILABLE");
       if (!response.destroyed) json(safe.status, {ok: false, error: {code: safe.code, message: safe.message}});
     } finally {
       clearTimeout(uploadTimer);
@@ -84,6 +101,36 @@ export function createDemoServer({fetcher = fetch} = {}) {
       aiBusy = false;
       apiKey = undefined;
     }
+  }
+  async function handleMonitor(request,response,interpret=false) {
+    const json=(status,payload)=>{response.setHeader("Content-Type","application/json; charset=utf-8");response.writeHead(status).end(JSON.stringify(payload));};
+    if((request.headers.origin&&request.headers.origin!==`http://${request.headers.host}`)||(request.headers["sec-fetch-site"]&&!["same-origin","none"].includes(request.headers["sec-fetch-site"]))) {json(403,{ok:false,error:{message:"Open this from the local demo only."}});return;}
+    if(!/^application\/json(?:\s*;.*)?$/i.test(request.headers["content-type"]??"")){json(415,{ok:false,error:{message:"Send application/json."}});return;}
+    const abort=new AbortController();
+    const timer=setTimeout(()=>abort.abort(),45000);
+    const close=()=>{if(!response.writableEnded)abort.abort();};response.once("close",close);
+    try {
+      const body=await readBoundedJson(new Response(Readable.toWeb(request)),65536,"INVALID_INPUT",abort.signal);
+      if(!body||typeof body!=="object"||Array.isArray(body))throw new PaperError("Invalid monitor request.");
+      const key=request.headers.authorization?.match(/^Bearer (sk-[A-Za-z0-9_-]+)$/)?.[1];
+      let data;
+      if(interpret){
+        if(Object.keys(body).some(key=>!["text","name"].includes(key)))throw new PaperError("Send creator text and name only.");
+        validateInferenceKey(key);
+        if(aiBusy)throw new AgentError("RATE_LIMITED");
+        aiBusy=true;
+        try{data=await interpretCreatorStrategy({apiKey:key,...body,signal:abort.signal},fetcher);}finally{aiBusy=false;}
+      }else if(body.action==="start"){
+        if(Object.keys(body).some(key=>!["action","mode","strategy","initialCashUsd","maxTurnoverUsd","feeBps","slippageBps","wallet"].includes(key)))throw new PaperError("Unsupported monitor field.");
+        if(body.mode==="AI"||body.mode==="LIVE")validateInferenceKey(key);
+        data=monitor.start(body);
+      }else{
+        if(!["check","stop","submit"].includes(body.action)||Object.keys(body).some(key=>!(body.action==="submit"?["action","id","signature"]:["action","id"]).includes(key))||typeof body.id!=="string")throw new PaperError("Send a monitor action and ID.");
+        data=body.action==="submit"?await monitor.submit(body.id,body.signature,abort.signal):body.action==="stop"?monitor.stop(body.id):await monitor.check(body.id,key,abort.signal);
+      }
+      json(200,{ok:true,data});
+    }catch(error){const safe=error instanceof AgentError||error instanceof PaperError||error instanceof FlashError?error:new AgentError("UNAVAILABLE");if(!response.destroyed)json(safe.status,{ok:false,error:{code:safe.code,message:safe.message}});}
+    finally{clearTimeout(timer);response.off("close",close);}
   }
   return createServer(async (request, response) => {
     response.setHeader("X-Content-Type-Options", "nosniff");
@@ -128,7 +175,15 @@ export function createDemoServer({fetcher = fetch} = {}) {
 if (import.meta.main) {
   const port = Number(process.env.DEV3_DEMO_PORT ?? 4317);
   if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error("DEV3_DEMO_PORT must be from 1 to 65535.");
-  const server = createDemoServer();
+  const market = createLiveMarket();
+  const server = createDemoServer({market});
+  server.once("listening", () => {
+    const collect = () => {void market.refresh().catch(() => {});};
+    collect();
+    const polling = setInterval(collect, 10000);
+    polling.unref();
+    server.once("close", () => clearInterval(polling));
+  });
   server.on("error", error => {
     console.error(`Unable to start demo: ${error.message}`);
     process.exitCode = 1;
