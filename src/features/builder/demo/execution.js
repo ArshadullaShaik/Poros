@@ -45,13 +45,29 @@ export function mountExecution({root=document,getDraft,applyDraft,validateDraft,
       $("execution-library").append(card);
     }
   }
-  $("execution-drop").addEventListener("dragover",event=>{event.preventDefault();$("execution-drop").classList.add("drag-over");});
-  $("execution-drop").addEventListener("dragleave",()=>$("execution-drop").classList.remove("drag-over"));
-  $("execution-drop").addEventListener("drop",event=>{
-    event.preventDefault();$("execution-drop").classList.remove("drag-over");
-    try {const payload=JSON.parse(event.dataTransfer.getData("text/plain"));if(payload.kind!=="unlocked-strategy"||!entries.has(payload.id))throw new Error();choose(entries.get(payload.id));}
+  function setFollowedCreators(creators) {
+    if(!Array.isArray(creators)||creators.length>100||creators.some(creator=>
+      !creator||typeof creator.id!=="string"||!creator.id.trim()||creator.id.length>128||
+      typeof creator.name!=="string"||!creator.name.trim()||creator.name.length>100
+    )||new Set(creators.map(creator=>creator.id)).size!==creators.length)throw new Error("Supply a list of followed creators with unique IDs and names.");
+    $("creator-library").replaceChildren();
+    for(const creator of creators) {
+      const card=element("div",undefined,"creator-card");
+      card.append(element("strong",creator.name),element("small","Following"));
+      $("creator-library").append(card);
+    }
+    $("creators-empty").hidden=creators.length>0;
+  }
+  $("canvas").addEventListener("drop",event=>{
+    try {
+      const payload=JSON.parse(event.dataTransfer.getData("text/plain"));
+      if(payload.kind!=="unlocked-strategy")return;
+      event.preventDefault();event.stopImmediatePropagation();$("canvas").classList.remove("drag-over");
+      if(!entries.has(payload.id))throw new Error();
+      choose(entries.get(payload.id));
+    }
     catch {status("Drop a strategy from the unlocked library, or click its card.");}
-  });
+  },true);
   function settings() {
     return {mode:$("execution-mode").value,initialCashUsd:Number($("execution-capital").value),maxTurnoverUsd:Number($("execution-turnover").value),feeBps:Number($("execution-fee").value),slippageBps:Number($("execution-slippage").value)};
   }
@@ -98,5 +114,5 @@ export function mountExecution({root=document,getDraft,applyDraft,validateDraft,
     finally {if(current===sequence){busy=false;controller=undefined;refresh();}}
   });
   $("execution-results").hidden=true;refresh();
-  return {addUnlockedStrategy,invalidate,draftChanged(){const now=JSON.stringify(getDraft());if(now!==lastDraft){lastDraft=now;$("execution-selected").textContent="Current edited draft · paper replay only";invalidate("Draft changed. Review it before starting a new run.");}}};
+  return {addUnlockedStrategy,setFollowedCreators,invalidate,draftChanged(){const now=JSON.stringify(getDraft());if(now!==lastDraft){lastDraft=now;$("execution-selected").textContent="Current edited draft · paper replay only";invalidate("Draft changed. Review it before starting a new run.");}}};
 }

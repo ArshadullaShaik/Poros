@@ -38,7 +38,7 @@ function edit(operation) {
     return true;
   } catch (error) { announce(error.message); return false; }
 }
-function select(id) { selected = id; render(); }
+function select(id) { selected = id; $("#strategy-settings").open = true; render(); }
 function replaceDraft(next) {
   draft = structuredClone(next);
   selected = draft.nodes[0]?.id;
@@ -261,6 +261,7 @@ function addBlock(type, position) {
   const point = position ?? defaultPosition(draft.nodes.length);
   positions.set(id, {x: Math.max(20, Math.min(canvas.clientWidth - 235, point.x)), y: Math.max(40, Math.min(3000, point.y))});
   selected = id;
+  $("#strategy-settings").open = true;
   edit({type: "addNode", node});
   announce(`${kinds[type].label} added. Connect it into a complete path.`);
 }
@@ -341,6 +342,11 @@ executionUI.addUnlockedStrategy({strategy: rsiStrategy, versionId: "public-demo-
 export function loadUnlockedStrategy(entry) {executionUI.addUnlockedStrategy(entry);}
 window.addEventListener("strategy:unlocked", event => {
   try {loadUnlockedStrategy(event.detail);} catch (error) {announce(error.message);}
+});
+// The host supplies creators after verifying membership and follow state.
+export function setFollowedCreators(creators) {executionUI.setFollowedCreators(creators);}
+window.addEventListener("creators:updated", event => {
+  try {setFollowedCreators(event.detail);} catch (error) {announce(error.message);}
 });
 window.addEventListener("beforeunload", event => { if (dirty) { event.preventDefault(); event.returnValue = ""; } });
 resetPositions(); render();

@@ -20,32 +20,6 @@
       <div><p class="eyebrow">YOUR STRATEGY WORKSHOP</p><h1>Run your strategy.</h1><p class="subheading">Load an unlocked strategy, set your limits, and inspect a paper execution.</p></div>
       <div class="heading-actions"><button id="ai-open" class="api-key-button" type="button" aria-label="Add 0G API key" aria-haspopup="dialog" aria-controls="ai-dialog" title="API key and AI tools"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8" cy="8" r="4.5"/><path d="m11.3 11.3 9.2 9.2m-3-3 2.5-2.5m-5 0 2.5-2.5"/></svg></button><button id="load-example" class="button secondary">Load example</button><button id="new-strategy" class="button primary"><span aria-hidden="true">＋</span> New strategy</button></div>
     </section>
-    <section class="execution-workspace" aria-labelledby="execution-title">
-      <aside class="unlocked-library">
-        <h2>Unlocked strategies</h2>
-        <p class="small muted">Drag a card onto the execution canvas, or click it to load.</p>
-        <div id="execution-library" class="unlocked-cards"></div>
-        <p class="tiny muted">The included public sample needs no purchase. Your community app supplies purchased strategies here after unlock.</p>
-      </aside>
-      <div class="execution-console">
-        <div class="panel-title"><h2 id="execution-title">Strategy execution</h2><span class="small-tag">PAPER ONLY</span></div>
-        <div id="execution-drop" class="execution-drop" aria-label="Drop an unlocked strategy here"><strong id="execution-selected">Current draft · paper replay only</strong><p>Drop a strategy card here to use its complete rules.</p></div>
-        <label class="field"><span>Execution mode</span><select id="execution-mode"><option value="AI">0G AI agent + paper execution</option><option value="RULES_ONLY">Local rules replay (no AI cost)</option></select></label>
-        <div class="execution-limits">
-          <label class="field"><span>Virtual starting cash (USD)</span><input id="execution-capital" type="number" value="1000" min="0.000001" max="1000000" step="0.000001"></label>
-          <label class="field"><span>Total turnover limit, including fees (USD)</span><input id="execution-turnover" type="number" value="2000" min="0.000001" max="1000000" step="0.000001"></label>
-        </div>
-        <details class="execution-settings"><summary>Paper fee and slippage settings</summary><div class="execution-limits">
-          <label class="field"><span>Simulated fee (basis points)</span><input id="execution-fee" type="number" value="10" min="0" max="1000" step="1"></label>
-          <label class="field"><span>Simulated slippage (basis points)</span><input id="execution-slippage" type="number" value="25" min="0" max="500" step="1"></label>
-        </div><p class="tiny muted">100 basis points = 1%. Slippage must fit the strategy limit.</p></details>
-        <p id="execution-help" class="small muted"></p>
-        <div class="heading-actions"><button id="execution-start" class="button primary" type="button">Run strategy</button><button id="execution-stop" class="button secondary" type="button" disabled>Stop</button></div>
-        <p class="tiny muted">Uses 90 synthetic one-minute candles, not live prices or real trading history. No wallet, Sepolia transaction or Flash order is submitted.</p>
-        <p id="execution-status" class="small" role="status" aria-live="polite"></p>
-        <div id="execution-results" class="execution-results" aria-live="polite" hidden></div>
-      </div>
-    </section>
     <section class="workspace" aria-label="Strategy builder">
       <aside class="palette panel" aria-label="Block palette">
         <div class="panel-title"><h2>Building blocks</h2><span class="small-tag">3 TYPES</span></div>
@@ -58,10 +32,21 @@
       </aside>
       <div class="editor-column">
         <div class="canvas-toolbar"><div><span class="canvas-symbol" aria-hidden="true">⌘</span><strong>Strategy canvas</strong></div><div class="view-switch" role="group" aria-label="View"><button id="canvas-view" class="active" aria-pressed="true">Canvas</button><button id="json-view" aria-pressed="false">JSON</button></div></div>
+        <div class="canvas-runbar"><span id="execution-selected" class="tiny muted">Current draft · paper replay only</span><div class="heading-actions"><button id="execution-start" class="button primary compact" type="button" aria-describedby="execution-help">Run strategy</button><button id="execution-stop" class="button secondary compact" type="button" disabled>Stop</button></div></div>
+        <details class="execution-settings"><summary>Run settings <span class="small-tag">PAPER ONLY</span></summary>
+          <label class="field"><span>Execution mode</span><select id="execution-mode"><option value="AI">0G AI agent + paper execution</option><option value="RULES_ONLY">Local rules replay (no AI cost)</option></select></label>
+          <div class="execution-limits">
+            <label class="field"><span>Virtual starting cash (USD)</span><input id="execution-capital" type="number" value="1000" min="0.000001" max="1000000" step="0.000001"></label>
+            <label class="field"><span>Total turnover limit, including fees (USD)</span><input id="execution-turnover" type="number" value="2000" min="0.000001" max="1000000" step="0.000001"></label>
+            <label class="field"><span>Simulated fee (basis points)</span><input id="execution-fee" type="number" value="10" min="0" max="1000" step="1"></label>
+            <label class="field"><span>Simulated slippage (basis points)</span><input id="execution-slippage" type="number" value="25" min="0" max="500" step="1"></label>
+          </div><p class="tiny muted">100 basis points = 1%. Slippage must fit the strategy limit. Uses synthetic candles and virtual funds.</p>
+        </details>
+        <p id="execution-help" class="run-help tiny muted"></p>
         <div id="canvas-viewport" class="canvas-viewport">
           <div id="canvas" class="canvas" aria-label="Strategy canvas drop area">
             <svg id="connections" aria-hidden="true"><defs><marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0 0 L8 4 L0 8" fill="#9aa6b8"/></marker></defs><g id="edge-paths"></g></svg>
-            <div id="empty-state" class="empty-state" hidden><span>＋</span><h3>Your idea starts here</h3><p>Add an RSI signal, risk limit, and buy/sell block.<br>Then connect them from left to right.</p></div>
+            <div id="empty-state" class="empty-state" hidden><span>＋</span><h3>Your idea starts here</h3><p>Drop an unlocked strategy here, or add an RSI signal,<br>risk limit, and buy/sell block and connect them.</p></div>
           </div>
         </div>
         <div id="json-panel" class="json-panel" hidden><p class="muted small">Strategy rules only. Canvas positions are kept separately.</p><pre id="json-preview" tabindex="0" aria-label="Strategy JSON preview"></pre></div>
@@ -70,8 +55,10 @@
           <div class="validation-top"><div><span id="validation-icon" class="validation-icon">✓</span><div><h2 id="validation-title">Strategy is valid</h2><p id="validation-description">All paths have a signal, risk guard, and action.</p></div></div><button id="validate" class="button secondary compact">Validate strategy</button></div>
           <ul id="issues" class="issues" hidden></ul>
         </section>
-      </div>
-      <aside class="inspector panel" aria-label="Strategy settings">
+        <p id="execution-status" class="small" role="status" aria-live="polite"></p>
+        <div id="execution-results" class="execution-results" aria-live="polite" hidden></div>
+        <details id="strategy-settings" class="strategy-inspector"><summary>Strategy settings</summary>
+        <div class="inspector panel" aria-label="Strategy settings">
         <div class="panel-title"><h2>Strategy settings</h2><span class="small-tag">DRAFT</span></div>
         <label class="field"><span>Strategy name</span><input id="strategy-name" maxlength="100" autocomplete="off"></label>
         <div class="section-divider"></div>
@@ -86,6 +73,19 @@
         <div class="paper-label"><span aria-hidden="true">▣</span> Paper-only strategy</div>
         <div class="section-divider"></div>
         <p class="eyebrow">CONNECTIONS</p><div id="connection-list" class="connection-list"></div>
+        </div>
+        </details>
+      </div>
+      <aside class="library panel" aria-label="Your strategies and creators">
+        <div class="panel-title"><h2>Unlocked strategies</h2><span class="small-tag">YOUR LIBRARY</span></div>
+        <p class="small muted">Drag onto the canvas, or click to load.</p>
+        <div id="execution-library" class="unlocked-cards"></div>
+        <p class="tiny muted">The public example is free to try.</p>
+        <div class="section-divider"></div>
+        <h2>Followed creators</h2>
+        <p class="small muted">Creators you follow through your purchased memberships.</p>
+        <div id="creator-library" class="creator-list"></div>
+        <p id="creators-empty" class="library-empty small muted">No followed creators to show yet.</p>
       </aside>
     </section>
     <footer class="page-footer"><p>Changes stay in this tab. Export JSON to keep your strategy.</p><div><button id="import" class="button secondary">↑ Import JSON</button><button id="export" class="button primary">↓ Export JSON</button></div></footer>
