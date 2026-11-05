@@ -89,7 +89,6 @@ export function mountMemberLibrary({root=document,loadApi=()=>import('/community
   $('unlock-library-form').addEventListener('submit',event=>{event.preventDefault();const code=$('library-recovery').value;$('library-recovery').value='';void refresh(code);});
   $('lock-library').addEventListener('click',()=>lock());
   for(const id of ['refresh-member-library','refresh-creator-library'])$(id).addEventListener('click',()=>refresh());
-  $('connect-library-wallet').addEventListener('click',async()=>{try{const api=await loadApi();await api.connectLibraryWallet();void refresh();}catch(error){status(error.message);}});
   void loadApi().then(api=>{if(stopped)return;unsubscribe=api.subscribeLibraryWallet(()=>lock('Wallet changed. Refresh to load this account’s library.'));}).catch(()=>{});
   return {refresh,stop(){stopped=true;lock();unsubscribe?.();}};
 }

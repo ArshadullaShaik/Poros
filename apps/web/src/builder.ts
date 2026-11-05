@@ -8,7 +8,6 @@ const integration=typeof window==='undefined'?{}:window.__COMMON_GROUND__;
 const wallet=typeof window==='undefined'?undefined:integration?.wallet??createInjectedWallet();
 const api=compose({...integration,...(wallet?{wallet}:{}),validateStrategyDocument:validateBuilderDocument});
 export const publicStrategies=api.strategies;
-export async function connectLibraryWallet(){if(!wallet)throw new Error('Install a browser wallet to read your memberships.');await wallet.connect();}
 export async function readPersonalLibrary(recoveryCode?:string){
   if(!wallet)throw new Error('Connect a browser wallet to read your memberships.');
   const account=(await wallet.getContext()).account.toLowerCase() as `0x${string}`;

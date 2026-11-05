@@ -14,6 +14,7 @@
     <a class="brand" href="/" aria-label="Poros home"><span class="brand-mark">↗</span>Poros</a>
     <nav class="primary-nav" aria-label="Main navigation"><a href="/" aria-current="page">Home</a><a href="/community">Communities</a></nav>
     <span class="demo-label"><span class="status-dot"></span>LOCAL DEMO</span>
+    <button id="wallet-connect" class="button secondary" type="button">Connect wallet</button>
   </header>
   <main>
     <section class="page-heading">
@@ -23,24 +24,23 @@
     <section class="workspace" aria-label="Strategy builder">
       <aside class="palette panel" aria-label="Block palette">
 
-        <div class="panel-title"><h2>Building blocks</h2><span class="small-tag">3 TYPES</span></div>
-        <p class="muted small">Drag onto the canvas, or click to add.</p>
-        <button class="palette-block indicator" data-kind="signal.price" draggable="true"><span class="block-icon">∿</span><span><strong>Price range</strong><small>When the market meets a rule</small></span><span class="grip" aria-hidden="true">⠿</span></button>
-        <button class="palette-block guard" data-kind="guard.risk" draggable="true"><span class="block-icon">◇</span><span><strong>Risk limit</strong><small>Keep each order within limits</small></span><span class="grip" aria-hidden="true">⠿</span></button>
-        <button class="palette-block action" data-kind="action.intent" draggable="true"><span class="block-icon">⇄</span><span><strong>Buy / sell</strong><small>Describe the intended action</small></span><span class="grip" aria-hidden="true">⠿</span></button>
         <section class="live-prices" aria-labelledby="live-prices-title">
           <div class="panel-title"><h2 id="live-prices-title">Live prices</h2><span class="small-tag">USD</span></div>
           <p class="tiny muted">Chainlink USD prices. Flash availability is checked before execution.</p>
         <div id="live-prices-list" class="price-list" aria-label="Live crypto prices"></div><p id="live-prices-status" class="tiny muted" role="status">Loading live prices…</p>
         </section>
+        <div class="panel-title"><h2>Building blocks</h2><span class="small-tag">3 TYPES</span></div>
+        <p class="muted small">Drag onto the canvas, or click to add.</p>
+        <button class="palette-block indicator" data-kind="signal.price" draggable="true"><span class="block-icon">∿</span><span><strong>Price range</strong><small>When the market meets a rule</small></span><span class="grip" aria-hidden="true">⠿</span></button>
+        <button class="palette-block guard" data-kind="guard.risk" draggable="true"><span class="block-icon">◇</span><span><strong>Risk limit</strong><small>Keep each order within limits</small></span><span class="grip" aria-hidden="true">⠿</span></button>
+        <button class="palette-block action" data-kind="action.intent" draggable="true"><span class="block-icon">⇄</span><span><strong>Buy / sell</strong><small>Describe the intended action</small></span><span class="grip" aria-hidden="true">⠿</span></button>
         <div class="how-to"><p class="eyebrow">A SIMPLE RECIPE</p><ol><li><span>01</span>Start with a price range.</li><li><span>02</span>Add a risk limit and an action.</li><li><span>03</span>Connect the right dot to the next left dot.</li><li><span>04</span>Adjust settings and validate.</li></ol></div>
         <div class="fixture-note"><span aria-hidden="true">◌</span><div><strong>Real prices, virtual funds</strong><p>Live Chainlink reference and Flash quotes. No history or warm-up. Virtual funds only.</p></div></div>
       </aside>
       <div class="editor-column">
-        <div class="canvas-toolbar"><div><span class="canvas-symbol" aria-hidden="true">⌘</span><strong>Strategy canvas</strong></div><button id="open-strategy-settings" class="button secondary compact" type="button" aria-haspopup="dialog" aria-controls="strategy-settings">Settings</button><div class="view-switch" role="group" aria-label="View"><button id="canvas-view" class="active" aria-pressed="true">Canvas</button><button id="json-view" aria-pressed="false">JSON</button></div></div>
+        <div class="canvas-toolbar"><div><span class="canvas-symbol" aria-hidden="true">⌘</span><strong>Strategy canvas</strong></div><div class="view-switch" role="group" aria-label="View"><button id="canvas-view" class="active" aria-pressed="true">Canvas</button><button id="json-view" aria-pressed="false">JSON</button></div></div>
         <div class="canvas-runbar"><span id="execution-selected" class="tiny muted">Current draft · live monitoring / paper funds</span><div class="heading-actions"><button id="execution-start" class="button primary compact" type="button" aria-describedby="execution-help">Run strategy</button><button id="execution-stop" class="button secondary compact" type="button" disabled>Stop</button></div></div>
         <details class="execution-settings"><summary>Run settings <span class="small-tag">CHOOSE EXECUTION MODE</span></summary>
-          <button id="wallet-connect" class="button secondary" type="button">Connect wallet</button>
           <label class="field"><span>Execution mode</span><select id="execution-mode"><option value="LIVE">LIVE · 0G agent + connected wallet (real funds)</option><option value="AI" selected>0G execution agent · virtual funds</option><option value="RULES_ONLY">Local live-price monitor (no AI cost)</option></select></label>
           <div class="execution-limits">
             <label class="field"><span>Starting virtual cash / live buy spending cap (USD)</span><input id="execution-capital" type="number" value="1000" min="0.000001" max="1000000" step="0.000001"></label>
@@ -60,6 +60,15 @@
         </div>
         <div id="json-panel" class="json-panel" hidden><p class="muted small">Strategy rules only. Canvas positions are kept separately.</p><pre id="json-preview" tabindex="0" aria-label="Strategy JSON preview"></pre></div>
         <div class="canvas-footer"><span id="block-count">6 blocks · 4 connections</span><span>Move blocks with drag, or focus a block title and use arrow keys.</span></div>
+        <section class="market-chart" aria-labelledby="market-chart-title">
+          <div class="chart-heading"><div><p class="chart-eyebrow" id="market-chart-title">STRATEGY MARKET</p><h2 id="chart-pair">— / USD</h2><p id="chart-network" class="chart-muted"></p></div><div class="chart-price"><strong id="chart-last-price">—</strong><span id="chart-feed-status" data-state="loading">CONNECTING</span></div></div>
+          <div class="chart-toolbar"><div class="chart-window" role="group" aria-label="Chart time range"><button type="button" data-chart-window="5" aria-pressed="false">5m</button><button type="button" data-chart-window="15" aria-pressed="true">15m</button><button type="button" data-chart-window="60" aria-pressed="false">1h</button></div><span class="chart-muted">Flash quotes · 5s checks</span></div>
+          <div id="chart-targets" class="chart-targets" aria-label="Strategy target ranges"></div>
+          <div class="chart-plot"><svg id="market-chart-svg" class="market-chart-svg" viewBox="0 0 1000 360" role="img" aria-label="Live USD quote price chart with strategy target zones and execution markers"></svg></div>
+          <div class="chart-caption"><span id="chart-hover">Move over the chart to inspect a price</span><span>● Price &nbsp; ▰ Target zone &nbsp; ◆ Execution activity</span></div>
+          <p id="chart-observation" class="chart-muted chart-observation">Recent observations are cached in this browser. Flash quotes refresh in the background with Chainlink fallback.</p>
+          <div class="chart-agent"><div class="chart-agent-heading"><strong>Agent activity</strong><span id="chart-ai-count">0 completed AI executions in latest run</span></div><p id="chart-agent-status" role="status" aria-live="polite">Ready · start a strategy to monitor its targets.</p><ol id="chart-activity" class="chart-activity" aria-label="Recent agent activity"></ol></div>
+        </section>
         <p id="execution-status" class="small" role="status" aria-live="polite"></p>
         <div id="execution-results" class="execution-results" aria-live="polite" hidden></div>
       </div>
@@ -69,7 +78,6 @@
           <button id="tab-unlocked" type="button" role="tab" data-library-tab="unlocked" aria-controls="library-unlocked" aria-selected="false" tabindex="-1">Unlocked</button>
           <button id="tab-creators" type="button" role="tab" data-library-tab="creators" aria-controls="library-creators" aria-selected="false" tabindex="-1">Creators</button>
         </div>
-        <button id="connect-library-wallet" class="button secondary" type="button">Connect community wallet</button>
         <section id="library-community" class="public-library" role="tabpanel" aria-labelledby="tab-community" tabindex="0">
           <h2 id="community-library-title">Communities</h2><p class="small muted">Choose a community to see its public strategies.</p>
           <button id="back-to-communities" class="button secondary" type="button" hidden>← Communities</button>

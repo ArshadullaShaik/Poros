@@ -14,7 +14,7 @@ class Control {
   replaceChildren(...children:any[]){this.children=children;}
   setAttribute(){}
 }
-async function setup(request?:Function, mayReplace=()=>true, marketData:any={source:"CHAINLINK_FLASH",priceUsd:"2000.000000",closedObservations:90,stale:false},getPair?:Function) {
+async function setup(request?:Function, mayReplace=()=>true, marketData:any={source:"CHAINLINK_FLASH",priceUsd:"2000.000000",closedObservations:90,stale:false},getPair?:Function,onActivity=()=>{}) {
   const controls=new Map<string,Control>();
   for(const id of ["market-price","market-status","execution-library","creator-library","creators-empty","canvas","execution-selected","execution-mode","execution-capital","execution-turnover","execution-fee","execution-slippage","execution-start","execution-stop","execution-help","execution-status","execution-results"])controls.set(`#${id}`,new Control());
   controls.get("#execution-mode")!.value="RULES_ONLY";controls.get("#execution-capital")!.value="1000";controls.get("#execution-turnover")!.value="2000";controls.get("#execution-fee")!.value="10";controls.get("#execution-slippage")!.value="25";
@@ -27,7 +27,7 @@ async function setup(request?:Function, mayReplace=()=>true, marketData:any={sou
     const body=JSON.parse(init.body as string);
     return Response.json({ok:true,data:{id:"ui-session",status:body.action==="check"?"COMPLETED":"WAITING",message:"Paper action complete",mode:"PAPER",orders:[],cashUsd:"1000.000000",baseQuantity:"0.00000000",turnoverUsd:"0.000000",inference:[]}});
   };
-  const module=mountExecution({root:{querySelector:selector=>controls.get(selector),createElement:()=>new Control()},getDraft:()=>draft,applyDraft:next=>{draft=next;applied++;},validateDraft:next=>validateStrategy(next,fixtureContext),getApiKey:()=>"sk-ui-execution-test-key",mayReplace,request:fetcher,...(getPair?{getPair}:{} )});
+  const module=mountExecution({root:{querySelector:selector=>controls.get(selector),createElement:()=>new Control()},getDraft:()=>draft,applyDraft:next=>{draft=next;applied++;},validateDraft:next=>validateStrategy(next,fixtureContext),getApiKey:()=>"sk-ui-execution-test-key",onActivity,mayReplace,request:fetcher,...(getPair?{getPair}:{} )});
   await module.refreshMarket();
   const event=(id:string,name="click",extra={})=>controls.get(`#${id}`)!.handlers[name]?.({preventDefault(){},stopImmediatePropagation(){},...extra});
   return {module,controls,sent,event,get applied(){return applied;},get draft(){return draft;},edit(){draft={...draft,name:"Edited later"};module.draftChanged();}};
@@ -183,3 +183,8 @@ test("an ETH feed cannot enable Run for a selected BTC pair",async()=>{
   await ui.module.refreshMarket();
   assert.equal(ui.controls.get("#execution-start")!.disabled,false);
  });
+
+test("a chart observer failure cannot interrupt monitor execution",async()=>{
+ const ui=await setup(undefined,()=>true,undefined,undefined,()=>{throw new Error("Chart failed");});
+ await ui.event("execution-start");assert.equal(ui.sent.length,2);assert.equal(ui.controls.get("#execution-stop")!.disabled,true);
+});

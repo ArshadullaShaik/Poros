@@ -59,3 +59,16 @@ test('AMP display reads a fresh Chainlink price without requiring a Flash route;
  await assert.rejects(markets.refresh('base-amp-usdc'),/HTTP 400/);assert.equal(markets.read('base-amp-usdc').stale,true);
  stale=true;await assert.rejects(markets.displayPrice('eth-usdc'));
 });
+
+test('chart uses a fresh Flash quote every five seconds and labels Chainlink fallback without enabling execution',async()=>{
+ let time=1800000000000,calls=0,fail=false;const word=(n:number)=>BigInt(n).toString(16).padStart(64,'0');
+ const markets=createLiveMarkets({now:()=>time,fetcher:async(url:any,init:any)=>{
+  const body=JSON.parse(init.body);
+  if(String(url).includes('flash')){calls++;if(fail)return Response.json({error:'No route'},{status:400});return Response.json({quoteId:'quote',side:'buy',orderType:'market',targetAsset:body.targetAsset,contraAsset:body.contraAsset,from:{asset:'contra',amount:'20'},to:{asset:'target',amount:'0.01',notional:calls===1?'20':'21'}});}
+  return Response.json(body.map((call:any)=>({jsonrpc:'2.0',id:call.id,result:call.method==='eth_chainId'?'0x2105':call.params[0].data==='0x313ce567'?'0x'+word(8):'0x'+[1,call.params[0].to.toLowerCase()==='0xbcf85224fc0756b9fa45aa7892530b47e10b6433'?0:200000000000,time/1000-7200,time/1000,1].map(word).join('')})));
+ }});
+ const first=await markets.chartPrice('eth-usdc');assert.equal(first.source,'FLASH');assert.equal(first.priceUsd,'2000.000000');assert.equal(markets.read('eth-usdc').stale,true);
+ time+=4999;await markets.chartPrice('eth-usdc');assert.equal(calls,1);
+ time++;assert.equal((await markets.chartPrice('eth-usdc')).priceUsd,'2100.000000');assert.equal(calls,2);
+ fail=true;time+=5000;const fallback=await markets.chartPrice('eth-usdc');assert.equal(fallback.source,'CHAINLINK');assert.equal(fallback.priceUsd,'2000.000000');assert.equal(markets.read('eth-usdc').stale,true);
+});

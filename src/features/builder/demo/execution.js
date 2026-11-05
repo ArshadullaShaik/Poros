@@ -1,12 +1,13 @@
 import {connectSolanaWallet,signSolanaSetup,signSolanaOrderMessage} from "./solana-wallet.js";
 import {connectBrowserWallet,signFlashOrder} from "./wallet.js";
-export function mountExecution({root=document,getDraft,applyDraft,validateDraft,getApiKey,mayReplace=()=>true,request=fetch,getPair=()=>({id:"eth-usdc",base:{symbol:"WETH",reference:"ETH"},quote:{symbol:"USDC"}})}) {
+export function mountExecution({root=document,getDraft,applyDraft,validateDraft,getApiKey,mayReplace=()=>true,request=fetch,onActivity=()=>{},getPair=()=>({id:"eth-usdc",base:{symbol:"WETH",reference:"ETH"},quote:{symbol:"USDC"}})}) {
   const $=id=>root.querySelector(`#${id}`);
   const setText=(id,text)=>{const node=$(id);if(node)node.textContent=text;};
   const entries=new Map();
   let sessionId,timer,wallet,walletNetwork,solanaConnection,walletBusy=false;
   let busy=false,sequence=0,controller,lastDraft=JSON.stringify(getDraft()),market,marketLoading=false;
-  const status=message=>{$("execution-status").textContent=message;};
+  const notify=event=>{try{onActivity({pairId:getPair().id,time:Date.now(),...event});}catch{/* Chart rendering must never interrupt execution. */}};
+  const status=message=>{$("execution-status").textContent=message;notify({kind:"status",message});};
   function element(tag,text,className) {
     const node=root.createElement(tag);
     if(text!==undefined)node.textContent=text;
@@ -119,6 +120,7 @@ export function mountExecution({root=document,getDraft,applyDraft,validateDraft,
   for(const id of ["execution-mode","execution-capital","execution-turnover","execution-fee","execution-slippage"])$(id).addEventListener("change",()=>invalidate("Execution settings changed. Start a new paper run to use them."));
   $("execution-stop").addEventListener("click",()=>invalidate("Stopped. Pending AI may still be charged. Submitted Flash orders may still fill; their IDs remain below.",true));
   function renderResults(data) {
+    notify({kind:"snapshot",data});
     const output=$("execution-results");output.replaceChildren();
     output.append(element("h3",`${data.status} · ${data.mode==="LIVE"?"LIVE Flash orders":`${data.orders.length} paper fills`}`));
     if(data.mode==="LIVE"){

@@ -3,6 +3,7 @@ import { tradingPairs, pairForStrategy, contextForPair, priceStrategy as default
 import { keepFocus } from "/focus.js";
 import { mountStrategyAi } from "/ai.js";
 import { mountExecution } from "/execution.js";
+import { mountMarketChart } from "/chart.js";
 import { mountLivePrices } from "/prices.js";
 import { mountCommunityLibrary, mountLibraryTabs, mountMemberLibrary } from "/community-library.js";
 
@@ -19,7 +20,7 @@ let selected = draft.nodes[0]?.id;
 let positions = new Map();
 let connectFrom;
 let dirty = false;
-let executionUI,pricesUI,communityUI;
+let executionUI,pricesUI,communityUI,chartUI;
 let pricesPairId=pairForStrategy(draft).id;
 
 function element(tag, className, text) {
@@ -257,6 +258,7 @@ function render() {
     $("#json-preview").textContent = JSON.stringify(draft, null, 2);
   });
   executionUI?.draftChanged();
+  chartUI?.draftChanged();
   const pairId=pairForStrategy(draft).id;
   if(pricesUI&&pairId!==pricesPairId){pricesPairId=pairId;void pricesUI.refresh();void executionUI.refreshMarket();}
 }
@@ -298,7 +300,6 @@ for (const [selector, key] of [["#max-notional", "maxNotionalUsd"], ["#max-slipp
 }
 $("#execution-mode").addEventListener("change", () => {draft={...draft,riskPolicy:{...draft.riskPolicy,paperTradingOnly:$("#execution-mode").value!=="LIVE"}};dirty=true;render();});
 $("#delete-node").addEventListener("click", () => removeNode(selected));
-$("#open-strategy-settings").addEventListener("click", () => $("#strategy-settings").showModal());
 $("#close-strategy-settings").addEventListener("click", () => $("#strategy-settings").close());
 $("#load-example").addEventListener("click", () => { if (mayReplace()) { replaceDraft(defaultStrategy); announce("Price example loaded: buy $20 once between $2000 and $2100."); } });
 $("#new-strategy").addEventListener("click", () => { if (mayReplace()) { replaceDraft({...defaultStrategy, strategyId: crypto.randomUUID(), name: "Untitled strategy", description: "Paper strategy draft", nodes: [], edges: []}); announce("Blank canvas ready. Add blocks from the left."); } });
@@ -344,6 +345,7 @@ const ai = mountStrategyAi({
     announce("AI proposal accepted. Export JSON to keep this draft.");
   },
 });
+chartUI=mountMarketChart({getPair:()=>pairForStrategy(draft),getDraft:()=>draft});
 executionUI = mountExecution({
   getPair:()=>pairForStrategy(draft),
   getDraft: () => draft,
@@ -351,6 +353,7 @@ executionUI = mountExecution({
   applyDraft(next) {replaceDraft(next); dirty = true;},
   validateDraft: next => validateMarketStrategy(next),
   getApiKey: ai.getKey,
+  onActivity:event=>chartUI.activity(event),
 });
 communityUI=mountCommunityLibrary({onLoad(next){
   if(!validateMarketStrategy(next).valid)throw new Error("This public strategy uses unsupported rules or a market outside this live-price builder.");
@@ -371,7 +374,11 @@ void pricesUI.refresh();
 setInterval(()=>{if(!document.hidden)void pricesUI.refresh();},30000);
 window.addEventListener("pagehide",()=>pricesUI.stop());
 void executionUI.refreshMarket();
+void chartUI.refresh();
 setInterval(() => {void executionUI.refreshMarket();}, 10000);
+setInterval(()=>{if(!document.hidden)void chartUI.refresh();},5000);
+window.addEventListener("pagehide",()=>chartUI.stop());
+document.addEventListener("visibilitychange",()=>{if(!document.hidden)void chartUI.refresh();});
 // The host verifies purchase access before calling this demo handoff; this hook is not authorization.
 export function loadUnlockedStrategy(entry) {executionUI.addUnlockedStrategy(entry);}
 window.addEventListener("strategy:unlocked", event => {

@@ -30,7 +30,12 @@ export function createLiveMarket({fetcher=fetch,now=Date.now,pair=pairForStrateg
     if(now()-lastAttempt<10000)return error?Promise.reject(error):Promise.resolve(read());
     lastAttempt=now();pending=collect().finally(()=>{pending=undefined;});return pending;
   }
-  return {read,refresh};
+  async function chartPrice(){
+    const quote=await flash.refresh();
+    if(quote.stale||!quote.priceUsd||quote.observedAtMs===null)throw new FlashError("Fresh Flash chart quote is unavailable.");
+    return {source:"FLASH" as const,pairId:pair.id,priceUsd:quote.priceUsd,stale:false as const,observedAtMs:quote.observedAtMs};
+  }
+  return {read,refresh,chartPrice};
 }
 export function createLiveMarkets(options:Parameters<typeof createLiveMarket>[0]={}){
   const markets=new Map(tradingPairs.map(pair=>[pair.id,createLiveMarket({...options,pair})]));
@@ -44,5 +49,10 @@ export function createLiveMarkets(options:Parameters<typeof createLiveMarket>[0]
     prices.set(pair.id,{at:now(),pending});
     return pending;
   }
-  return {read:(input?:unknown)=>select(input).read(),refresh:(input?:unknown)=>select(input).refresh(),displayPrice};
+  async function chartPrice(input?:unknown){
+    const market=select(input);
+    try{return await market.chartPrice();}
+    catch{return displayPrice(input);}
+  }
+  return {read:(input?:unknown)=>select(input).read(),refresh:(input?:unknown)=>select(input).refresh(),displayPrice,chartPrice};
 }
