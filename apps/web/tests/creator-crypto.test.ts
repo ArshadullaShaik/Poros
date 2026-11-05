@@ -17,7 +17,7 @@ test('signal encryption restores from Arkiv backup and rejects wrong recipients,
   await assert.rejects(openContentKey(box, restored, context + ':alice'));
   await assert.rejects(restoreEncryptionIdentity('bob', bob.identity, alice.recoveryCode));
   await assert.rejects(restoreEncryptionIdentity('alice', bob.identity, bob.recoveryCode));
-  await assert.rejects(decryptSignal({ ...encrypted, ciphertext: 'A' + encrypted.ciphertext.slice(1) }, key, context));
+  await assert.rejects(decryptSignal({ ...encrypted, ciphertext: (encrypted.ciphertext[0] === 'A' ? 'B' : 'A') + encrypted.ciphertext.slice(1) }, key, context));
   await assert.rejects(decryptSignal(encrypted, key, 'different-publication'));
   assert.equal(JSON.stringify(bob.identity).includes(bob.recoveryCode), false);
 });

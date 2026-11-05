@@ -11,6 +11,7 @@ import { icon, mark, garden } from './icons.ts';
 import type { PreviewData } from './preview.ts';
 import {createInjectedWallet} from './wallet.ts';
 import {validateBuilderDocument} from './strategy-document.ts';
+import {CreatorMembershipPanel} from './creator-membership.ts';
 interface PendingWrite {
     account: Hex;
     requestId: string;
@@ -73,7 +74,8 @@ class Application {
         owner: Hex;
     } | undefined;
     dialog: HTMLDialogElement | undefined;
-    constructor(readonly host: AppIntegration) { }
+    creatorMembership: CreatorMembershipPanel;
+    constructor(readonly host: AppIntegration) { this.creatorMembership = new CreatorMembershipPanel(host.wallet,this.api.events,host.accessKey); }
     async start() {
         try {
             const stored = localStorage.getItem('common-ground.pending-write');
@@ -153,6 +155,7 @@ class Application {
         catch { }
         // Chain switches keep the same author and must preserve an in-flight draft.
         if (current === this.account) return;
+        this.creatorMembership.lock();
         this.generation++;
         this.market.session.clear();
         this.attempt = undefined;
@@ -212,6 +215,7 @@ class Application {
         return this.api.community.getVoteSummaries({communityKey:room,contentKeys:rows.map(row=>row.key),...(this.account?{viewer:this.account}:{})});
     }
     async render() {
+        this.creatorMembership.detach();
         const serial = ++this.pageSerial;
         const generation = this.generation;
         const [route = 'discover', id, thread] = this.route();
@@ -264,6 +268,10 @@ class Application {
             content.removeAttribute('aria-busy');
             this.updateChrome();
             document.title = (content.querySelector('h1')?.textContent ?? 'Discover') + ' — Poros Community';
+            const membershipRoot = content.querySelector<HTMLElement>('#creator-membership');
+            const profileWallet = id === 'me' ? this.account : id;
+            if (membershipRoot && profileWallet && walletPattern.test(profileWallet))
+                void this.creatorMembership.mount(membershipRoot,profileWallet as Hex,this.account,!!this.preview);
             if (changed)
                 content.querySelector<HTMLElement>('h1')?.focus({ preventScroll: true });
         }
@@ -359,7 +367,7 @@ class Application {
         if (profile)
             this.profiles.set(wallet, profile);
         const owned = this.account === wallet && !this.preview;
-        return heading('WALLET-OWNED IDENTITY', profile?.displayName ?? 'An unwritten profile.', profile?.bio ?? 'This wallet has not created a public profile yet.', owned ? button('edit-profile', profile ? 'Edit profile' : 'Create profile') : '') + `<div class="profile-panel">${avatar(wallet)}<div><h2>${profile ? '@' + e(profile.handle) : 'Wallet identity'}</h2><code>${e(wallet)}</code><p class="muted">${e(profile?.userId ?? 'eip155:7794095:' + wallet)}</p></div>${tag('Wallet owned', 'green')}</div>` + notice('Handles can be shared by more than one wallet. Check the wallet address to identify a creator.') + `<section class="paper-panel"><h2>Find a person.</h2><form data-form="profile-search" class="inline-form">${field('handle', 'Exact handle', { placeholder: 'lowercase_handle', required: true, pattern: '[a-z0-9_]{3,32}' })}<button class="button secondary">Search ${icon('search')}</button></form><div id="profile-results"></div></section>`;
+        return heading('WALLET-OWNED IDENTITY', profile?.displayName ?? 'An unwritten profile.', profile?.bio ?? 'This wallet has not created a public profile yet.', owned ? button('edit-profile', profile ? 'Edit profile' : 'Create profile') : '') + `<div class="profile-panel">${avatar(wallet)}<div><h2>${profile ? '@' + e(profile.handle) : 'Wallet identity'}</h2><code>${e(wallet)}</code><p class="muted">${e(profile?.userId ?? 'eip155:7794095:' + wallet)}</p></div>${tag('Wallet owned', 'green')}</div>` + notice('Handles can be shared by more than one wallet. Check the wallet address to identify a creator.') + `<section id="creator-membership" class="paper-panel"></section><section class="paper-panel"><h2>Find a person.</h2><form data-form="profile-search" class="inline-form">${field('handle', 'Exact handle', { placeholder: 'lowercase_handle', required: true, pattern: '[a-z0-9_]{3,32}' })}<button class="button secondary">Search ${icon('search')}</button></form><div id="profile-results"></div></section>`;
     }
     async publicDraftView() {
         if (this.preview) failure('PREVIEW_ONLY');

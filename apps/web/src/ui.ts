@@ -43,6 +43,9 @@ export function communityCreation(preview: boolean, account: Hex | undefined, wa
     return `<form data-form="community"><p>Creating as <code>${e(account)}</code></p>${field('name', 'Community name', {required: true, placeholder: 'Your community name'})}${field('description', 'What brings this community together?', {area: true, placeholder: 'Describe the discussions you want to host.'})}${notice('Community details are public on Arkiv for 180 days. Review and approve the Rabdi transaction in your wallet. Creation uses tGLM gas.')}<p class="form-error" role="alert"></p><button class="button primary">Create community</button></form>`;
 }
 export const errors: Record<string, string> = {
+    KEY_REQUIRED: 'Set up and unlock your encryption key. The creator also needs a registered encryption key.',
+    MEMBERSHIP_EXPIRED: 'Your paid membership has expired. Renew to receive future signals.',
+    CRYPTO_FAILED: 'Unable to decrypt. Check your wallet and recovery code.',
     ORDER_NOT_PAYABLE: 'This order is too close to its payment deadline. Do not approve an old wallet prompt. Recover any existing transaction before starting another order.',
     PREVIEW_ONLY: 'This is a read-only design preview. Switch to Rabdi to use real data.', WALLET_REQUIRED: 'Connect your MetaMask wallet to continue.', DEPENDENCY_UNAVAILABLE: 'This connection is not ready yet. Check connection details or try again shortly.',
     '-32002': 'A wallet request is already open. Check MetaMask to continue.',
