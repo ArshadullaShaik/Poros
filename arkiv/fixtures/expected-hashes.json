@@ -1,0 +1,47 @@
+{
+  "scope": "test-only graph; not a live strategy",
+  "creator": "0x1111111111111111111111111111111111111111",
+  "requestId": "00000000-0000-4000-8000-000000000001",
+  "document": {
+    "category": "other",
+    "description": "Test fixture; no trading semantics.",
+    "documentSchema": "strategy-document/1",
+    "executionChainId": 1,
+    "graph": {
+      "rule": "hold"
+    },
+    "graphSchema": "test-only/1",
+    "license": "MIT",
+    "name": "Hold",
+    "tokenIn": "0x1111111111111111111111111111111111111111",
+    "tokenOut": "0x2222222222222222222222222222222222222222"
+  },
+  "canonicalDocument": "{\"category\":\"other\",\"description\":\"Test fixture; no trading semantics.\",\"documentSchema\":\"strategy-document/1\",\"executionChainId\":1,\"graph\":{\"rule\":\"hold\"},\"graphSchema\":\"test-only/1\",\"license\":\"MIT\",\"name\":\"Hold\",\"tokenIn\":\"0x1111111111111111111111111111111111111111\",\"tokenOut\":\"0x2222222222222222222222222222222222222222\"}",
+  "contentHash": "0xba4fc986f5bd1294a1e05e6364c0e38534b1b33a710e077e65615e1aa88acc49",
+  "strategyId": "0xa3d553d8b3186ab3b1aae749cd241f120e59590df74d6ad9f22858183d28b963",
+  "recordCore": {
+    "recordSchema": "strategy-version/1",
+    "creator": "0x1111111111111111111111111111111111111111",
+    "strategyId": "0xa3d553d8b3186ab3b1aae749cd241f120e59590df74d6ad9f22858183d28b963",
+    "requestId": "00000000-0000-4000-8000-000000000001",
+    "contentHash": "0xba4fc986f5bd1294a1e05e6364c0e38534b1b33a710e077e65615e1aa88acc49",
+    "document": {
+      "category": "other",
+      "description": "Test fixture; no trading semantics.",
+      "documentSchema": "strategy-document/1",
+      "executionChainId": 1,
+      "graph": {
+        "rule": "hold"
+      },
+      "graphSchema": "test-only/1",
+      "license": "MIT",
+      "name": "Hold",
+      "tokenIn": "0x1111111111111111111111111111111111111111",
+      "tokenOut": "0x2222222222222222222222222222222222222222"
+    }
+  },
+  "canonicalRecordCore": "{\"contentHash\":\"0xba4fc986f5bd1294a1e05e6364c0e38534b1b33a710e077e65615e1aa88acc49\",\"creator\":\"0x1111111111111111111111111111111111111111\",\"document\":{\"category\":\"other\",\"description\":\"Test fixture; no trading semantics.\",\"documentSchema\":\"strategy-document/1\",\"executionChainId\":1,\"graph\":{\"rule\":\"hold\"},\"graphSchema\":\"test-only/1\",\"license\":\"MIT\",\"name\":\"Hold\",\"tokenIn\":\"0x1111111111111111111111111111111111111111\",\"tokenOut\":\"0x2222222222222222222222222222222222222222\"},\"recordSchema\":\"strategy-version/1\",\"requestId\":\"00000000-0000-4000-8000-000000000001\",\"strategyId\":\"0xa3d553d8b3186ab3b1aae749cd241f120e59590df74d6ad9f22858183d28b963\"}",
+  "recordHash": "0xef3c9e38bfa89a6c4779fba2aba44631003da00b5dc142e66bb1569de784ec8b",
+  "canonicalRecord": "{\"contentHash\":\"0xba4fc986f5bd1294a1e05e6364c0e38534b1b33a710e077e65615e1aa88acc49\",\"creator\":\"0x1111111111111111111111111111111111111111\",\"document\":{\"category\":\"other\",\"description\":\"Test fixture; no trading semantics.\",\"documentSchema\":\"strategy-document/1\",\"executionChainId\":1,\"graph\":{\"rule\":\"hold\"},\"graphSchema\":\"test-only/1\",\"license\":\"MIT\",\"name\":\"Hold\",\"tokenIn\":\"0x1111111111111111111111111111111111111111\",\"tokenOut\":\"0x2222222222222222222222222222222222222222\"},\"recordHash\":\"0xef3c9e38bfa89a6c4779fba2aba44631003da00b5dc142e66bb1569de784ec8b\",\"recordSchema\":\"strategy-version/1\",\"requestId\":\"00000000-0000-4000-8000-000000000001\",\"strategyId\":\"0xa3d553d8b3186ab3b1aae749cd241f120e59590df74d6ad9f22858183d28b963\"}",
+  "independentVerification": "Python stdlib JSON on this integer/ASCII fixture + PyCryptodome 3.23.0 Keccak; all three hashes agree"
+}

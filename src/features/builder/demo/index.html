@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="A local playground for building and validating crypto strategy rules.">
-  <title>Poros · Builder demo</title>
+  <title>Poros · Strategy builder</title>
   <link rel="icon" href="data:,">
   <link rel="stylesheet" href="/style.css">
   <script type="module" src="/app.js"></script>
@@ -12,7 +12,7 @@
 <body>
   <header class="topbar">
     <a class="brand" href="/" aria-label="Poros home"><span class="brand-mark">↗</span>Poros</a>
-    <span class="top-divider"></span><span class="top-label">Strategy workspace</span>
+    <nav class="primary-nav" aria-label="Main navigation"><a href="/" aria-current="page">Home</a><a href="/community">Communities</a></nav>
     <span class="demo-label"><span class="status-dot"></span>LOCAL DEMO</span>
   </header>
   <main>
@@ -20,8 +20,39 @@
       <div><p class="eyebrow">YOUR STRATEGY WORKSHOP</p><h1>Run your strategy.</h1><p class="subheading">Load an unlocked strategy, set your limits, and monitor its live price targets.</p></div>
       <div class="heading-actions"><button id="ai-open" class="api-key-button" type="button" aria-label="Add 0G API key" aria-haspopup="dialog" aria-controls="ai-dialog" title="API key and AI tools"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8" cy="8" r="4.5"/><path d="m11.3 11.3 9.2 9.2m-3-3 2.5-2.5m-5 0 2.5-2.5"/></svg></button><button id="load-example" class="button secondary">Load example</button><button id="new-strategy" class="button primary"><span aria-hidden="true">＋</span> New strategy</button></div>
     </section>
+    <section class="community-marquee" aria-label="Poros Community">
+      <div><span class="eyebrow">BUILD IN PUBLIC</span><h2>Ideas improve together.</h2><p>Explore public strategies and discussions on Arkiv. Follow creators and see what they choose to share.</p></div>
+      <div class="heading-actions"><a class="button secondary" href="/community#/create-community">Create community</a><a class="button primary" href="/community">Explore community →</a></div>
+    </section>
+    <section class="execution-workspace" aria-labelledby="execution-title">
+      <aside class="unlocked-library">
+        <h2>Unlocked strategies</h2>
+        <p class="small muted">Drag a card onto the execution canvas, or click it to load.</p>
+        <div id="execution-library" class="unlocked-cards"></div>
+        <p class="tiny muted">The included public sample needs no purchase. Your community app supplies purchased strategies here after unlock.</p>
+      </aside>
+      <div class="execution-console">
+        <div class="panel-title"><h2 id="execution-title">Strategy execution</h2><span class="small-tag">PAPER ONLY</span></div>
+        <div id="execution-drop" class="execution-drop" aria-label="Drop an unlocked strategy here"><strong id="execution-selected">Current draft · paper replay only</strong><p>Drop a strategy card here to use its complete rules.</p></div>
+        <label class="field"><span>Execution mode</span><select id="execution-mode"><option value="AI">0G AI agent + paper execution</option><option value="RULES_ONLY">Local rules replay (no AI cost)</option></select></label>
+        <div class="execution-limits">
+          <label class="field"><span>Virtual starting cash (USD)</span><input id="execution-capital" type="number" value="1000" min="0.000001" max="1000000" step="0.000001"></label>
+          <label class="field"><span>Total turnover limit, including fees (USD)</span><input id="execution-turnover" type="number" value="2000" min="0.000001" max="1000000" step="0.000001"></label>
+        </div>
+        <details class="execution-settings"><summary>Paper fee and slippage settings</summary><div class="execution-limits">
+          <label class="field"><span>Simulated fee (basis points)</span><input id="execution-fee" type="number" value="10" min="0" max="1000" step="1"></label>
+          <label class="field"><span>Simulated slippage (basis points)</span><input id="execution-slippage" type="number" value="25" min="0" max="500" step="1"></label>
+        </div><p class="tiny muted">100 basis points = 1%. Slippage must fit the strategy limit.</p></details>
+        <p id="execution-help" class="small muted"></p>
+        <div class="heading-actions"><button id="execution-start" class="button primary" type="button">Run strategy</button><button id="execution-stop" class="button secondary" type="button" disabled>Stop</button></div>
+        <p class="tiny muted">Uses 90 synthetic one-minute candles, not live prices or real trading history. No wallet, Sepolia transaction or Flash order is submitted.</p>
+        <p id="execution-status" class="small" role="status" aria-live="polite"></p>
+        <div id="execution-results" class="execution-results" aria-live="polite" hidden></div>
+      </div>
+    </section>
     <section class="workspace" aria-label="Strategy builder">
       <aside class="palette panel" aria-label="Block palette">
+        <section class="public-library" aria-label="Community strategies"><h2>Community strategies</h2><p class="small muted">Drag a public strategy onto the canvas, or select it to edit.</p><button id="refresh-community-strategies" class="button secondary" type="button">Refresh strategies</button><div id="community-strategies" class="unlocked-cards"></div><button id="more-community-strategies" class="button secondary" type="button" hidden>Load more</button><p id="community-strategies-status" class="small muted" role="status"></p></section>
         <div class="panel-title"><h2>Building blocks</h2><span class="small-tag">3 TYPES</span></div>
         <p class="muted small">Drag onto the canvas, or click to add.</p>
         <button class="palette-block indicator" data-kind="signal.price" draggable="true"><span class="block-icon">∿</span><span><strong>Price range</strong><small>When the market meets a rule</small></span><span class="grip" aria-hidden="true">⠿</span></button>
@@ -71,7 +102,7 @@
         <p id="creators-empty" class="library-empty small muted">No followed creators to show yet.</p>
       </aside>
     </section>
-    <footer class="page-footer"><p>Changes stay in this tab. Export JSON to keep your strategy.</p><div><button id="import" class="button secondary">↑ Import JSON</button><button id="export" class="button primary">↓ Export JSON</button></div></footer>
+    <footer class="page-footer"><p>Review your draft before publishing it publicly.</p><div><button id="publish-community" class="button primary">Publish to community</button><button id="import" class="button secondary">↑ Import JSON</button><button id="export" class="button secondary">↓ Export JSON</button></div></footer>
     <p id="notice" class="notice" role="status" aria-live="polite"></p>
   </main>
     <dialog id="ai-dialog" class="ai-dialog" aria-labelledby="ai-title">
