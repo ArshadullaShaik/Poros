@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {threadRows,field,sortThreads} from '../src/ui.ts';
+import {threadRows,field,sortThreads,communityCreation} from '../src/ui.ts';
 import {preview} from '../src/preview.ts';
 import type {VoteSummary} from '../../../src/integrations/arkiv/community/index.ts';
 import type {Hex} from 'viem';
@@ -20,4 +20,22 @@ test('community discussion sorts New or Top and renders signed vote controls',()
   const html=threadRows([a],()=>'<script>',false,votes,true);
   assert.match(html,/data-action="vote"/);assert.match(html,/aria-pressed="true"/);assert.match(html,/\b5\b/);
   assert.doesNotMatch(html,/<script>/);
+});
+
+test('community creation requires live mode and a wallet and explains public testnet storage', () => {
+  const account = `0x${'a'.repeat(40)}` as Hex;
+  const previewHtml = communityCreation(true, account, true);
+  assert.match(previewHtml, /data-action="live"/);
+  assert.doesNotMatch(previewHtml, /<form/);
+  const disconnected = communityCreation(false, undefined, true);
+  assert.match(disconnected, /Connect MetaMask/);
+  assert.doesNotMatch(disconnected, /<form/);
+  const unsupported = communityCreation(false, undefined, false);
+  assert.match(unsupported, /Chrome with MetaMask/);
+  assert.doesNotMatch(unsupported, /<form|data-action="connect"/);
+  const connected = communityCreation(false, account, true);
+  assert.match(connected, /data-form="community"/);
+  assert.match(connected, /180 days/);
+  assert.match(connected, /tGLM gas/);
+  assert.match(connected, /role="alert"/);
 });

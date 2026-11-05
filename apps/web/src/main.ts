@@ -6,7 +6,7 @@ import type { Order } from '../../../src/integrations/arkiv/marketplace/contract
 import { compose, type AppIntegration } from './integration.ts';
 import { escape as e, short, checkedText, errorCode, failure, keyPattern, walletPattern, formatAmount, parseAmount, validateQuote, PaymentAttempt, verifyDownload, withWalletLock, sendPaymentOnce, currencyMatches, currencyLabel, mergeRecovery, type Quote } from './core.ts';
 import { MarketClient } from './market.ts';
-import { button, link, tag, avatar, strategyRows, communityCards, listingCards, threadRows, messageRows, sortThreads, empty, heading, notice, field, errors } from './ui.ts';
+import { button, link, tag, avatar, strategyRows, communityCards, communityCreation, listingCards, threadRows, messageRows, sortThreads, empty, heading, notice, field, errors } from './ui.ts';
 import { icon, mark, garden } from './icons.ts';
 import type { PreviewData } from './preview.ts';
 import {createInjectedWallet} from './wallet.ts';
@@ -147,6 +147,11 @@ class Application {
     }
     route() { return (location.hash.slice(1).split('?')[0] || '/discover').split('/').filter(Boolean); }
     async accountChanged() {
+        let current: Hex | undefined;
+        try { current = (await this.host.wallet!.getContext()).account.toLowerCase() as Hex; }
+        catch { }
+        // Chain switches keep the same author and must preserve an in-flight draft.
+        if (current === this.account) return;
         this.generation++;
         this.market.session.clear();
         this.attempt = undefined;
@@ -154,11 +159,7 @@ class Application {
         this.membership = undefined;
         this.activeVersion = undefined;
         this.closeDialog();
-        this.account = undefined;
-        try {
-            this.account = (await this.host.wallet!.getContext()).account.toLowerCase() as Hex;
-        }
-        catch { }
+        this.account = current;
         this.updateChrome();
         await this.render();
     }
@@ -231,6 +232,8 @@ class Application {
                 html = heading('Not available yet', 'Private checkout is not live.', 'Creator memberships are being built with Arkiv-only storage.', link('/discover', 'Back to Discover'));
             else if (route === 'discover')
                 html = await this.discover();
+            else if (route === 'create-community')
+                html = heading('Poros community', 'Create your community.', 'Start a public space for your trading ideas.') + `<section class="paper-panel">${communityCreation(!!this.preview, this.account, !!this.host.wallet)}</section>`;
             else if (route === 'communities') {
                 const rooms = await this.getCommunities();
                 html = heading('Find your people', 'A room for every thesis.', 'Explore public communities. Share the reasoning, not just the result.', button('new-community', icon('plus') + ' Create community')) + `<div class="community-grid">${communityCards(rooms)}</div>${this.communityCursor !== null ? button('more-communities', 'Load more communities', 'secondary') : ''}${this.skipped ? notice('Some unverified records were skipped.') : ''}` + (rooms.length ? '' : empty('Make space for a conversation', 'Create a public community for the market or idea you care about.', button('new-community', 'Create the first community', 'secondary')));
@@ -283,13 +286,13 @@ class Application {
         return this.discoverHTML(rows, rooms, q);
     }
     discoverHTML(rows: StrategySummaryDTO[], rooms: CommunityDTO[], q = '', loading = false) {
-        return `<section class="hero"><div class="hero-copy"><span class="eyebrow"><span class="little-star">✳</span> IDEAS GROW BETTER TOGETHER</span><h1>Good strategies.<br><em>Common ground.</em></h1><p>A place to build trading ideas in public.<br>Find your people, share your reasoning,<br class="desktop-break"> and make the next version better.</p><div class="hero-actions">${link('/communities', 'Find your community ' + icon('right'))}${button('publish', icon('plus') + ' Share a strategy', 'text-button')}</div><div class="hero-footnote"><span class="small-mark">${mark}</span><span>Yours to create. Ours to explore.</span></div></div><div class="hero-art">${garden}<span class="art-caption">FROM A LITTLE IDEA TO A CLEARER STRATEGY ↗</span></div></section>
+        return `<section class="hero"><div class="hero-copy"><span class="eyebrow"><span class="little-star">✳</span> IDEAS GROW BETTER TOGETHER</span><h1>Good strategies.<br><em>Common ground.</em></h1><p>A place to build trading ideas in public.<br>Find your people, share your reasoning,<br class="desktop-break"> and make the next version better.</p><div class="hero-actions">${link('/communities', 'Find your community ' + icon('right'))}${button('new-community', icon('plus') + ' Create community', 'secondary')}${button('publish', 'Share a strategy', 'text-button')}</div><div class="hero-footnote"><span class="small-mark">${mark}</span><span>Yours to create. Ours to explore.</span></div></div><div class="hero-art">${garden}<span class="art-caption">FROM A LITTLE IDEA TO A CLEARER STRATEGY ↗</span></div></section>
     <div class="principles"><span>${icon('user')} Wallet-owned identity</span><span>${icon('fork')} Source-pinned versions</span><span>${icon('shield')} Exclusive signals are encrypted</span></div>
     <div class="discovery-columns"><section class="discovery-feed"><div class="section-title"><div><span class="eyebrow">THE IDEA EXCHANGE</span><h2>Something worth building on.</h2></div><a href="#/communities" class="text-link">Explore ${icon('arrow')}</a></div><div class="feed-tabs"><span class="selected">Public strategies</span><a href="#/communities">Communities</a></div>
     ${q ? notice('Showing names starting with “' + q + '”.') : ''}${this.skipped ? notice('Some unverified records were skipped.') : ''}
     ${loading ? '<div class="loading-view feed-loading"><span></span>Reading the public commons…</div>' : rows.length ? `<div class="strategy-list">${strategyRows(rows, w => this.label(w))}</div>` : empty(this.host.validateStrategyDocument ? 'The first idea could be yours.' : 'A little space for your next idea.', this.host.validateStrategyDocument ? 'No strategies match this current view. Publish a public strategy or explore the communities.' : 'Public communities are connected to Rabdi. Strategy documents open when the team’s graph validator is connected.', this.preview ? '' : button('preview', 'Take a look around ' + icon('arrow'), 'secondary'))}
     ${this.strategyCursor !== null ? button('more-strategies', 'Load more strategies', 'secondary') : ''}<div class="section-title small-title"><h2>Find a good conversation.</h2><a href="#/communities" class="text-link">All rooms ${icon('arrow')}</a></div><div class="community-grid compact">${communityCards(rooms.slice(0, 3))}</div>${rooms.length ? '' : `<a class="first-room" href="#/communities">${icon('people')}<span><strong>The commons are open.</strong><small>Create a community around your trading thesis.</small></span>${icon('arrow')}</a>`}</section>
-    <aside class="field-notes"><div class="field-note"><span class="eyebrow">A NOTE FROM THE COMMONS</span><span class="quote-mark">“</span><h3>Show the thinking.<br>Not just the trade.</h3><p>The best part of an idea is what happens when someone builds on it.</p><a href="#/communities">Join a conversation ${icon('arrow')}</a><span class="note-flower">✳</span></div><div class="connection-card"><span class="eyebrow">YOUR WORKSPACE</span><div><span class="status-dot ${this.preview ? '' : 'live-dot'}"></span>${this.preview ? 'Read-only preview' : 'Public Rabdi reads'}</div><div>${icon('wallet')}${this.host.wallet ? 'Wallet adapter available' : 'Wallet connection pending'}</div><div>${icon('lock')}${this.host.marketplaceReady ? 'Private API connected' : 'Private API setup pending'}</div><button class="text-link" data-action="setup">Connection details ${icon('arrow')}</button></div></aside></div>`;
+    <aside class="field-notes"><div class="field-note"><span class="eyebrow">A NOTE FROM THE COMMONS</span><span class="quote-mark">“</span><h3>Show the thinking.<br>Not just the trade.</h3><p>The best part of an idea is what happens when someone builds on it.</p><a href="#/communities">Join a conversation ${icon('arrow')}</a><span class="note-flower">✳</span></div><div class="connection-card"><span class="eyebrow">YOUR WORKSPACE</span><div><span class="status-dot ${this.preview ? '' : 'live-dot'}"></span>${this.preview ? 'Read-only preview' : 'Public Rabdi reads'}</div><div>${icon('wallet')}${this.host.wallet ? 'Browser wallet available' : 'Open in Chrome with MetaMask'}</div><div>${icon('people')}Anyone can create a community</div><button class="text-link" data-action="setup">Connection details ${icon('arrow')}</button></div></aside></div>`;
     }
     async communityView(id?: string, thread?: string) {
         const serial = this.pageSerial;
@@ -469,7 +472,7 @@ class Application {
     report(error: unknown) {
         const code = errorCode(error);
         const message = errors[code] ?? 'This action could not be completed. Check the connection and try again.';
-        const slot = this.dialog?.querySelector('.form-error');
+        const slot = this.dialog?.querySelector('.form-error') ?? document.querySelector('#content .form-error');
         if (slot)
             slot.textContent = message;
         if (['AUTH_REQUIRED', 'AUTH_INVALID'].includes(code) && this.dialog?.querySelector('[data-form="sell"]') && !this.dialog.querySelector('[data-action="login"]'))
@@ -477,7 +480,7 @@ class Application {
         this.toast(message);
         this.updateChrome();
     }
-    async busyAction(operation: () => Promise<void>) {
+    async busyAction(operation: () => Promise<unknown>) {
         if (this.busy)
             return;
         this.busy = true;
@@ -504,7 +507,7 @@ class Application {
         }
         this.updateChrome();
     }
-    async write(kind: string, expected: Record<string, Json>, operation: (requestId: string) => Promise<unknown>, scope?: Hex) {
+    async write<T>(kind: string, expected: Record<string, Json>, operation: (requestId: string) => Promise<T>, scope?: Hex) {
         const account = await this.requireAccount();
         return withWalletLock(async () => {
             try {
@@ -522,13 +525,14 @@ class Application {
             this.pending = { account, requestId, kind, expected, ...(scope ? { scope } : {}) };
             this.persistPending();
             try {
-                await operation(requestId);
+                const result = await operation(requestId);
                 this.pending = undefined;
                 this.persistPending();
                 this.ensureGeneration(generation);
                 this.closeDialog();
                 this.toast('Saved and verified on Rabdi.');
                 await this.render();
+                return result;
             }
             catch (error) {
                 if (['WRITE_STATUS_UNKNOWN', 'WRITE_CONFIRMED_READ_PENDING'].includes(errorCode(error))) {
@@ -620,7 +624,16 @@ class Application {
         this.market.session.require(account);
         return account;
     }
-    setup() { this.openDialog('Your connections.', '<p class="intro-copy">Browse public communities now. Wallet actions, strategy validation and private checkout connect through the team’s adapters.</p><div class="setup-list">' + [[true, 'Public data', 'Dev 2’s Rabdi storage and community interfaces'], [!!this.host.wallet, 'Wallet', 'The shared wallet connection, owned by Dev 4'], [!!this.host.validateStrategyDocument, 'Public strategies', 'The actual strategy document validator, owned by Dev 3'], [!!this.host.validatePrivateStrategy, 'Private strategy validation', 'The real private payload validator, owned by Dev 3'], [!!this.host.marketplaceReady && !!this.host.payment, 'Private marketplace', 'Same-origin API and approved payment network, owned by Dev 4']].map(([ready, name, detail]) => `<div><span class="setup-icon ${ready ? 'ready' : ''}">${icon(ready ? 'check' : 'settings')}</span><span><strong>${name}</strong><small>${detail}</small></span>${tag(ready ? 'Ready' : 'Pending', ready ? 'green' : '')}</div>`).join('') + '</div>' + notice('Never enter a private key here. Wallet signatures happen in your wallet.') + (this.market.session.token ? button('logout', 'Sign out of marketplace', 'secondary') : '') + (!this.preview ? button('preview', 'Explore the read-only design preview', 'secondary') : '')); }
+    setup() {
+        this.openDialog('Community connections',
+            '<p>Anyone can browse public communities. Connect MetaMask to create, join, and post.</p>' +
+            notice(this.host.wallet ? 'A browser wallet is available. Connect and approve the switch to Rabdi.' : 'Open this page in Chrome with the MetaMask extension enabled, then reload.') +
+            '<p>Rabdi is the Arkiv testnet. Community actions require tGLM for gas. Approve each transaction in your wallet.</p>' +
+            '<p><a href="https://metamask.io/download/" target="_blank" rel="noopener noreferrer">Get MetaMask</a> · <a href="https://hub.arkiv.network/" target="_blank" rel="noopener noreferrer">Arkiv Hub and testnet resources</a></p>' +
+            notice('Keep your recovery phrase and private key in your wallet.') +
+            (this.preview ? button('live', 'Use live community') : this.host.wallet ? button('connect', 'Connect MetaMask') : '')
+        );
+    }
     async action(target: HTMLElement) {
         const action = target.dataset.action;
         if (action === 'close') {
@@ -718,7 +731,11 @@ class Application {
                 this.setup();
                 return;
             }
-            await this.busyAction(async () => { await this.host.wallet!.connect(); await this.accountChanged(); });
+            await this.busyAction(async () => {
+                await this.host.wallet!.connect();
+                await this.host.wallet!.switchChain?.(7794095);
+                await this.accountChanged();
+            });
             return;
         }
         if (action === 'login') {
@@ -760,7 +777,7 @@ class Application {
             return;
         }
         if (action === 'new-community') {
-            this.openDialog('Make room for an idea.', `<form data-form="community">${field('name', 'Community name', { required: true, placeholder: 'Bitcoin trading' })}${field('description', 'What brings this community together?', { area: true, placeholder: 'A clear purpose makes a better conversation.' })}${notice('Community details are public. Creating one asks your wallet to sign a Rabdi transaction.')}<button class="button primary">Create community ${icon('right')}</button></form>`);
+            location.hash = '/create-community';
             return;
         }
         if (action === 'edit-community' && this.activeCommunity) {
@@ -890,7 +907,9 @@ class Application {
         await this.busyAction(async () => {
             if (kind === 'community') {
                 const name = checkedText(value('name').trim(), 1, 80), description = checkedText(value('description'), 0, 4096);
-                await this.write('community', { name, description }, requestId => this.api.strategies.createCommunity({ requestId, name, description }));
+                const result = await this.write('community', { name, description }, requestId => this.api.strategies.createCommunity({ requestId, name, description }));
+                const communityKey = result.state === 'written' ? result.receipt.entityKey : result.entityKey;
+                location.hash = '/community/' + communityKey;
             }
             else if (kind === 'edit-community') {
                 const account = await this.requireAccount();

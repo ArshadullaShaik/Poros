@@ -36,9 +36,16 @@ export const field = (name: string, label: string, options: {
     type?: string;
     pattern?: string;
 } = {}) => `<label class="field"><span>${e(label)}</span>${options.area ? `<textarea name="${name}" rows="${name === 'strategy' || name === 'document' ? 10 : 3}" ${options.required ? 'required' : ''} placeholder="${e(options.placeholder ?? '')}">${e(options.value ?? '')}</textarea>` : `<input name="${name}" type="${options.type ?? 'text'}" value="${e(options.value ?? '')}" ${options.required ? 'required' : ''} ${options.pattern ? `pattern="${e(options.pattern)}"` : ''} placeholder="${e(options.placeholder ?? '')}">`}${options.hint ? `<small>${e(options.hint)}</small>` : ''}</label>`;
+export function communityCreation(preview: boolean, account: Hex | undefined, walletAvailable: boolean) {
+    if (preview) return notice('Switch to live Rabdi to create your community.') + button('live', 'Use live community');
+    if (!account) return notice('Connect MetaMask and select Rabdi to create a public community. Your wallet needs Rabdi tGLM for gas.') +
+        (walletAvailable ? button('connect', 'Connect MetaMask') : notice('Open this page in Chrome with MetaMask enabled, then reload.'));
+    return `<form data-form="community"><p>Creating as <code>${e(account)}</code></p>${field('name', 'Community name', {required: true, placeholder: 'Your community name'})}${field('description', 'What brings this community together?', {area: true, placeholder: 'Describe the discussions you want to host.'})}${notice('Community details are public on Arkiv for 180 days. Review and approve the Rabdi transaction in your wallet. Creation uses tGLM gas.')}<p class="form-error" role="alert"></p><button class="button primary">Create community</button></form>`;
+}
 export const errors: Record<string, string> = {
     ORDER_NOT_PAYABLE: 'This order is too close to its payment deadline. Do not approve an old wallet prompt. Recover any existing transaction before starting another order.',
-    PREVIEW_ONLY: 'This is a read-only design preview. Switch to Rabdi to use real data.', WALLET_REQUIRED: 'Connect the team wallet to continue.', DEPENDENCY_UNAVAILABLE: 'This connection is not ready yet. Check connection details or try again shortly.',
+    PREVIEW_ONLY: 'This is a read-only design preview. Switch to Rabdi to use real data.', WALLET_REQUIRED: 'Connect your MetaMask wallet to continue.', DEPENDENCY_UNAVAILABLE: 'This connection is not ready yet. Check connection details or try again shortly.',
+    '-32002': 'A wallet request is already open. Check MetaMask to continue.',
     WRONG_CHAIN: 'Switch your wallet to the required network before continuing.', ACCOUNT_CHANGED: 'Your wallet changed. Sign in again before continuing.', USER_REJECTED: 'You cancelled the wallet request. Your draft is still here.', INVALID_INPUT: 'Check your input, byte limits, network and token configuration.',
     AUTH_REQUIRED: 'Sign in to the marketplace to continue.', AUTH_INVALID: 'Your sign-in could not be verified. Request a fresh sign-in.', INSUFFICIENT_GAS: 'Your wallet needs the native gas token for this network.',
     CONCURRENT_UPDATE: 'This record changed. Refresh and review the latest version before editing.', STALE_PARENT: 'A new strategy version exists. Review it before publishing a revision.', MULTIPLE_TIPS: 'This strategy has conflicting versions. Resolve the history before revising.',
