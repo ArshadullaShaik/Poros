@@ -4,21 +4,11 @@ import type { EventDTO, EventType, HubOptions, Listing, ListingInput, Profile, P
 import { address, canonical, entityKey, requestId } from '../codec.ts';
 import { fail } from '../errors.ts';
 import { buildEvent, checkedBlock, userId } from './events.ts';
+import { latestEvent as latest } from './state.ts';
 function invalidAuthorState(error:unknown){return !!error&&typeof error==='object'&&'code'in error&&
   ['CONCURRENT_UPDATE','HISTORY_INCOMPLETE','INTEGRITY_FAILED','UNTRUSTED_RECORD','INVALID_INPUT','PAYLOAD_TOO_LARGE','UNSUPPORTED_SCHEMA'].includes(String(error.code));}
 
 export function createCommunityHub({events,strategies}:HubOptions) {
-  function latest(rows:EventDTO[]) {
-    if(!rows.length)return undefined;
-    const keys=new Set(rows.map(row=>row.key));const parents=new Set<Hex>();
-    for(const row of rows)if(row.data.previousKey){const parent=entityKey(row.data.previousKey);if(!keys.has(parent))fail('HISTORY_INCOMPLETE');parents.add(parent);}
-    const tips=rows.filter(row=>!parents.has(row.key));if(tips.length!==1)fail('CONCURRENT_UPDATE');
-    const visited=new Set<Hex>();let current:EventDTO|undefined=tips[0];
-    while(current){if(visited.has(current.key))fail('INTEGRITY_FAILED');visited.add(current.key);const parent=current.data.previousKey;
-      const child=current;current=parent?rows.find(row=>row.key===parent):undefined;
-      if(current&&BigInt(current.createdAtBlock)>BigInt(child.createdAtBlock))fail('INTEGRITY_FAILED');}
-    if(visited.size!==rows.length)fail('CONCURRENT_UPDATE');return tips[0];
-  }
   async function state(type:EventType,subject:string,scope:string,actor:Hex,atBlock?:bigint) {
     const rows=(await events.scan({type,subject,scope,actor})).filter(row=>atBlock===undefined||BigInt(row.createdAtBlock)<=atBlock);
     return latest(rows);
