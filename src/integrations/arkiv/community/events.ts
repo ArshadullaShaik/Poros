@@ -19,7 +19,7 @@ const shapes = {
   hidden:z.strictObject({contentKey:key,hidden:z.boolean(),...predecessor}),
   moderator:z.strictObject({wallet,enabled:z.boolean(),...predecessor}),
   vote:z.strictObject({contentKey:key,value:z.union([z.literal(-1),z.literal(0),z.literal(1)]),...membership,...predecessor}),
-  thread:z.strictObject({title:utf(1,80),body:utf(1,4096),...membership}),
+  thread:z.strictObject({title:utf(1,80),body:utf(1,4096),strategyVersionKey:key.optional(),...membership}),
   reply:z.strictObject({threadKey:key,body:utf(1,2000),...membership}),
   message:z.strictObject({body:utf(1,2000),...membership}),
   listing:z.strictObject({packageId:z.string().uuid(),contentHash:key,title:utf(1,80),description:utf(0,2048),terms:utf(1,4096),currency,

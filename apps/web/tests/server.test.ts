@@ -9,6 +9,8 @@ test('one origin serves builder and community with isolated assets and private f
     const base=await new Promise<string>((resolve,reject)=>{const timeout=setTimeout(()=>reject(new Error('Static host did not start')),20000);let output='';child.stdout.on('data',chunk=>{output+=String(chunk);const found=output.match(/http:\/\/127\.0\.0\.1:\d+/);if(found){clearTimeout(timeout);resolve(found[0]);}});child.on('error',reject);child.on('exit',code=>{clearTimeout(timeout);reject(new Error('Static host stopped: '+code+' '+stderr));});});
     const home=await fetch(base);assert.equal(home.status,200);const homeHtml=await home.text();assert.match(homeHtml,/Poros.*Strategy builder/);
     assert.match(homeHtml,/href="\/community#\/create-community">Create community/);
+    assert.match(homeHtml,/href="\/community">Communities/);
+    assert.equal((await fetch(base+'/community/builder.js')).status,200);
     const community=await fetch(base+'/community');assert.equal(community.status,200);assert.match(await community.text(),/Poros Community/);
     const script=await fetch(base+'/community/app.js');assert.match(script.headers.get('content-type')!,/javascript/);assert.equal(script.headers.get('cache-control'),'no-store');
     const bundle=await script.text();assert.doesNotMatch(bundle,/node:sqlite|createWalletAuth|openMarketplace|diagnostic-private|Weekly accumulation/);

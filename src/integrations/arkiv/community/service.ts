@@ -88,11 +88,12 @@ export function createCommunityHub({events,strategies}:HubOptions) {
     }}
     return result.sort((a,b)=>BigInt(a.createdAtBlock)<BigInt(b.createdAtBlock)?-1:BigInt(a.createdAtBlock)>BigInt(b.createdAtBlock)?1:a.key.localeCompare(b.key));
   }
-  async function content(type:'thread'|'reply'|'message',args:{requestId:string;communityKey:Hex;body:string;title?:string;threadKey?:Hex}) {
+  async function content(type:'thread'|'reply'|'message',args:{requestId:string;communityKey:Hex;body:string;title?:string;threadKey?:Hex;strategyVersionKey?:Hex}) {
     const actor=await events.actor();const communityKey=entityKey(args.communityKey);const joined=await member(communityKey,actor);
     if(type==='reply') {const thread=await events.read(entityKey(args.threadKey));
       if(thread.type!=='thread'||thread.scope!==communityKey||!(await permitted(thread,communityKey)))fail('INVALID_INPUT','Thread unavailable');}
-    return append(type,communityKey,communityKey,args.requestId,{body:args.body,...(args.title!==undefined?{title:args.title}:{}),
+    if(args.strategyVersionKey) await strategies.getVersion({versionKey:entityKey(args.strategyVersionKey)});
+    return append(type,communityKey,communityKey,args.requestId,{body:args.body,...(args.title!==undefined?{title:args.title}:{}),...(args.strategyVersionKey?{strategyVersionKey:args.strategyVersionKey}:{}),
       ...(args.threadKey?{threadKey:args.threadKey}:{}),...(joined?{membershipKey:joined.key}:{})},actor);
   }
   function profile(row:EventDTO):Profile { return {userId:userId(row.actor),wallet:row.actor,handle:String(row.data.handle),displayName:String(row.data.displayName),bio:String(row.data.bio),key:row.key,source:row.source}; }
@@ -149,7 +150,7 @@ export function createCommunityHub({events,strategies}:HubOptions) {
         summary.score=summary.up-summary.down;if(viewer&&vote.actor===address(viewer))summary.viewerVote=value;
       }
       return summaries;},
-    createThread:(args:{requestId:string;communityKey:Hex;title:string;body:string})=>content('thread',args),
+    createThread:(args:{requestId:string;communityKey:Hex;title:string;body:string;strategyVersionKey?:Hex})=>content('thread',args),
     reply:(args:{requestId:string;communityKey:Hex;threadKey:Hex;body:string})=>content('reply',args),
     sendMessage:(args:{requestId:string;communityKey:Hex;body:string})=>content('message',args),
     listThreads:({communityKey}:{communityKey:Hex})=>visible('thread',communityKey),

@@ -10,6 +10,7 @@ import { button, link, tag, avatar, strategyRows, communityCards, communityCreat
 import { icon, mark, garden } from './icons.ts';
 import type { PreviewData } from './preview.ts';
 import {createInjectedWallet} from './wallet.ts';
+import {validateBuilderDocument} from './strategy-document.ts';
 interface PendingWrite {
     account: Hex;
     requestId: string;
@@ -28,7 +29,7 @@ interface Recovery {
     attempted?: boolean;
 }
 const app = document.querySelector<HTMLElement>('#app')!;
-const integration = window.__COMMON_GROUND__ ?? {wallet:createInjectedWallet()};
+const integration = {wallet:createInjectedWallet(),validateStrategyDocument:validateBuilderDocument,...window.__COMMON_GROUND__};
 class Application {
     api = compose(integration);
     market = new MarketClient();
@@ -122,7 +123,7 @@ class Application {
         setInterval(() => void this.poll(), 1000);
     }
     shell() {
-        return `<header class="topbar"><a class="brand" href="#/discover"><span class="brand-mark">${mark}</span><span>Poros<small>COMMUNITY</small></span></a><a class="builder-link" href="/">← Strategy builder</a><form class="global-search" data-form="search">${icon('search')}<input name="q" aria-label="Find a strategy by name prefix" placeholder="Find your next idea…"><kbd>↵</kbd></form><div class="header-actions"><span class="source-badge">${this.preview ? 'DESIGN PREVIEW' : 'RABDI · TESTNET'}<i></i></span><button class="button wallet-button" data-action="connect">${icon('wallet')}<span id="wallet-label">Connect wallet</span></button></div></header>
+        return `<header class="topbar"><a class="brand" href="/" aria-label="Poros home"><span class="brand-mark">${mark}</span><span>Poros<small>COMMUNITY</small></span></a><nav class="primary-nav" aria-label="Workspace"><a href="/">Home</a><a href="/community" aria-current="page">Communities</a></nav><form class="global-search" data-form="search">${icon('search')}<input name="q" aria-label="Find a strategy by name prefix" placeholder="Find your next idea…"><kbd>↵</kbd></form><div class="header-actions"><span class="source-badge">${this.preview ? 'DESIGN PREVIEW' : 'RABDI · TESTNET'}<i></i></span><button class="button wallet-button" data-action="connect">${icon('wallet')}<span id="wallet-label">Connect wallet</span></button></div></header>
     ${this.preview ? `<div class="preview-banner">${icon('info')}<span>Read-only design preview. Every profile, strategy and price here is illustrative.</span><button data-action="live">Switch to real Rabdi ${icon('arrow')}</button></div>` : ''}
     <div class="app-layout"><aside class="sidebar"><span class="nav-label">POROS COMMUNITY</span><nav aria-label="Main navigation">${[['/discover', 'grid', 'Discover'], ['/communities', 'people', 'Communities'], ['/profile/me', 'user', 'Your profile']].map(([route, glyph, label]) => `<a href="#${route}" data-nav="${route}">${icon(glyph!)}<span>${label}</span></a>`).join('')}</nav><div class="sidebar-divider"></div><div class="nav-label nav-label-row">OPEN ROOMS <a href="#/communities" aria-label="Browse communities">${icon('plus')}</a></div><div id="rooms" class="room-links"></div><div class="sidebar-bottom"><div class="sidebar-note">${icon('leaf')}<p>Better ideas grow<br>in good company.</p></div><button class="settings-button" data-action="setup">${icon('settings')} Connection details</button><small>Built in public. Stored on Arkiv.</small></div></aside><main id="main" tabindex="-1"><div id="pending"></div><div id="content"></div></main></div><footer><span>POROS COMMUNITY</span><p>Ideas are public. Trading decisions are yours.</p><button data-action="${this.preview ? 'live' : 'preview'}">${this.preview ? 'Return to Rabdi' : 'Explore the design preview'} ${icon('arrow')}</button></footer>`;
     }
@@ -234,6 +235,8 @@ class Application {
                 html = await this.discover();
             else if (route === 'create-community')
                 html = heading('Poros community', 'Create your community.', 'Start a public space for your trading ideas.') + `<section class="paper-panel">${communityCreation(!!this.preview, this.account, !!this.host.wallet)}</section>`;
+            else if (route === 'publish-draft')
+                html = await this.publicDraftView();
             else if (route === 'communities') {
                 const rooms = await this.getCommunities();
                 html = heading('Find your people', 'A room for every thesis.', 'Explore public communities. Share the reasoning, not just the result.', button('new-community', icon('plus') + ' Create community')) + `<div class="community-grid">${communityCards(rooms)}</div>${this.communityCursor !== null ? button('more-communities', 'Load more communities', 'secondary') : ''}${this.skipped ? notice('Some unverified records were skipped.') : ''}` + (rooms.length ? '' : empty('Make space for a conversation', 'Create a public community for the market or idea you care about.', button('new-community', 'Create the first community', 'secondary')));
@@ -344,7 +347,7 @@ class Application {
         this.activeVersion = version;
         this.historyCursor = history.nextOffset;
         const writable = !!this.host.validateStrategyDocument && !this.preview;
-        return `<a href="#/discover" class="back-link">← All public strategies</a>` + heading('PUBLIC STRATEGY', version.document.name, version.document.description, button('fork', icon('fork') + ' Fork this version', 'primary', writable ? '' : 'disabled')) + `<div class="community-meta">${tag(version.document.category)}${tag(version.document.license)}<span>by <a href="#/profile/${version.creator}">${e(this.label(version.creator))}</a></span>${this.account === version.creator ? button('revise', 'Publish a revision', 'secondary', writable && history.complete && history.tipVersionKeys.length === 1 ? '' : 'disabled') : ''}</div>${version.lineageStatus !== 'verified' ? notice('Some ancestors are missing. This is not a fully verified version history.', 'warning') : ''}${!history.complete ? notice('The version history is incomplete. Revision is blocked.', 'warning') : ''}<div class="detail-columns"><section class="paper-panel"><div class="section-title"><h2>${icon('code')} The strategy document</h2>${tag(this.preview ? 'Illustrative' : 'Read-back verified', 'green')}</div><pre class="code-panel">${e(JSON.stringify(version.document, null, 2))}</pre>${notice('A stored strategy is public data. It is not permission to trade.')}</section><aside><div class="paper-panel"><span class="eyebrow">PINNED TO THIS VERSION</span><dl><dt>Version key</dt><dd><code>${e(version.versionKey)}</code></dd><dt>Content hash</dt><dd><code>${e(version.contentHash)}</code></dd><dt>Execution network</dt><dd>Chain ${version.document.executionChainId}</dd><dt>Expiry block</dt><dd>${e(version.expiresAtBlock)}</dd></dl></div><div class="paper-panel"><h2>Version history</h2>${history.versions.map((row, i) => `<a class="history-row ${row.versionKey === version.versionKey ? 'selected' : ''}" href="#/strategies/${row.versionKey}"><span class="version-dot"></span><span>${i === 0 ? 'Root publication' : 'Revision'}<small>${e(short(row.versionKey))}</small></span>${icon('arrow')}</a>`).join('')}${this.historyCursor !== null ? button('more-history', 'Load more versions', 'secondary') : ''}<p class="muted">Forks preserve the selected source, including older versions.</p></div></aside></div>`;
+        return `<a href="#/discover" class="back-link">← All public strategies</a><p><a class="button secondary strategy-transfer" draggable="true" href="/?strategy=${version.versionKey}">Open in builder · drag to canvas</a> ${this.preview ? '' : button('share-strategy','Share in a community','secondary')}</p>` + heading('PUBLIC STRATEGY', version.document.name, version.document.description, button('fork', icon('fork') + ' Fork this version', 'primary', writable ? '' : 'disabled')) + `<div class="community-meta">${tag(version.document.category)}${tag(version.document.license)}<span>by <a href="#/profile/${version.creator}">${e(this.label(version.creator))}</a></span>${this.account === version.creator ? button('revise', 'Publish a revision', 'secondary', writable && history.complete && history.tipVersionKeys.length === 1 ? '' : 'disabled') : ''}</div>${version.lineageStatus !== 'verified' ? notice('Some ancestors are missing. This is not a fully verified version history.', 'warning') : ''}${!history.complete ? notice('The version history is incomplete. Revision is blocked.', 'warning') : ''}<div class="detail-columns"><section class="paper-panel"><div class="section-title"><h2>${icon('code')} The strategy document</h2>${tag(this.preview ? 'Illustrative' : 'Read-back verified', 'green')}</div><pre class="code-panel">${e(JSON.stringify(version.document, null, 2))}</pre>${notice('A stored strategy is public data. It is not permission to trade.')}</section><aside><div class="paper-panel"><span class="eyebrow">PINNED TO THIS VERSION</span><dl><dt>Version key</dt><dd><code>${e(version.versionKey)}</code></dd><dt>Content hash</dt><dd><code>${e(version.contentHash)}</code></dd><dt>Execution network</dt><dd>Chain ${version.document.executionChainId}</dd><dt>Expiry block</dt><dd>${e(version.expiresAtBlock)}</dd></dl></div><div class="paper-panel"><h2>Version history</h2>${history.versions.map((row, i) => `<a class="history-row ${row.versionKey === version.versionKey ? 'selected' : ''}" href="#/strategies/${row.versionKey}"><span class="version-dot"></span><span>${i === 0 ? 'Root publication' : 'Revision'}<small>${e(short(row.versionKey))}</small></span>${icon('arrow')}</a>`).join('')}${this.historyCursor !== null ? button('more-history', 'Load more versions', 'secondary') : ''}<p class="muted">Forks preserve the selected source, including older versions.</p></div></aside></div>`;
     }
     async profileView(id?: string) {
         const wallet = id === 'me' ? this.account : id;
@@ -357,6 +360,17 @@ class Application {
             this.profiles.set(wallet, profile);
         const owned = this.account === wallet && !this.preview;
         return heading('WALLET-OWNED IDENTITY', profile?.displayName ?? 'An unwritten profile.', profile?.bio ?? 'This wallet has not created a public profile yet.', owned ? button('edit-profile', profile ? 'Edit profile' : 'Create profile') : '') + `<div class="profile-panel">${avatar(wallet)}<div><h2>${profile ? '@' + e(profile.handle) : 'Wallet identity'}</h2><code>${e(wallet)}</code><p class="muted">${e(profile?.userId ?? 'eip155:7794095:' + wallet)}</p></div>${tag('Wallet owned', 'green')}</div>` + notice('Handles can be shared by more than one wallet. Check the wallet address to identify a creator.') + `<section class="paper-panel"><h2>Find a person.</h2><form data-form="profile-search" class="inline-form">${field('handle', 'Exact handle', { placeholder: 'lowercase_handle', required: true, pattern: '[a-z0-9_]{3,32}' })}<button class="button secondary">Search ${icon('search')}</button></form><div id="profile-results"></div></section>`;
+    }
+    async publicDraftView() {
+        if (this.preview) failure('PREVIEW_ONLY');
+        const raw = sessionStorage.getItem('poros.public-draft');
+        if (!raw || raw.length > 65536) return heading('Public strategy', 'Prepare a strategy in the builder.', 'Validate your draft and choose Publish to community.') + '<a class="button primary" href="/">Open builder</a>';
+        const transfer = JSON.parse(raw);
+        const document = validateBuilderDocument(transfer.document);
+        this.activeVersion = transfer.sourceVersionKey ? await this.api.strategies.getVersion({versionKey:transfer.sourceVersionKey}) : undefined;
+        const mode = this.activeVersion ? 'fork' : 'publish';
+        return heading('Public strategy', 'Review your publication.', 'Your entire strategy will be public on Arkiv for 180 days. Review the license and document before approving.') +
+            `<section class="paper-panel"><form data-form="publish" data-mode="${mode}" data-builder="true">${field('document','Strategy document',{area:true,required:true,value:JSON.stringify(document,null,2)})}${this.activeVersion ? notice('This fork references version ' + this.activeVersion.versionKey) : ''}<p class="form-error" role="alert"></p>${this.account ? '<button class="button primary">Publish public '+(mode === 'fork' ? 'fork' : 'strategy')+'</button>' : button('connect','Connect wallet')}</form></section>`;
     }
     async listingView(id?: string) {
         if (!id || !keyPattern.test(id))
@@ -799,7 +813,13 @@ class Application {
             return;
         }
         if (action === 'new-thread') {
-            this.openDialog('Give the room something to think about.', `<form data-form="thread">${field('title', 'Start with a clear title', { required: true, placeholder: 'What is the idea, question or assumption?' })}${field('body', 'Share the reasoning', { area: true, required: true, placeholder: 'Show your work. Invite another perspective.' })}${notice('Threads are public. Each publication uses Rabdi gas.')}<button class="button primary">Publish thread ${icon('right')}</button></form>`);
+            this.openDialog('Give the room something to think about.', `<form data-form="thread">${field('title', 'Start with a clear title', { required: true, placeholder: 'What is the idea, question or assumption?' })}${field('body', 'Share the reasoning', { area: true, required: true, placeholder: 'Show your work. Invite another perspective.' })}${field('strategyVersionKey','Public strategy version (optional)',{placeholder:'0x…',hint:'Paste an Arkiv version key to attach a strategy others can open or drag into the builder.'})}${notice('Threads are public. Each publication uses Rabdi gas.')}<button class="button primary">Publish thread ${icon('right')}</button></form>`);
+            return;
+        }
+        if (action === 'share-strategy' && this.activeVersion) {
+            const version = this.activeVersion;
+            const rooms = await this.getCommunities();
+            this.openDialog('Share this strategy in a community', `<form data-form="share-strategy" data-version="${version.versionKey}"><label class="field"><span>Community</span><select name="communityKey" required>${rooms.map(room=>`<option value="${room.communityKey}">${e(room.name)}</option>`).join('')}</select></label>${field('title','Post title',{required:true,value:version.document.name})}${field('body','Explain your strategy',{area:true,required:true,value:version.document.description})}${notice('Join the selected community before posting. Readers can open this exact strategy version in the builder.')}<button class="button primary">Publish strategy post</button></form>`);
             return;
         }
         if (action === 'moderate') {
@@ -929,9 +949,21 @@ class Application {
                 const expected: Record<string, Json> = { body };
                 if (kind === 'thread')
                     expected.title = checkedText(value('title'), 1, 80);
+                if (kind === 'thread' && value('strategyVersionKey').trim()) {
+                    const versionKey = value('strategyVersionKey').trim();
+                    if (!keyPattern.test(versionKey)) failure('INVALID_INPUT');
+                    expected.strategyVersionKey = versionKey;
+                }
                 if (kind === 'reply')
                     expected.threadKey = this.route()[2]!;
-                await this.write(kind, expected, requestId => kind === 'thread' ? this.api.community.createThread({ requestId, communityKey: room.communityKey, title: expected.title as string, body }) : kind === 'reply' ? this.api.community.reply({ requestId, communityKey: room.communityKey, threadKey: expected.threadKey as Hex, body }) : this.api.community.sendMessage({ requestId, communityKey: room.communityKey, body }), room.communityKey);
+                await this.write(kind, expected, requestId => kind === 'thread' ? this.api.community.createThread({ requestId, communityKey: room.communityKey, title: expected.title as string, body, ...(expected.strategyVersionKey ? {strategyVersionKey:expected.strategyVersionKey as Hex} : {}) }) : kind === 'reply' ? this.api.community.reply({ requestId, communityKey: room.communityKey, threadKey: expected.threadKey as Hex, body }) : this.api.community.sendMessage({ requestId, communityKey: room.communityKey, body }), room.communityKey);
+            }
+            else if (kind === 'share-strategy') {
+                const communityKey = value('communityKey') as Hex, strategyVersionKey = form.dataset.version as Hex;
+                if (!keyPattern.test(communityKey) || !keyPattern.test(strategyVersionKey)) failure('INVALID_INPUT');
+                const expected = {title:checkedText(value('title'),1,80),body:checkedText(value('body'),1,4096),strategyVersionKey};
+                const post = await this.write('thread',expected,requestId=>this.api.community.createThread({requestId,communityKey,...expected}),communityKey);
+                location.hash = '/thread/' + communityKey + '/' + post.key;
             }
             else if (kind === 'ban') {
                 const wallet = value('wallet').toLowerCase() as Hex;
@@ -967,7 +999,9 @@ class Application {
                     failure('INVALID_INPUT');
                 const contentHash = keccak256(toBytes('strategyhub:content:v1\n' + serialize(document)));
                 const mode = form.dataset.mode, version = this.activeVersion;
-                await this.write('version', { contentHash }, requestId => mode === 'fork' && version ? this.api.strategies.forkVersion({ requestId, sourceVersionKey: version.versionKey, document }) : mode === 'revise' && version ? this.api.strategies.publishVersion({ requestId, rootVersionKey: version.rootVersionKey ?? version.versionKey, expectedParentVersionKey: version.versionKey, document }) : this.api.strategies.publishStrategy({ requestId, document }));
+                const result = await this.write('version', { contentHash }, requestId => mode === 'fork' && version ? this.api.strategies.forkVersion({ requestId, sourceVersionKey: version.versionKey, document }) : mode === 'revise' && version ? this.api.strategies.publishVersion({ requestId, rootVersionKey: version.rootVersionKey ?? version.versionKey, expectedParentVersionKey: version.versionKey, document }) : this.api.strategies.publishStrategy({ requestId, document }));
+                if (form.dataset.builder) sessionStorage.removeItem('poros.public-draft');
+                location.hash = '/strategies/' + (result.state === 'written' ? result.receipt.entityKey : result.entityKey);
             }
             else if (kind === 'sell') {
                 await this.sell(data);

@@ -14,6 +14,7 @@ const assets = new Map([
   ["/community/", [new URL("../../../../apps/web/dist/index.html", import.meta.url), "text/html"]],
   ["/community/app.js", [new URL("../../../../apps/web/dist/app.js", import.meta.url), "text/javascript"]],
   ["/community/preview.js", [new URL("../../../../apps/web/dist/preview.js", import.meta.url), "text/javascript"]],
+  ["/community/builder.js", [new URL("../../../../apps/web/dist/builder.js", import.meta.url), "text/javascript"]],
   ["/community/app.css", [new URL("../../../../apps/web/dist/app.css", import.meta.url), "text/css"]],
   ["/community/favicon.svg", [new URL("../../../../apps/web/dist/favicon.svg", import.meta.url), "image/svg+xml"]],
   ["/app.js", [new URL("./app.js", import.meta.url), "text/javascript"]],

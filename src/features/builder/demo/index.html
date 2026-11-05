@@ -12,7 +12,7 @@
 <body>
   <header class="topbar">
     <a class="brand" href="/" aria-label="Poros home"><span class="brand-mark">↗</span>Poros</a>
-    <span class="top-divider"></span><span class="top-label">Strategy workspace</span>
+    <nav class="primary-nav" aria-label="Main navigation"><a href="/" aria-current="page">Home</a><a href="/community">Communities</a></nav>
     <span class="demo-label"><span class="status-dot"></span>LOCAL DEMO</span>
   </header>
   <main>
@@ -52,6 +52,7 @@
     </section>
     <section class="workspace" aria-label="Strategy builder">
       <aside class="palette panel" aria-label="Block palette">
+        <section class="public-library" aria-label="Community strategies"><h2>Community strategies</h2><p class="small muted">Drag a public strategy onto the canvas, or select it to edit.</p><button id="refresh-community-strategies" class="button secondary" type="button">Refresh strategies</button><div id="community-strategies" class="unlocked-cards"></div><button id="more-community-strategies" class="button secondary" type="button" hidden>Load more</button><p id="community-strategies-status" class="small muted" role="status"></p></section>
         <div class="panel-title"><h2>Building blocks</h2><span class="small-tag">3 TYPES</span></div>
         <p class="muted small">Drag onto the canvas, or click to add.</p>
         <button class="palette-block indicator" data-kind="indicator.rsi" draggable="true"><span class="block-icon">∿</span><span><strong>RSI signal</strong><small>When the market meets a rule</small></span><span class="grip" aria-hidden="true">⠿</span></button>
@@ -92,7 +93,7 @@
         <p class="eyebrow">CONNECTIONS</p><div id="connection-list" class="connection-list"></div>
       </aside>
     </section>
-    <footer class="page-footer"><p>Changes stay in this tab. Export JSON to keep your strategy.</p><div><button id="import" class="button secondary">↑ Import JSON</button><button id="export" class="button primary">↓ Export JSON</button></div></footer>
+    <footer class="page-footer"><p>Review your draft before publishing it publicly.</p><div><button id="publish-community" class="button primary">Publish to community</button><button id="import" class="button secondary">↑ Import JSON</button><button id="export" class="button secondary">↓ Export JSON</button></div></footer>
     <p id="notice" class="notice" role="status" aria-live="polite"></p>
   </main>
     <dialog id="ai-dialog" class="ai-dialog" aria-labelledby="ai-title">

@@ -4,7 +4,7 @@ import { createCommunityHub } from '../../../src/integrations/arkiv/community/se
 import { buildEvent, decodeEvent } from '../../../src/integrations/arkiv/community/events.ts';
 import type { EventInput, EventDTO, EventRepository, EventFilter } from '../../../src/integrations/arkiv/community/contracts.ts';
 import { createMockArkivStore } from './mock.ts';
-import { alice, bob, validator } from './fixtures.ts';
+import { alice, bob, validator, fixture } from './fixtures.ts';
 import {StorageError} from '../../../src/integrations/arkiv/errors.ts';
 
 export class TestEvents implements EventRepository {
@@ -31,6 +31,16 @@ export async function communitySetup() {
   const events = new TestEvents(); const hub = createCommunityHub({ events, strategies:store });
   return {hub,events,communityKey,store};
 }
+
+test('strategy posts pin a validated public version and reject unavailable attachments',async()=>{
+  const {hub,communityKey,store}=await communitySetup();
+  const published=await store.publishStrategy({requestId:crypto.randomUUID(),document:fixture});
+  const versionKey=published.state==='written'?published.receipt.entityKey:published.entityKey;
+  const thread=await hub.createThread({requestId:crypto.randomUUID(),communityKey,title:'A shared strategy',body:'Review the exact version.',strategyVersionKey:versionKey});
+  assert.equal(thread.data.strategyVersionKey,versionKey);
+  assert.equal((await hub.listThreads({communityKey}))[0]!.data.strategyVersionKey,versionKey);
+  await assert.rejects(hub.createThread({requestId:crypto.randomUUID(),communityKey,title:'Unavailable version',body:'Must fail',strategyVersionKey:`0x${'f'.repeat(64)}`}));
+});
 test('wallet identity survives profile edits and colliding handles do not impersonate another wallet', async () => {
   const {hub,events} = await communitySetup();
   const profile = await hub.saveProfile({requestId:crypto.randomUUID(),handle:'satoshi',displayName:'Alice',bio:'Builder'});
