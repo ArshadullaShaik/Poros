@@ -1,15 +1,37 @@
 const validPrice=value=>typeof value==='string'&&/^\d+\.\d{6}$/.test(value)&&Number(value)>0&&Number(value)<=1000000;
+export function sampledCandles(points){
+  const candles=new Map();
+  for(const point of points){
+    const time=Math.floor(point.time/60000)*60000,previous=candles.get(time);
+    if(!previous||previous.source!==point.source)candles.set(time,{time,start:point.time,end:point.time,open:point.price,high:point.price,low:point.price,close:point.price,source:point.source});
+    else{previous.high=Math.max(previous.high,point.price);previous.low=Math.min(previous.low,point.price);previous.close=point.price;previous.end=point.time;}
+  }
+  return [...candles.values()];
+}
+export function paperPosition(data){
+  if(data.mode!=='PAPER'||!Array.isArray(data.orders))return null;
+  let quantity=0,basis=0,cost=0,realizedPnl=0;
+  for(const fill of data.orders){
+    const size=Number(fill.baseQuantity),notional=Number(fill.notionalUsd),fee=Number(fill.feeUsd);
+    if(![size,notional,fee].every(Number.isFinite)||size<=0||notional<=0||fee<0)return null;
+    if(fill.side==='BUY'){quantity+=size;basis+=notional;cost+=notional+fee;}
+    else if(fill.side==='SELL'&&size<=quantity+1e-9){
+      const fraction=Math.min(1,size/quantity);realizedPnl+=notional-fee-cost*fraction;basis*=1-fraction;cost*=1-fraction;quantity=Math.max(0,quantity-size);
+    }else return null;
+  }
+  return {quantity,entryPrice:quantity>1e-9?basis/quantity:null,cost,realizedPnl};
+}
 export function createChartState({storage,now=Date.now}={}){
-  let pairId,points=[],markers=[],events=[],message='Ready · start a strategy to monitor its targets.',inferences=0,seen=new Set(),cached=false;
+  let pairId,points=[],markers=[],events=[],message='Ready · start a strategy to monitor its targets.',inferences=0,seen=new Set(),cached=false,position=null,livePosition=null;
   const prefix='poros.chart.v1.',maxAge=3600000;
   function select(id){
     if(id===pairId)return false;
-    pairId=id;points=[];markers=[];events=[];seen.clear();inferences=0;cached=false;message='Ready · start a strategy to monitor its targets.';
+    pairId=id;points=[];markers=[];events=[];position=null;livePosition=null;seen.clear();inferences=0;cached=false;message='Ready · start a strategy to monitor its targets.';
     try{
       const raw=storage?.getItem(prefix+id);
-      if(raw&&raw.length<=150000){
+      if(raw&&raw.length<=250000){
         const entry=JSON.parse(raw),time=now();
-        if(entry.pairId===id&&Number.isFinite(entry.savedAt)&&entry.savedAt<=time&&time-entry.savedAt<=maxAge&&Array.isArray(entry.points)&&entry.points.length<=720&&entry.points.every((p,i)=>
+        if(entry.pairId===id&&Number.isFinite(entry.savedAt)&&entry.savedAt<=time&&time-entry.savedAt<=maxAge&&Array.isArray(entry.points)&&entry.points.length<=1800&&entry.points.every((p,i)=>
           p&&Number.isFinite(p.time)&&p.time<=time&&(i===0||p.time>entry.points[i-1].time)&&Number.isFinite(p.price)&&p.price>0&&p.price<=1000000&&Number.isFinite(p.oracleTime)&&p.oracleTime>0&&p.oracleTime<=p.time+60000&&['FLASH','CHAINLINK'].includes(p.source)
         )){points=entry.points.filter(p=>time-p.time<=maxAge);cached=points.length>0;}
       }
@@ -29,7 +51,7 @@ export function createChartState({storage,now=Date.now}={}){
     if(!['FLASH','CHAINLINK'].includes(data?.source)||data.pairId!==pairId||data.stale!==false||!validPrice(data.priceUsd)||!Number.isFinite(data.observedAtMs)||data.observedAtMs<=0||data.observedAtMs>time+60000||!Number.isFinite(time)||time<(points.at(-1)?.time??0))return false;
     const point={time,price:Number(data.priceUsd),oracleTime:data.observedAtMs,source:data.source};
     if(points.at(-1)?.time===time)points[points.length-1]=point;else points.push(point);
-    points=points.slice(-720);cached=false;save();return true;
+    points=points.slice(-1800);cached=false;save();return true;
   }
   function marker(key,time,price,label,side){
     if(seen.has(key)||!Number.isFinite(time)||!Number.isFinite(price)||price<=0)return;
@@ -41,18 +63,20 @@ export function createChartState({storage,now=Date.now}={}){
     const data=event.data,time=event.time;
     if(event.kind==='snapshot'){
       if(data?.pair?.id!==pairId)return;
+      position=paperPosition(data);
+      livePosition=data.mode==='LIVE'?{confirmed:(data.liveOrders??[]).filter(order=>order.status==='ORDER_STATUS_FILLED').length,pending:(data.liveOrders??[]).filter(order=>!['ORDER_STATUS_FILLED','ORDER_STATUS_CANCELLED','ORDER_STATUS_REJECTED','ORDER_STATUS_TERMINATED'].includes(order.status)).length}:null;
       inferences=Array.isArray(data.inference)?data.inference.length:0;
       for(const fill of data.orders??[])if(data.mode==='PAPER'&&validPrice(fill.priceUsd))marker(`${data.id}:paper:${fill.actionId}:${fill.filledAtMs}`,fill.filledAtMs,Number(fill.priceUsd),`Paper ${fill.side} · $${fill.notionalUsd}`,fill.side);
       for(const order of data.liveOrders??[]){
-        const filled=order.status==='ORDER_STATUS_FILLED';
-        marker(`${data.id}:live:${order.orderId}:${order.status}`,filled?time:order.submittedAtMs,Number(data.marketData?.priceUsd??points.at(-1)?.price),`${filled?'Flash confirmed':'Submitted'} ${order.side} · reference price`,order.side);
+        const filled=order.status==='ORDER_STATUS_FILLED',label=({'ORDER_STATUS_FILLED':'Flash confirmed','ORDER_STATUS_CANCELLED':'Cancelled','ORDER_STATUS_REJECTED':'Rejected','ORDER_STATUS_TERMINATED':'Terminated'})[order.status]??'Submitted';
+        marker(`${data.id}:live:${order.orderId}:${order.status}`,filled?time:order.submittedAtMs,Number(data.marketData?.priceUsd??points.at(-1)?.price),`${label} ${order.side} · reference price`,order.side);
       }
       if(data.walletRequest)marker(`${data.id}:quote:${data.walletRequest.quoteId}`,time,Number(data.walletRequest.effectivePriceUsd),'Wallet approval required · Flash quote',data.walletRequest.side);
     }
     const next=event.message??data?.message;
     if(typeof next==='string'&&next!==message){message=next;events.push({time,message});events=events.slice(-30);}
   }
-  return {select,observe,activity,snapshot:()=>({pairId,points:[...points],markers:[...markers],events:[...events],message,inferences,cached})};
+  return {select,observe,activity,snapshot:()=>({pairId,points:[...points],markers:[...markers],events:[...events],message,inferences,cached,position,livePosition})};
 }
 
 export function chartTimeRange(points,windowMs,now){
@@ -84,13 +108,23 @@ export function mountMarketChart({root=document,getPair,getDraft,request=fetch,n
     for(const event of data.events.slice(-4).reverse()){
       const li=root.createElement('li'),time=root.createElement('time'),text=root.createElement('span');time.textContent=clock(event.time);text.textContent=event.message;li.append(time,text);$('chart-activity').append(li);
     }
+    const position=$('chart-position'),pnl=$('chart-pnl'),note=$('chart-position-note');
+    if(data.position){
+      const pos=data.position;
+      position.textContent=pos.quantity>1e-9?`PAPER LONG · ${pos.quantity.toFixed(8)} ${pair.base.symbol} · Entry ${money(pos.entryPrice)}`:'PAPER · FLAT';
+      pnl.textContent=`Realized ${money(pos.realizedPnl)}${last?` · Unrealized ${money(pos.quantity*last.price-pos.cost)}`:''}`;
+      note.textContent='Simulated position · fees included in P/L · marked against the latest chart quote.';
+    }else if(data.livePosition){
+      position.textContent=`LIVE · ${data.livePosition.confirmed} confirmed fill(s) · ${data.livePosition.pending} pending order(s)`;pnl.textContent='Wallet position / P&L not reported';note.textContent='Live markers show confirmed fills or pending orders. Wallet holdings and actual fill prices are not supplied by this feed.';
+    }else{position.textContent='No active position data';pnl.textContent='';note.textContent='Start a strategy to see its position and entry/exit markers.';}
     svg.replaceChildren();lastPlot=undefined;
     const W=1000,H=360,L=18,R=890,T=20,B=320;
     if(!points.length){$('chart-observation').textContent='No saved history for this market. Waiting for a live price.';svg.append(node('text',{x:500,y:170,'text-anchor':'middle',fill:'#8d9bb2'},'Waiting for the first live price observation…'));return;}
-    let low=Math.min(...points.map(p=>p.price)),high=Math.max(...points.map(p=>p.price));
+    const candles=sampledCandles(points),entry=data.position?.entryPrice;
+    let low=Math.min(...candles.map(c=>c.low),entry??Infinity),high=Math.max(...candles.map(c=>c.high),entry??-Infinity);
     const padding=Math.max((high-low)*0.12,last.price*0.002);low=Math.max(0,low-padding);high+=padding;
     const x=time=>L+(time-start)/span*(R-L),y=price=>B-(price-low)/(high-low)*(B-T);
-    lastPlot={points,x,y,L,R,T,B,W,H};
+    lastPlot={points,candles,x,y,L,R,T,B,W,H};
     for(let i=0;i<=5;i++){
       const yy=T+(B-T)*i/5,value=high-(high-low)*i/5;
       svg.append(node('line',{x1:L,x2:R,y1:yy,y2:yy,stroke:'#1b2a3c'}),node('text',{x:R+12,y:yy+4,fill:'#8d9bb2','font-size':12},money(value)));
@@ -104,15 +138,20 @@ export function mountMarketChart({root=document,getPair,getDraft,request=fetch,n
       const top=y(Math.min(high,range.maxPriceUsd)),bottom=y(Math.max(low,range.minPriceUsd));
       svg.append(node('rect',{x:L,y:top,width:R-L,height:Math.max(1,bottom-top),fill:'#4e8ffc','fill-opacity':0.13}),node('line',{x1:L,x2:R,y1:top,y2:top,stroke:'#568bd6','stroke-dasharray':'5 5'}));
     }
-    let segment=[],segmentSource;const color=source=>source==='FLASH'?'#12c7b4':'#7aa8ed';
-    const draw=()=>{if(segment.length>1)svg.append(node('polyline',{points:segment.join(' '),fill:'none',stroke:color(segmentSource),'stroke-width':2,'stroke-linejoin':'round'}));segment=[];};
-    for(let i=0;i<points.length;i++){if(i&&(points[i].time-points[i-1].time>15000||points[i].source!==segmentSource))draw();segmentSource=points[i].source;segment.push(`${x(points[i].time)},${y(points[i].price)}`);}draw();
+    const color=source=>source==='FLASH'?'#12c7b4':'#7aa8ed';
+    const width=Math.min(18,Math.max(2,60000/span*(R-L)*0.65));
+    for(const candle of candles){
+      const cx=x((candle.start+candle.end)/2),up=candle.close>=candle.open,fill=candle.source==='CHAINLINK'?'#7aa8ed':up?'#12c7b4':'#ef5e77';
+      svg.append(node('line',{x1:cx,x2:cx,y1:y(candle.high),y2:y(candle.low),stroke:fill,'stroke-width':1.5}),node('rect',{x:cx-width/2,y:Math.min(y(candle.open),y(candle.close))-0.75,width,height:Math.max(1.5,Math.abs(y(candle.open)-y(candle.close))),fill}));
+    }
+    if(entry){svg.append(node('line',{x1:L,x2:R,y1:y(entry),y2:y(entry),stroke:'#f6c85b','stroke-dasharray':'6 4'}),node('text',{x:L+8,y:y(entry)-7,fill:'#f6c85b','font-size':11},`PAPER ENTRY ${money(entry)}`));}
     svg.append(node('line',{x1:L,x2:R,y1:y(last.price),y2:y(last.price),stroke:color(last.source),'stroke-dasharray':'3 5','stroke-opacity':0.6}),node('circle',{cx:x(last.time),cy:y(last.price),r:4,fill:color(last.source)}));
     for(const mark of data.markers){
       if(mark.time<start||mark.time>end||mark.price<low||mark.price>high)continue;
-      const el=node('circle',{cx:x(mark.time),cy:y(mark.price),r:6,fill:mark.side==='SELL'?'#f05b72':'#f6c85b',stroke:'#0b1727','stroke-width':2});el.append(node('title',{},`${clock(mark.time)} · ${mark.label} · ${money(mark.price)}`));svg.append(el);
+      const mx=x(mark.time),my=y(mark.price),sell=mark.side==='SELL';
+      const el=node('polygon',{points:sell?`${mx-7},${my-12} ${mx+7},${my-12} ${mx},${my}`:`${mx-7},${my+12} ${mx+7},${my+12} ${mx},${my}`,fill:sell?'#f05b72':'#f6c85b',stroke:'#0b1727','stroke-width':1});svg.append(node('text',{x:mx,y:my+(sell?-17:26),'text-anchor':'middle',fill:sell?'#f05b72':'#f6c85b','font-size':10},mark.label));el.append(node('title',{},`${clock(mark.time)} · ${mark.label} · ${money(mark.price)}`));svg.append(el);
     }
-    $('chart-observation').textContent=`${points.length} ${data.cached?'cached':'live'} observations · auto-fit to collected history · ${last.source==='FLASH'?'Flash quote':'Chainlink oracle'} updated ${clock(last.oracleTime)}${points.length>1&&points.every(point=>point.price===last.price)?' · Price unchanged across these observations':''}`;
+    $('chart-observation').textContent=`${candles.length} sampled 1m candles · ${points.length} ${data.cached?'cached':'live'} observations · auto-fit to collected history · ${last.source==='FLASH'?'Flash quote':'Chainlink oracle'} updated ${clock(last.oracleTime)}${points.length>1&&points.every(point=>point.price===last.price)?' · Price unchanged across these observations':''}`;
   }
   async function refresh(){
     if(stopped)return;
@@ -134,8 +173,8 @@ export function mountMarketChart({root=document,getPair,getDraft,request=fetch,n
   svg.addEventListener('pointermove',event=>{
     if(!lastPlot)return;
     const rect=svg.getBoundingClientRect(),xx=(event.clientX-rect.left)*lastPlot.W/rect.width;
-    const point=lastPlot.points.reduce((a,b)=>Math.abs(lastPlot.x(a.time)-xx)<Math.abs(lastPlot.x(b.time)-xx)?a:b);
-    $('chart-hover').textContent=`${clock(point.time)} · ${money(point.price)} · ${point.source==='FLASH'?'Flash quote':'Chainlink reference'}`;
+    const candle=lastPlot.candles.reduce((a,b)=>Math.abs(lastPlot.x((a.start+a.end)/2)-xx)<Math.abs(lastPlot.x((b.start+b.end)/2)-xx)?a:b);
+    $('chart-hover').textContent=`${clock(candle.time)} · O ${money(candle.open)} H ${money(candle.high)} L ${money(candle.low)} C ${money(candle.close)} · ${candle.source==='FLASH'?'Flash quotes':'Chainlink reference'}`;
   });
   svg.addEventListener('pointerleave',()=>{$('chart-hover').textContent='Move over the chart to inspect a price';});
   state.select(getPair().id);render();

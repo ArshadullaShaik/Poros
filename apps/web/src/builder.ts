@@ -1,3 +1,4 @@
+import {createPublicReadCache,browserStorage,cachedPublicLists} from './public-cache.ts';
 import {compose} from './integration.ts';
 import {createInjectedWallet} from './wallet.ts';
 import {createCreatorMemberships,createMembershipReaders} from '../../../src/integrations/arkiv/community/index.ts';
@@ -8,6 +9,7 @@ const integration=typeof window==='undefined'?{}:window.__COMMON_GROUND__;
 const wallet=typeof window==='undefined'?undefined:integration?.wallet??createInjectedWallet();
 const api=compose({...integration,...(wallet?{wallet}:{}),validateStrategyDocument:validateBuilderDocument});
 export const publicStrategies=api.strategies;
+export const publicLists=cachedPublicLists(api.strategies,createPublicReadCache({storage:browserStorage(),onRefresh:(_key,changed)=>{if(changed&&typeof window!=='undefined')window.dispatchEvent(new Event('poros:public-data-updated'));}}));
 export async function readPersonalLibrary(recoveryCode?:string){
   if(!wallet)throw new Error('Connect a browser wallet to read your memberships.');
   const account=(await wallet.getContext()).account.toLowerCase() as `0x${string}`;

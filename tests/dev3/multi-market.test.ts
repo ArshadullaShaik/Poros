@@ -60,7 +60,7 @@ test('AMP display reads a fresh Chainlink price without requiring a Flash route;
  stale=true;await assert.rejects(markets.displayPrice('eth-usdc'));
 });
 
-test('chart uses a fresh Flash quote every five seconds and labels Chainlink fallback without enabling execution',async()=>{
+test('chart uses a fresh Flash quote every two seconds and labels Chainlink fallback without enabling execution',async()=>{
  let time=1800000000000,calls=0,fail=false;const word=(n:number)=>BigInt(n).toString(16).padStart(64,'0');
  const markets=createLiveMarkets({now:()=>time,fetcher:async(url:any,init:any)=>{
   const body=JSON.parse(init.body);
@@ -68,7 +68,7 @@ test('chart uses a fresh Flash quote every five seconds and labels Chainlink fal
   return Response.json(body.map((call:any)=>({jsonrpc:'2.0',id:call.id,result:call.method==='eth_chainId'?'0x2105':call.params[0].data==='0x313ce567'?'0x'+word(8):'0x'+[1,call.params[0].to.toLowerCase()==='0xbcf85224fc0756b9fa45aa7892530b47e10b6433'?0:200000000000,time/1000-7200,time/1000,1].map(word).join('')})));
  }});
  const first=await markets.chartPrice('eth-usdc');assert.equal(first.source,'FLASH');assert.equal(first.priceUsd,'2000.000000');assert.equal(markets.read('eth-usdc').stale,true);
- time+=4999;await markets.chartPrice('eth-usdc');assert.equal(calls,1);
+ time+=1999;await markets.chartPrice('eth-usdc');assert.equal(calls,1);
  time++;assert.equal((await markets.chartPrice('eth-usdc')).priceUsd,'2100.000000');assert.equal(calls,2);
  fail=true;time+=5000;const fallback=await markets.chartPrice('eth-usdc');assert.equal(fallback.source,'CHAINLINK');assert.equal(fallback.priceUsd,'2000.000000');assert.equal(markets.read('eth-usdc').stale,true);
 });

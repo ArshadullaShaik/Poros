@@ -1,4 +1,5 @@
 import serialize from 'canonicalize';
+import {createPublicReadCache,browserStorage,cachedPublicLists,validProfile} from './public-cache.ts';
 import { keccak256, toBytes, type Hex } from 'viem';
 import type { CommunityDTO, StrategySummaryDTO, VersionDTO, Json, StrategyDocumentV1 } from '../../../src/integrations/arkiv/index.ts';
 import type { EventDTO, Listing, Profile, VoteSummary } from '../../../src/integrations/arkiv/community/index.ts';
@@ -33,6 +34,14 @@ const app = document.querySelector<HTMLElement>('#app')!;
 const integration = {wallet:createInjectedWallet(),validateStrategyDocument:validateBuilderDocument,...window.__COMMON_GROUND__};
 class Application {
     api = compose(integration);
+    publicCache=createPublicReadCache({storage:browserStorage(),onCached:()=>this.cacheNotice('Showing saved public data; checking Arkiv in the background.'),onRefresh:(_key,changed)=>{this.cacheNotice('');if(changed)this.refreshPublicView();},onError:()=>this.cacheNotice('Showing saved public data. Arkiv refresh is temporarily unavailable.')});
+    publicLists=cachedPublicLists(this.api.strategies,this.publicCache);
+    publicRefreshTimer:ReturnType<typeof setTimeout>|undefined;
+    cacheNotice(message:string){const node=document.querySelector('#public-cache-status');if(node)node.textContent=message;}
+    refreshPublicView(){
+        if(!['discover','communities'].includes(this.route()[0]??'discover')||this.busy||this.dialog)return;
+        clearTimeout(this.publicRefreshTimer);this.publicRefreshTimer=setTimeout(()=>{if(!this.busy&&!this.dialog&&['discover','communities'].includes(this.route()[0]??'discover'))void this.render();},100);
+    }
     market = new MarketClient();
     account: Hex | undefined;
     generation = 0;
@@ -127,7 +136,7 @@ class Application {
     shell() {
         return `<header class="topbar"><a class="brand" href="/" aria-label="Poros home"><span class="brand-mark">${mark}</span><span>Poros<small>COMMUNITY</small></span></a><nav class="primary-nav" aria-label="Workspace"><a href="/">Home</a><a href="/community" aria-current="page">Communities</a></nav><form class="global-search" data-form="search">${icon('search')}<input name="q" aria-label="Find a strategy by name prefix" placeholder="Find your next idea…"><kbd>↵</kbd></form><div class="header-actions"><span class="source-badge">${this.preview ? 'DESIGN PREVIEW' : 'RABDI · TESTNET'}<i></i></span><button class="button wallet-button" data-action="connect">${icon('wallet')}<span id="wallet-label">Connect wallet</span></button></div></header>
     ${this.preview ? `<div class="preview-banner">${icon('info')}<span>Read-only design preview. Every profile, strategy and price here is illustrative.</span><button data-action="live">Switch to real Rabdi ${icon('arrow')}</button></div>` : ''}
-    <div class="app-layout"><aside class="sidebar"><span class="nav-label">POROS COMMUNITY</span><nav aria-label="Main navigation">${[['/discover', 'grid', 'Discover'], ['/communities', 'people', 'Communities'], ['/profile/me', 'user', 'Your profile']].map(([route, glyph, label]) => `<a href="#${route}" data-nav="${route}">${icon(glyph!)}<span>${label}</span></a>`).join('')}</nav><div class="sidebar-divider"></div><div class="nav-label nav-label-row">OPEN ROOMS <a href="#/communities" aria-label="Browse communities">${icon('plus')}</a></div><div id="rooms" class="room-links"></div><div class="sidebar-bottom"><div class="sidebar-note">${icon('leaf')}<p>Better ideas grow<br>in good company.</p></div><button class="settings-button" data-action="setup">${icon('settings')} Connection details</button><small>Built in public. Stored on Arkiv.</small></div></aside><main id="main" tabindex="-1"><div id="pending"></div><div id="content"></div></main></div><footer><span>POROS COMMUNITY</span><p>Ideas are public. Trading decisions are yours.</p><button data-action="${this.preview ? 'live' : 'preview'}">${this.preview ? 'Return to Rabdi' : 'Explore the design preview'} ${icon('arrow')}</button></footer>`;
+    <div class="app-layout"><aside class="sidebar"><span class="nav-label">POROS COMMUNITY</span><nav aria-label="Main navigation">${[['/discover', 'grid', 'Discover'], ['/communities', 'people', 'Communities'], ['/profile/me', 'user', 'Your profile']].map(([route, glyph, label]) => `<a href="#${route}" data-nav="${route}">${icon(glyph!)}<span>${label}</span></a>`).join('')}</nav><div class="sidebar-divider"></div><div class="nav-label nav-label-row">OPEN ROOMS <a href="#/communities" aria-label="Browse communities">${icon('plus')}</a></div><div id="rooms" class="room-links"></div><div class="sidebar-bottom"><div class="sidebar-note">${icon('leaf')}<p>Better ideas grow<br>in good company.</p></div><button class="settings-button" data-action="setup">${icon('settings')} Connection details</button><small>Built in public. Stored on Arkiv.</small></div></aside><main id="main" tabindex="-1"><div id="pending"></div><p id="public-cache-status" class="muted" role="status"></p><div id="content"></div></main></div><footer><span>POROS COMMUNITY</span><p>Ideas are public. Trading decisions are yours.</p><button data-action="${this.preview ? 'live' : 'preview'}">${this.preview ? 'Return to Rabdi' : 'Explore the design preview'} ${icon('arrow')}</button></footer>`;
     }
     label(wallet: string) { return this.profiles.get(wallet)?.displayName ?? short(wallet); }
     updateChrome() {
@@ -183,25 +192,21 @@ class Application {
         if (this.generation !== generation)
             failure('ACCOUNT_CHANGED');
     }
-    async profilesFor(actors: string[]) {
-        if (this.preview)
-            return;
-        await Promise.all([...new Set(actors)].slice(0, 12).map(async (actor) => {
-            if (!this.profiles.has(actor)) {
-                try {
-                    const profile = await this.api.community.getProfile({ wallet: actor as Hex });
-                    if (profile)
-                        this.profiles.set(actor, profile);
-                }
-                catch { }
-            }
-        }));
+    async profilesFor(actors:string[]){
+        if(this.preview)return;
+        for(const actor of [...new Set(actors)].slice(0,12)){
+            void this.publicCache.read('profile:'+actor,async()=>{
+                const profile=await this.api.community.getProfile({wallet:actor as Hex});
+                if(profile){const changed=this.profiles.get(actor)?.key!==profile.key;this.profiles.set(actor,profile);if(changed)this.refreshPublicView();}
+                return profile;
+            },validProfile).then(profile=>{if(profile)this.profiles.set(actor,profile);}).catch(()=>{});
+        }
     }
     async getCommunities() { if (this.preview)
-        return this.preview.communities; const result = await this.api.strategies.listCommunities(); this.rooms = result.items; this.communityCursor = result.nextOffset; this.skipped = result.skipped; return result.items; }
+        return this.preview.communities; const result = await this.publicLists.listCommunities(); this.rooms = result.items; this.communityCursor = result.nextOffset; this.skipped = result.skipped; return result.items; }
     async getStrategies(q?: string) { this.strategyCursor = null; if (this.preview)
         return this.loadedStrategies = this.preview.strategies.filter(row => !q || row.name.toLowerCase().startsWith(q.toLowerCase())); if (!this.host.validateStrategyDocument)
-        return this.loadedStrategies = []; const result = await this.api.strategies.listStrategies(q ? { namePrefix: q } : {}); this.strategyCursor = result.nextOffset; this.skipped += result.skipped; return this.loadedStrategies = result.items; }
+        return this.loadedStrategies = []; const result = await this.publicLists.listStrategies(q ? { namePrefix: q } : {}); this.strategyCursor = result.nextOffset; this.skipped += result.skipped; return this.loadedStrategies = result.items; }
     async getListing(key: Hex) { return this.preview ? this.preview.listings.find(row => row.key === key) ?? failure('NOT_FOUND') : this.api.community.getListing({ listingKey: key }); }
     async getCommunity(key: Hex) { return this.preview ? this.preview.communities.find(row => row.communityKey === key) ?? failure('NOT_FOUND') : this.api.strategies.getCommunity({ communityKey: key }); }
     async getVersion(key: Hex) { return this.preview ? this.preview.versions.find(row => row.versionKey === key) ?? failure('NOT_FOUND') : this.api.strategies.getVersion({ versionKey: key }); }
@@ -548,6 +553,7 @@ class Application {
             this.persistPending();
             try {
                 const result = await operation(requestId);
+                this.publicCache.clear();
                 this.pending = undefined;
                 this.persistPending();
                 this.ensureGeneration(generation);
@@ -635,6 +641,7 @@ class Application {
             this.pending = undefined;
             this.persistPending();
             this.closeDialog();
+            this.publicCache.clear();
             this.toast('Stored data matches the original intent. No second transaction was sent.');
             await this.render();
         }, navigator.locks);

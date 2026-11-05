@@ -31,3 +31,5 @@ main{max-width:1700px;padding:36px 42px 20px;margin:auto}.page-heading{display:f
 .chart-plot{overflow-x:auto}.market-chart-svg{min-width:640px}.chart-plot::-webkit-scrollbar{height:5px}.chart-plot::-webkit-scrollbar-thumb{background:#2b4260;border-radius:4px}
 
 .chart-price [data-state=fallback],.chart-price [data-state=cached]{color:#f6c85b}
+
+.chart-position-panel{background:#132339;padding:14px 22px;border-top:1px solid #203147;display:flex;gap:10px;flex-wrap:wrap;font-size:11px}.chart-position-panel strong{color:#f6c85b}.chart-position-panel>span{margin-left:auto;color:#a7c8e9;font-variant-numeric:tabular-nums}.chart-position-panel p{flex-basis:100%;font-size:9px;color:#8fa4be;margin:0;line-height:1.6}

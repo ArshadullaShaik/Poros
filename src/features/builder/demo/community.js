@@ -12,8 +12,8 @@ export function mountCommunityLibrary({root=document,loadApi=()=>import('/commun
     if(busy)return;busy=true;$('refresh-community-strategies').disabled=true;$('more-community-strategies').disabled=true;
     $('community-strategies-status').textContent=community?'Loading community strategies…':'Loading communities…';
     try{
-      const {publicStrategies}=await loadApi(),pageInput={offset:append?cursor:0,limit:20};
-      const page=community?await publicStrategies.listStrategies({communityKey:community.communityKey,page:pageInput}):await publicStrategies.listCommunities({page:pageInput});
+      const {publicStrategies,publicLists=publicStrategies}=await loadApi(),pageInput={offset:append?cursor:0,limit:20};
+      const page=community?await publicLists.listStrategies({communityKey:community.communityKey,page:pageInput}):await publicLists.listCommunities({page:pageInput});
       if(!Array.isArray(page.items)||page.items.length>20||page.items.some(row=>!key(community?row.rootVersionKey:row.communityKey)||typeof row.name!=='string'||row.name.length>128||community&&row.communityKey!==community.communityKey))throw new Error('Invalid community response.');
       if(!append)$('community-strategies').replaceChildren();
       for(const row of page.items){

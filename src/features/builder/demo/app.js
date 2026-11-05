@@ -360,6 +360,7 @@ communityUI=mountCommunityLibrary({onLoad(next){
   if(!mayReplace())throw new Error("Your draft was kept.");
   replaceDraft(next);dirty=true;
 }});
+window.addEventListener("poros:public-data-updated",()=>void communityUI.refresh());
 const memberUI=mountMemberLibrary({
   onEntries(entries){executionUI.clearUnlockedStrategies();for(const entry of entries)executionUI.addUnlockedStrategy(entry);},
   onCreators:creators=>executionUI.setFollowedCreators(creators),
@@ -376,7 +377,7 @@ window.addEventListener("pagehide",()=>pricesUI.stop());
 void executionUI.refreshMarket();
 void chartUI.refresh();
 setInterval(() => {void executionUI.refreshMarket();}, 10000);
-setInterval(()=>{if(!document.hidden)void chartUI.refresh();},5000);
+setInterval(()=>{if(!document.hidden)void chartUI.refresh();},2000);
 window.addEventListener("pagehide",()=>chartUI.stop());
 document.addEventListener("visibilitychange",()=>{if(!document.hidden)void chartUI.refresh();});
 // The host verifies purchase access before calling this demo handoff; this hook is not authorization.

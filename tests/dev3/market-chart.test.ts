@@ -5,8 +5,8 @@ const price=(pairId='eth-usdc',priceUsd='2500.000000')=>({source:'CHAINLINK',pai
 test('chart keeps real observations only, bounds memory and resets when the strategy market changes',()=>{
  const chart=createChartState();chart.select('eth-usdc');
  assert.equal(chart.observe(price('btc-usdt'),2000),false);assert.equal(chart.observe({...price(),stale:true},2000),false);assert.equal(chart.observe(price('eth-usdc','NaN'),2000),false);assert.equal(chart.snapshot().points.length,0);
- for(let i=0;i<800;i++)chart.observe(price(),2000+i*10000);
- assert.equal(chart.snapshot().points.length,720);assert.equal(chart.snapshot().points.at(-1)!.price,2500);
+ for(let i=0;i<2000;i++)chart.observe(price(),2000+i*10000);
+ assert.equal(chart.snapshot().points.length,1800);assert.equal(chart.snapshot().points.at(-1)!.price,2500);
  chart.select('btc-usdt');assert.equal(chart.snapshot().points.length,0);assert.equal(chart.snapshot().markers.length,0);
 });
 test('chart distinguishes simulated fills, submitted orders and confirmed fills without duplicating polls',()=>{
@@ -28,7 +28,7 @@ class Element {
 }
 test('mounted chart renders a real price and targets, rejects a stale feed and drops a late response after market changes',async()=>{
  const {mountMarketChart}=await import('../../src/features/builder/demo/chart.js');
- const ids=['market-chart-svg','chart-pair','chart-network','chart-last-price','chart-agent-status','chart-ai-count','chart-targets','chart-activity','chart-observation','chart-feed-status','chart-hover'];
+ const ids=['chart-position','chart-pnl','chart-position-note','market-chart-svg','chart-pair','chart-network','chart-last-price','chart-agent-status','chart-ai-count','chart-targets','chart-activity','chart-observation','chart-feed-status','chart-hover'];
  const controls=new Map(ids.map(id=>[id,new Element()])),buttons=[5,15,60].map(n=>{const el=new Element();el.dataset.chartWindow=String(n);return el;});
  const root={querySelector:(id:string)=>controls.get(id.slice(1)),querySelectorAll:()=>buttons,createElement:()=>new Element(),createElementNS:()=>new Element()};
  let pairId='eth-usdc',time=2000,stale=false,delayed=false,resolve:any;
@@ -83,4 +83,18 @@ test('chart cache keeps only eight recent markets',()=>{
  const chart=createChartState({storage,now:()=>time});
  for(let i=0;i<10;i++){time+=5000;const pairId='market-'+i;chart.select(pairId);chart.observe(price(pairId),time);}
  assert.equal(storage.length,8);assert.equal(storage.getItem('poros.chart.v1.market-0'),null);assert.notEqual(storage.getItem('poros.chart.v1.market-9'),null);
+});
+
+test('sampled candles calculate actual OHLC, preserve gaps, and avoid mixing quote sources',async()=>{
+ const {sampledCandles}=await import('../../src/features/builder/demo/chart.js');
+ const points=[{time:1000,price:100,source:'FLASH'},{time:3000,price:105,source:'FLASH'},{time:5000,price:98,source:'FLASH'},{time:7000,price:102,source:'FLASH'},{time:121000,price:110,source:'FLASH'}];
+ const candles=sampledCandles(points);assert.equal(candles.length,2);assert.deepEqual([candles[0].open,candles[0].high,candles[0].low,candles[0].close],[100,105,98,102]);
+ const fallback=sampledCandles([...points,{time:123000,price:108,source:'CHAINLINK'}]);assert.equal(fallback.at(-1).source,'CHAINLINK');assert.equal(fallback.at(-1).open,108);assert.equal(fallback.at(-1).high,108);
+});
+test('paper position computes entry and net P/L from confirmed fills, never from pending live orders',async()=>{
+ const {paperPosition}=await import('../../src/features/builder/demo/chart.js');
+ const orders=[{side:'BUY',notionalUsd:'20.000000',baseQuantity:'0.01000000',feeUsd:'0.020000'},{side:'SELL',notionalUsd:'10.000000',baseQuantity:'0.00500000',feeUsd:'0.010000'}];
+ const position=paperPosition({mode:'PAPER',orders});assert.equal(position.quantity,0.005);assert.equal(position.entryPrice,2000);assert.ok(Math.abs(position.realizedPnl+0.02)<1e-8);assert.ok(Math.abs(position.cost-10.01)<1e-8);
+ assert.equal(paperPosition({mode:'LIVE',orders,liveOrders:[{status:'ORDER_STATUS_PENDING'}]}),null);
+ assert.equal(paperPosition({mode:'PAPER',orders:[orders[1]]}),null);
 });

@@ -4,7 +4,7 @@ import type {Candle} from "../execution/paper.ts";
 import type {StrategyDefinition} from "../validation/strategy.ts";
 import {marketContext, validateMarketStrategy, pairForStrategy} from "./config.ts";
 
-const INTERVAL = 60000, REFRESH = 5000;
+const INTERVAL = 60000, REFRESH = 2000;
 // Public development integrator key from Definitive's getting-started guide.
 const DEVELOPMENT_KEY = "dpka_513a2bd7_57a2_46d2_927b_2a3857fe271b";
 export class FlashError extends Error {code = "FLASH_UNAVAILABLE"; status = 503;}
