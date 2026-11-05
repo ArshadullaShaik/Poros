@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="A local playground for building and validating crypto strategy rules.">
+  <title>Strategy Lab · Builder demo</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="/style.css">
+  <script type="module" src="/app.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/" aria-label="Strategy Lab home"><span class="brand-mark">↗</span>Strategy<span class="brand-light">Lab</span></a>
+    <span class="top-divider"></span><span class="top-label">Strategy workspace</span>
+    <span class="demo-label"><span class="status-dot"></span>LOCAL DEMO</span>
+  </header>
+  <main>
+    <section class="page-heading">
+      <div><p class="eyebrow">YOUR STRATEGY WORKSHOP</p><h1>Run your strategy.</h1><p class="subheading">Load an unlocked strategy, set your limits, and inspect a paper execution.</p></div>
+      <div class="heading-actions"><button id="ai-open" class="api-key-button" type="button" aria-label="Add 0G API key" aria-haspopup="dialog" aria-controls="ai-dialog" title="API key and AI tools"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8" cy="8" r="4.5"/><path d="m11.3 11.3 9.2 9.2m-3-3 2.5-2.5m-5 0 2.5-2.5"/></svg></button><button id="load-example" class="button secondary">Load example</button><button id="new-strategy" class="button primary"><span aria-hidden="true">＋</span> New strategy</button></div>
+    </section>
+    <section class="execution-workspace" aria-labelledby="execution-title">
+      <aside class="unlocked-library">
+        <h2>Unlocked strategies</h2>
+        <p class="small muted">Drag a card onto the execution canvas, or click it to load.</p>
+        <div id="execution-library" class="unlocked-cards"></div>
+        <p class="tiny muted">The included public sample needs no purchase. Your community app supplies purchased strategies here after unlock.</p>
+      </aside>
+      <div class="execution-console">
+        <div class="panel-title"><h2 id="execution-title">Strategy execution</h2><span class="small-tag">PAPER ONLY</span></div>
+        <div id="execution-drop" class="execution-drop" aria-label="Drop an unlocked strategy here"><strong id="execution-selected">Current draft · paper replay only</strong><p>Drop a strategy card here to use its complete rules.</p></div>
+        <label class="field"><span>Execution mode</span><select id="execution-mode"><option value="AI">0G AI agent + paper execution</option><option value="RULES_ONLY">Local rules replay (no AI cost)</option></select></label>
+        <div class="execution-limits">
+          <label class="field"><span>Virtual starting cash (USD)</span><input id="execution-capital" type="number" value="1000" min="0.000001" max="1000000" step="0.000001"></label>
+          <label class="field"><span>Total turnover limit, including fees (USD)</span><input id="execution-turnover" type="number" value="2000" min="0.000001" max="1000000" step="0.000001"></label>
+        </div>
+        <details class="execution-settings"><summary>Paper fee and slippage settings</summary><div class="execution-limits">
+          <label class="field"><span>Simulated fee (basis points)</span><input id="execution-fee" type="number" value="10" min="0" max="1000" step="1"></label>
+          <label class="field"><span>Simulated slippage (basis points)</span><input id="execution-slippage" type="number" value="25" min="0" max="500" step="1"></label>
+        </div><p class="tiny muted">100 basis points = 1%. Slippage must fit the strategy limit.</p></details>
+        <p id="execution-help" class="small muted"></p>
+        <div class="heading-actions"><button id="execution-start" class="button primary" type="button">Run strategy</button><button id="execution-stop" class="button secondary" type="button" disabled>Stop</button></div>
+        <p class="tiny muted">Uses 90 synthetic one-minute candles, not live prices or real trading history. No wallet, Sepolia transaction or Flash order is submitted.</p>
+        <p id="execution-status" class="small" role="status" aria-live="polite"></p>
+        <div id="execution-results" class="execution-results" aria-live="polite" hidden></div>
+      </div>
+    </section>
+    <section class="workspace" aria-label="Strategy builder">
+      <aside class="palette panel" aria-label="Block palette">
+        <div class="panel-title"><h2>Building blocks</h2><span class="small-tag">3 TYPES</span></div>
+        <p class="muted small">Drag onto the canvas, or click to add.</p>
+        <button class="palette-block indicator" data-kind="indicator.rsi" draggable="true"><span class="block-icon">∿</span><span><strong>RSI signal</strong><small>When the market meets a rule</small></span><span class="grip" aria-hidden="true">⠿</span></button>
+        <button class="palette-block guard" data-kind="guard.risk" draggable="true"><span class="block-icon">◇</span><span><strong>Risk limit</strong><small>Keep each order within limits</small></span><span class="grip" aria-hidden="true">⠿</span></button>
+        <button class="palette-block action" data-kind="action.intent" draggable="true"><span class="block-icon">⇄</span><span><strong>Buy / sell</strong><small>Describe the intended action</small></span><span class="grip" aria-hidden="true">⠿</span></button>
+        <div class="how-to"><p class="eyebrow">A SIMPLE RECIPE</p><ol><li><span>01</span>Start with an RSI signal.</li><li><span>02</span>Add a risk limit and an action.</li><li><span>03</span>Connect the right dot to the next left dot.</li><li><span>04</span>Adjust settings and validate.</li></ol></div>
+        <div class="fixture-note"><span aria-hidden="true">◌</span><div><strong>A safe place to experiment</strong><p>Local test tokens. No wallet, real trades, or performance simulation.</p></div></div>
+      </aside>
+      <div class="editor-column">
+        <div class="canvas-toolbar"><div><span class="canvas-symbol" aria-hidden="true">⌘</span><strong>Strategy canvas</strong></div><div class="view-switch" role="group" aria-label="View"><button id="canvas-view" class="active" aria-pressed="true">Canvas</button><button id="json-view" aria-pressed="false">JSON</button></div></div>
+        <div id="canvas-viewport" class="canvas-viewport">
+          <div id="canvas" class="canvas" aria-label="Strategy canvas drop area">
+            <svg id="connections" aria-hidden="true"><defs><marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0 0 L8 4 L0 8" fill="#9aa6b8"/></marker></defs><g id="edge-paths"></g></svg>
+            <div id="empty-state" class="empty-state" hidden><span>＋</span><h3>Your idea starts here</h3><p>Add an RSI signal, risk limit, and buy/sell block.<br>Then connect them from left to right.</p></div>
+          </div>
+        </div>
+        <div id="json-panel" class="json-panel" hidden><p class="muted small">Strategy rules only. Canvas positions are kept separately.</p><pre id="json-preview" tabindex="0" aria-label="Strategy JSON preview"></pre></div>
+        <div class="canvas-footer"><span id="block-count">6 blocks · 4 connections</span><span>Move blocks with drag, or focus a block title and use arrow keys.</span></div>
+        <section id="validation" class="validation" aria-labelledby="validation-title">
+          <div class="validation-top"><div><span id="validation-icon" class="validation-icon">✓</span><div><h2 id="validation-title">Strategy is valid</h2><p id="validation-description">All paths have a signal, risk guard, and action.</p></div></div><button id="validate" class="button secondary compact">Validate strategy</button></div>
+          <ul id="issues" class="issues" hidden></ul>
+        </section>
+      </div>
+      <aside class="inspector panel" aria-label="Strategy settings">
+        <div class="panel-title"><h2>Strategy settings</h2><span class="small-tag">DRAFT</span></div>
+        <label class="field"><span>Strategy name</span><input id="strategy-name" maxlength="100" autocomplete="off"></label>
+        <div class="section-divider"></div>
+        <div class="inspector-heading"><span class="eyebrow">SELECTED BLOCK</span><span id="selected-kind" class="muted small"></span></div>
+        <div id="node-settings"></div>
+        <button id="delete-node" class="delete-button" hidden>Remove block</button>
+        <div class="section-divider"></div>
+        <p class="eyebrow">ORDER LIMITS</p>
+        <label class="field"><span>Maximum per order <span class="unit">USD</span></span><input id="max-notional" type="number" min="0.01" step="0.01"></label>
+        <label class="field"><span>Maximum slippage <span class="unit">BPS</span></span><input id="max-slippage" type="number" min="0" max="500" step="1"></label>
+        <p class="muted tiny">100 bps = 1%. These limits apply to every action.</p>
+        <div class="paper-label"><span aria-hidden="true">▣</span> Paper-only strategy</div>
+        <div class="section-divider"></div>
+        <p class="eyebrow">CONNECTIONS</p><div id="connection-list" class="connection-list"></div>
+      </aside>
+    </section>
+    <footer class="page-footer"><p>Changes stay in this tab. Export JSON to keep your strategy.</p><div><button id="import" class="button secondary">↑ Import JSON</button><button id="export" class="button primary">↓ Export JSON</button></div></footer>
+    <p id="notice" class="notice" role="status" aria-live="polite"></p>
+  </main>
+    <dialog id="ai-dialog" class="ai-dialog" aria-labelledby="ai-title">
+      <div class="dialog-heading"><h2 id="ai-title">0G API key</h2><button id="ai-close" class="icon-button" type="button" aria-label="Close API key settings">×</button></div>
+      <form id="ai-key-form" class="ai-key-row" autocomplete="off">
+        <label class="field"><span>0G inference API key</span><input id="ai-key" type="password" autofocus autocomplete="off" spellcheck="false" autocapitalize="none" maxlength="243" placeholder="sk-…" aria-describedby="ai-key-status"></label>
+        <button id="ai-use-key" class="button secondary" type="submit">Use key</button>
+        <button id="ai-forget" class="button secondary" type="button" disabled>Forget key</button>
+      </form>
+      <p id="ai-key-status" class="muted small" role="status">Kept in this tab only. Closing this window keeps the saved key; reloading clears it.</p>
+      <p class="muted small">Get a dedicated inference key from <a href="https://pc.0g.ai" target="_blank" rel="noopener noreferrer">0G Private Computer</a>. Requests are billed to your account and may use deposited funds. Set a key budget in 0G where available. No trade is executed.</p>
+      <details class="ai-tools"><summary>AI strategy tools</summary>
+      <form id="ai-form">
+        <label class="field"><span>AI action</span><select id="ai-operation"><option value="generate">Generate a new strategy</option><option value="modify">Propose edits to this strategy</option><option value="explain">Explain this strategy</option></select></label>
+        <label class="field"><span>Your instruction</span><textarea id="ai-prompt" rows="3" maxlength="4000" required placeholder="Buy $10 when RSI(14) is below 25; sell above 75. Keep the current risk limits."></textarea></label>
+        <button id="ai-run" class="button primary" type="submit" disabled>Ask AI</button>
+      </form>
+      <p id="ai-status" class="small" role="status" aria-live="polite"></p>
+      <div id="ai-result" class="ai-result" hidden>
+        <p id="ai-metadata" class="muted tiny"></p><p id="ai-explanation" class="small"></p>
+        <pre id="ai-draft" tabindex="0" aria-label="Proposed strategy JSON"></pre>
+        <div class="heading-actions"><button id="ai-accept" class="button primary" type="button">Accept proposal</button><button id="ai-discard" class="button secondary" type="button">Dismiss</button></div>
+      </div>
+      </details>
+    </dialog>
+  <dialog id="import-dialog" aria-labelledby="import-title">
+    <form id="import-form"><div class="dialog-heading"><div><p class="eyebrow">BRING YOUR RULES</p><h2 id="import-title">Import a strategy</h2></div><button type="button" id="close-import" class="icon-button" aria-label="Close import">×</button></div>
+      <p class="muted small">Paste strategy JSON or choose a file. It must pass validation before replacing your draft.</p>
+      <label class="field"><span>Choose JSON file <span class="unit">64 KiB MAX</span></span><input id="json-file" type="file" accept=".json,application/json"></label>
+      <label class="field"><span>Strategy JSON</span><textarea id="import-text" rows="12" spellcheck="false" placeholder='{"schemaVersion": "1", ...}'></textarea></label>
+      <p id="import-error" class="import-error" role="alert"></p><div class="dialog-actions"><button type="button" id="cancel-import" class="button secondary">Cancel</button><button type="submit" class="button primary">Import strategy</button></div>
+    </form>
+  </dialog>
+</body>
+</html>
