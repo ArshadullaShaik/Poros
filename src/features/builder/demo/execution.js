@@ -1,8 +1,9 @@
+import {connectSolanaWallet,signSolanaSetup,signSolanaOrderMessage} from "./solana-wallet.js";
 import {connectBrowserWallet,signFlashOrder} from "./wallet.js";
-export function mountExecution({root=document,getDraft,applyDraft,validateDraft,getApiKey,mayReplace=()=>true,request=fetch}) {
+export function mountExecution({root=document,getDraft,applyDraft,validateDraft,getApiKey,mayReplace=()=>true,request=fetch,getPair=()=>({id:"eth-usdc",base:{symbol:"WETH",reference:"ETH"},quote:{symbol:"USDC"}})}) {
   const $=id=>root.querySelector(`#${id}`);
   const entries=new Map();
-  let sessionId,timer,wallet,walletBusy=false;
+  let sessionId,timer,wallet,walletNetwork,solanaConnection,walletBusy=false;
   let busy=false,sequence=0,controller,lastDraft=JSON.stringify(getDraft()),market,marketLoading=false;
   const status=message=>{$("execution-status").textContent=message;};
   function element(tag,text,className) {
@@ -16,19 +17,22 @@ export function mountExecution({root=document,getDraft,applyDraft,validateDraft,
     $("execution-start").disabled=busy||!validateDraft(getDraft()).valid||(ai&&!getApiKey())||!marketReady();
     $("execution-stop").disabled=!busy;
     if($("wallet-connect"))$("wallet-connect").disabled=busy;
-    $("execution-help").textContent=$("execution-mode").value==="LIVE"?"Real funds on Base. 0G prepares the order at your target; your browser wallet must approve and sign. Stop does not cancel submitted orders or revoke token approvals.":ai?(getApiKey()?"0G invokes the execution tool when a target matches. Waiting uses no inference. Virtual funds only.":"Add your 0G key using the key icon, or select local replay to try without AI."):"Local live-price monitoring without AI inference. Virtual funds only.";
+    $("execution-help").textContent=$("execution-mode").value==="LIVE"?"Real funds on the selected network. 0G prepares the order at your target; your browser wallet must approve and sign. Stop does not cancel submitted orders or revoke token approvals.":ai?(getApiKey()?"0G invokes the execution tool when a target matches. Waiting uses no inference. Virtual funds only.":"Add your 0G key using the key icon, or select local replay to try without AI."):"Local live-price monitoring without AI inference. Virtual funds only.";
   }
-  const marketReady=()=>market&&!market.stale;
+  const marketReady=()=>market&&!market.stale&&(market.pairId??"eth-usdc")===getPair().id;
   async function refreshMarket() {
     if(marketLoading)return;
     marketLoading=true;
+    const pairId=getPair().id;
     try {
-      const response=await request("/api/market",{signal:AbortSignal.timeout(30000),cache:"no-store"});
+      const response=await request(`/api/market?pair=${encodeURIComponent(pairId)}`,{signal:AbortSignal.timeout(30000),cache:"no-store"});
       const payload=await response.json(),data=payload.data;
       if(!response.ok||!payload.ok)throw new Error(payload.error?.message??"Market data is unavailable.");
       if(data?.source!=="CHAINLINK_FLASH"||typeof data.stale!=="boolean"||(data.priceUsd!==null&&(typeof data.priceUsd!=="string"||!/^\d+\.\d{6}$/.test(data.priceUsd))))throw new Error("Market data response is invalid.");
+      if(getPair().id!==pairId)return;
+      if(data.pairId&&data.pairId!==pairId)throw new Error("Market data is for another trading pair.");
       market=data;
-      $("market-price").textContent=data.priceUsd?`ETH $${data.priceUsd} · Chainlink / Base`:"Loading price sources…";
+      $("market-price").textContent=data.priceUsd?`${getPair().base.reference} $${data.priceUsd} · ${getPair().base.symbol}/${getPair().quote.symbol} · ${getPair().network?.name??"Base"}`:"Loading price sources…";
       $("market-status").textContent=data.stale?"Prices are stale or failed their checks. Waiting for fresh sources.":"Live Chainlink + Flash checks passed · Checks every 10 seconds · Ready to monitor.";
     } catch(error) {market=undefined;$("market-price").textContent="Market data unavailable";$("market-status").textContent=error.message??"Market data is unavailable.";}
     finally {marketLoading=false;refresh();}
@@ -120,13 +124,22 @@ export function mountExecution({root=document,getDraft,applyDraft,validateDraft,
       for(const order of data.liveOrders??[])output.append(element("p",`${order.side} $${order.notionalUsd} · ${order.orderId} · ${order.status}`,"small"));
       if(data.walletRequest){
         const quote=data.walletRequest;
-        output.append(element("p",`${quote.side} $${quote.notionalUsd} · Flash quote $${quote.effectivePriceUsd} · receives approximately ${quote.expectedReceive} ${quote.side==="BUY"?"WETH":"USDC"}.`,"small"));
+        output.append(element("p",`${quote.side} $${quote.notionalUsd} · Flash quote $${quote.effectivePriceUsd} · receives approximately ${quote.expectedReceive} ${quote.side==="BUY"?(quote.baseSymbol??"WETH"):(quote.quoteSymbol??"USDC")}.`,"small"));
         const approve=element("button",walletBusy?"Waiting for your wallet…":"Approve and sign in wallet","button primary");approve.type="button";approve.disabled=walletBusy;
         approve.addEventListener("click",async()=>{
           if(walletBusy)return;
           const current=sequence;walletBusy=true;approve.disabled=true;status("Approve the exact token amount, then sign the Flash order in your wallet.");
           try{
-            const signature=await signFlashOrder(quote,controller.signal);
+            let signature;
+            if(quote.family==="solana"){
+              if(!solanaConnection||solanaConnection.address!==quote.funderAddress)throw new Error("Reconnect your Solana wallet.");
+              for(const setup of quote.setupTxs??[]){
+                const signedSetupTx=await signSolanaSetup(setup,solanaConnection.account,solanaConnection.wallet,controller.signal);
+                const result=await postMonitor({action:"setup",id:sessionId,signedSetupTx},AbortSignal.any([controller.signal,AbortSignal.timeout(30000)]));
+                if(result.setupStatus!=="confirmed")throw new Error("Solana setup is pending. Check the transaction before retrying.");
+              }
+              signature=await signSolanaOrderMessage(quote,solanaConnection.account,solanaConnection.wallet,controller.signal);
+            }else signature=await signFlashOrder(quote,controller.signal);
             if(current!==sequence)return;
             const result=await postMonitor({action:"submit",id:sessionId,signature},AbortSignal.any([controller.signal,AbortSignal.timeout(30000)]));
             if(current!==sequence)return;renderResults(result);status(result.message);
@@ -136,9 +149,9 @@ export function mountExecution({root=document,getDraft,applyDraft,validateDraft,
       }
       output.hidden=false;return;
     }
-    output.append(element("p",`Virtual cash $${data.cashUsd} · WETH ${data.baseQuantity} · Turnover $${data.turnoverUsd}`,"small"));
+    output.append(element("p",`Virtual cash $${data.cashUsd} · ${data.pair?.baseSymbol??"WETH"} ${data.baseQuantity} · Turnover $${data.turnoverUsd}`,"small"));
     output.append(element("p","Current live prices only. Each action executes once per run. No wallet trade is submitted.","tiny muted"));
-    for(const fill of data.orders)output.append(element("p",`${new Date(fill.filledAtMs).toISOString()} · ${fill.side} $${fill.notionalUsd} · ${fill.baseQuantity} WETH · simulated price $${fill.priceUsd}`,"small"));
+    for(const fill of data.orders)output.append(element("p",`${new Date(fill.filledAtMs).toISOString()} · ${fill.side} $${fill.notionalUsd} · ${fill.baseQuantity} ${data.pair?.baseSymbol??"WETH"} · simulated price $${fill.priceUsd}`,"small"));
     for(const inference of data.inference??[])output.append(element("p",`0G execution · ${inference.model}${inference.totalCostNeuron!==undefined?` · ${inference.totalCostNeuron} neuron charged`:""}`,"tiny muted"));
     output.hidden=false;
   }
@@ -153,7 +166,7 @@ export function mountExecution({root=document,getDraft,applyDraft,validateDraft,
     if(!marketReady()){status("Wait for fresh Chainlink / Flash prices before running.");return;}
     const config=settings();
     if(["AI","LIVE"].includes(config.mode)&&!getApiKey()){status("Add your 0G key first.");return;}
-    if(config.mode==="LIVE"&&!wallet){status("Connect your browser wallet on Base before starting live execution.");return;}
+    if(config.mode==="LIVE"&&(!wallet||walletNetwork!==(getPair().network?.id??8453))){status("Connect your wallet on the selected network before live execution.");return;}
     invalidate("");const current=++sequence;controller=new AbortController();busy=true;refresh();
     const signal=()=>AbortSignal.any([controller.signal,AbortSignal.timeout(45000)]);
     async function tick(){
@@ -174,12 +187,16 @@ export function mountExecution({root=document,getDraft,applyDraft,validateDraft,
     }catch(error){if(current===sequence)invalidate(error.message??"Could not start the monitor.");}
   });
   $("wallet-connect")?.addEventListener("click",async()=>{
-    try{wallet=await connectBrowserWallet();$("wallet-connect").textContent=`${wallet.slice(0,6)}…${wallet.slice(-4)} · Base`;status("Wallet connected. Select live mode to use real funds; virtual-fund modes remain available.");}
+    try{
+      const network=getPair().network??{id:8453,name:"Base",family:"evm"};
+      if(network.family==="solana"){solanaConnection=await connectSolanaWallet();wallet=solanaConnection.address;}else wallet=await connectBrowserWallet(undefined,network);
+      walletNetwork=network.id;$("wallet-connect").textContent=`${wallet.slice(0,6)}…${wallet.slice(-4)} · ${network.name}`;status("Wallet connected. Review the network and live trading limits.");
+    }
     catch(error){status(error.code===4001?"Wallet connection declined.":error.message);}
   });
   root.defaultView?.ethereum?.on?.("accountsChanged",()=>{wallet=undefined;invalidate("Wallet account changed. Reconnect before running live.");if($("wallet-connect"))$("wallet-connect").textContent="Connect wallet";});
-  root.defaultView?.ethereum?.on?.("chainChanged",()=>invalidate("Wallet network changed. Start a new run on Base."));
+  root.defaultView?.ethereum?.on?.("chainChanged",()=>invalidate("Wallet network changed. Reconnect on the selected network before Run."));
   root.defaultView?.addEventListener("pagehide",()=>invalidate("Monitoring stopped because this tab closed."));
   $("execution-results").hidden=true;refresh();
-  return {addUnlockedStrategy,setFollowedCreators,refreshMarket,invalidate,draftChanged(){const now=JSON.stringify(getDraft());if(now!==lastDraft){lastDraft=now;$("execution-selected").textContent="Current edited draft · live price monitor";invalidate("Draft changed. Review it before starting a new run.");}}};
+  return {addUnlockedStrategy,setFollowedCreators,refreshMarket,invalidate,draftChanged(){const now=JSON.stringify(getDraft());if(now!==lastDraft){lastDraft=now;$("execution-selected").textContent="Current edited draft · live price monitor";invalidate("Draft changed. Review it before starting a new run.");if((market?.pairId??"eth-usdc")!==getPair().id){market=undefined;void refreshMarket();}}}};
 }

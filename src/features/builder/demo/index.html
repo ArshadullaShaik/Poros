@@ -33,9 +33,11 @@
       <div class="editor-column">
         <div class="canvas-toolbar"><div><span class="canvas-symbol" aria-hidden="true">⌘</span><strong>Strategy canvas</strong></div><button id="open-strategy-settings" class="button secondary compact" type="button" aria-haspopup="dialog" aria-controls="strategy-settings">Settings</button><div class="view-switch" role="group" aria-label="View"><button id="canvas-view" class="active" aria-pressed="true">Canvas</button><button id="json-view" aria-pressed="false">JSON</button></div></div>
         <div class="canvas-runbar"><span id="execution-selected" class="tiny muted">Current draft · live monitoring / paper funds</span><div class="heading-actions"><button id="execution-start" class="button primary compact" type="button" aria-describedby="execution-help">Run strategy</button><button id="execution-stop" class="button secondary compact" type="button" disabled>Stop</button></div></div>
+        <label class="field"><span>Trading network</span><select id="trading-network"></select></label><label class="field"><span>Find a market</span><input id="pair-search" type="search" placeholder="Search BTC, SOL, LINK, DOGE…"></label>
+        <label class="field pair-picker"><span>Trading pair</span><select id="trading-pair" aria-describedby="pair-details"></select></label><p id="pair-details" class="tiny muted"></p>
         <details class="execution-settings"><summary>Run settings <span class="small-tag">CHOOSE EXECUTION MODE</span></summary>
           <button id="wallet-connect" class="button secondary" type="button">Connect wallet</button>
-          <label class="field"><span>Execution mode</span><select id="execution-mode"><option value="LIVE">LIVE · 0G agent + browser wallet (real funds)</option><option value="AI" selected>0G execution agent · virtual funds</option><option value="RULES_ONLY">Local live-price monitor (no AI cost)</option></select></label>
+          <label class="field"><span>Execution mode</span><select id="execution-mode"><option value="LIVE">LIVE · 0G agent + connected wallet (real funds)</option><option value="AI" selected>0G execution agent · virtual funds</option><option value="RULES_ONLY">Local live-price monitor (no AI cost)</option></select></label>
           <div class="execution-limits">
             <label class="field"><span>Starting virtual cash / live buy spending cap (USD)</span><input id="execution-capital" type="number" value="1000" min="0.000001" max="1000000" step="0.000001"></label>
             <label class="field"><span>Total turnover limit, including fees (USD)</span><input id="execution-turnover" type="number" value="2000" min="0.000001" max="1000000" step="0.000001"></label>
@@ -43,7 +45,7 @@
             <label class="field"><span>Simulated slippage (basis points)</span><input id="execution-slippage" type="number" value="25" min="0" max="500" step="1"></label>
           </div><p class="tiny muted">100 basis points = 1%. Slippage must fit the strategy limit. Uses current prices and virtual funds. Each action executes once per run. Fees and fills are simulated.</p>
         </details>
-        <div class="market-feed"><strong id="market-price">Loading price sources…</strong><p id="market-status" class="tiny muted" role="status" aria-live="polite">Checking current Chainlink / Flash prices.</p><p class="tiny muted">Checks current prices every 10 seconds. No candles or historical replay. Chainlink checks freshness and Flash reference deviation (maximum 5%). Live mode requests a fresh order quote, then requires approval and signature in your Base browser wallet.</p></div>
+        <div class="market-feed"><strong id="market-price">Loading price sources…</strong><p id="market-status" class="tiny muted" role="status" aria-live="polite">Checking current Chainlink / Flash prices.</p><p class="tiny muted">Checks current prices every 10 seconds. No candles or historical replay. Chainlink checks freshness and Flash reference deviation (maximum 5%). Live mode requests a fresh order quote, then requires approval and signature in your wallet on the selected network.</p></div>
         <p id="creator-text" class="tiny muted"></p>
         <p id="execution-help" class="run-help tiny muted"></p>
         <div id="canvas-viewport" class="canvas-viewport">

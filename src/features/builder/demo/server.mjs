@@ -3,9 +3,9 @@ import { readFile } from "node:fs/promises";
 import { stripTypeScriptTypes } from "node:module";
 import { Readable } from "node:stream";
 import { AgentError, readBoundedJson, runStrategyAgent, validateInferenceKey } from "../ai/zero-g.ts";
-import { marketContext, marketStrategy } from "../market/config.ts";
+import { marketContext, marketStrategy, pairForStrategy } from "../market/config.ts";
 import { FlashError } from "../market/flash.ts";
-import { createLiveMarket } from "../market/live.ts";
+import { createLiveMarkets } from "../market/live.ts";
 import { createPriceMonitor, invokePriceExecution } from "../execution/monitor.ts";
 import { interpretCreatorStrategy } from "../ai/interpreter.ts";
 import { PaperError, runPaperStrategy } from "../execution/paper.ts";
@@ -14,6 +14,7 @@ import { runExecutionAgent } from "../execution/agent.ts";
 const assets = new Map([
   ["/", [new URL("./index.html", import.meta.url), "text/html"]],
   ["/app.js", [new URL("./app.js", import.meta.url), "text/javascript"]],
+  ["/solana-wallet.js", [new URL("./solana-wallet.js", import.meta.url), "text/javascript"]],
   ["/wallet.js", [new URL("./wallet.js", import.meta.url), "text/javascript"]],
   ["/focus.js", [new URL("./focus.js", import.meta.url), "text/javascript"]],
   ["/ai.js", [new URL("./ai.js", import.meta.url), "text/javascript"]],
@@ -23,10 +24,11 @@ const assets = new Map([
   ["/core/validation/strategy.ts", [new URL("../validation/strategy.ts", import.meta.url), "text/javascript"]],
   ["/core/adapters/editor.ts", [new URL("../adapters/editor.ts", import.meta.url), "text/javascript"]],
   ["/core/fixtures/rsi-strategy.ts", [new URL("../fixtures/rsi-strategy.ts", import.meta.url), "text/javascript"]],
+  ["/core/market/networks.ts", [new URL("../market/networks.ts", import.meta.url), "text/javascript"]],
   ["/core/market/config.ts", [new URL("../market/config.ts", import.meta.url), "text/javascript"]],
 ]);
 
-export function createDemoServer({fetcher = fetch, market = createLiveMarket({fetcher})} = {}) {
+export function createDemoServer({fetcher = fetch, market = createLiveMarkets({fetcher})} = {}) {
   // shortcut: local demo concurrency gate, replace with authenticated per-user limits before hosting.
   let aiBusy = false;
   const monitor = createPriceMonitor({market,fetcher,invoke:async(options)=>{
@@ -116,8 +118,8 @@ export function createDemoServer({fetcher = fetch, market = createLiveMarket({fe
         if(body.mode==="AI"||body.mode==="LIVE")validateInferenceKey(key);
         data=monitor.start(body);
       }else{
-        if(!["check","stop","submit"].includes(body.action)||Object.keys(body).some(key=>!(body.action==="submit"?["action","id","signature"]:["action","id"]).includes(key))||typeof body.id!=="string")throw new PaperError("Send a monitor action and ID.");
-        data=body.action==="submit"?await monitor.submit(body.id,body.signature,abort.signal):body.action==="stop"?monitor.stop(body.id):await monitor.check(body.id,key,abort.signal);
+        if(!["check","stop","submit","setup"].includes(body.action)||Object.keys(body).some(key=>!(body.action==="submit"?["action","id","signature"]:body.action==="setup"?["action","id","signedSetupTx"]:["action","id"]).includes(key))||typeof body.id!=="string")throw new PaperError("Send a monitor action and ID.");
+        data=body.action==="setup"?await monitor.setup(body.id,body.signedSetupTx,abort.signal):body.action==="submit"?await monitor.submit(body.id,body.signature,abort.signal):body.action==="stop"?monitor.stop(body.id):await monitor.check(body.id,key,abort.signal);
       }
       json(200,{ok:true,data});
     }catch(error){const safe=error instanceof AgentError||error instanceof PaperError||error instanceof FlashError?error:new AgentError("UNAVAILABLE");if(!response.destroyed)json(safe.status,{ok:false,error:{code:safe.code,message:safe.message}});}
@@ -139,8 +141,8 @@ export function createDemoServer({fetcher = fetch, market = createLiveMarket({fe
       if ((request.headers.origin && request.headers.origin !== `http://${request.headers.host}`) ||
           (request.headers["sec-fetch-site"] && !["same-origin","none"].includes(request.headers["sec-fetch-site"]))) {response.writeHead(403).end("Open market data from this local demo only.");return;}
       response.setHeader("Content-Type","application/json; charset=utf-8");
-      try {response.writeHead(200).end(JSON.stringify({ok:true,data:await market.refresh()}));}
-      catch (error) {const safe=error instanceof FlashError?error:new FlashError("Historical, Chainlink or Flash market data is unavailable.");response.writeHead(safe.status).end(JSON.stringify({ok:false,error:{code:safe.code,message:safe.message}}));}
+      try {const pairId=new URL(request.url,"http://127.0.0.1").searchParams.get("pair")??"eth-usdc";pairForStrategy(pairId);const data=await market.refresh(pairId);response.writeHead(200).end(JSON.stringify({ok:true,data}));}
+      catch (error) {if(error?.message==="Choose a supported trading pair and network."){response.writeHead(400).end(JSON.stringify({ok:false,error:{message:error.message}}));return;}const safe=error instanceof FlashError?error:new FlashError("Historical, Chainlink or Flash market data is unavailable.");response.writeHead(safe.status).end(JSON.stringify({ok:false,error:{code:safe.code,message:safe.message}}));}
       return;
     }
     if (pathname === "/api/monitor" || pathname === "/api/interpret") {
@@ -178,7 +180,7 @@ export function createDemoServer({fetcher = fetch, market = createLiveMarket({fe
 if (import.meta.main) {
   const port = Number(process.env.DEV3_DEMO_PORT ?? 4317);
   if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error("DEV3_DEMO_PORT must be from 1 to 65535.");
-  const market = createLiveMarket();
+  const market = createLiveMarkets();
   const server = createDemoServer({market});
   server.once("listening", () => {
     const collect = () => {void market.refresh().catch(() => {});};
