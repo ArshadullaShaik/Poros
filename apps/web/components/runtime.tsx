@@ -1,13 +1,13 @@
 'use client';
 import {useEffect, useState} from 'react';
 
-// Document navigation preserves draft warnings and clears wallet/private-key state.
+// The trading layout retains this controller across Trade and Orders.
 // Module imports initialize once per document, including React Strict Mode replay.
 export function Runtime({trade = false}: {trade?: boolean}) {
   const [failed, setFailed] = useState(false);
   useEffect(() => {
     let active = true;
-    const skip = document.querySelector<HTMLAnchorElement>('.poros-skip');
+    const skip = trade ? null : document.querySelector<HTMLAnchorElement>('.poros-skip');
     const focusContent = (event: MouseEvent) => {
       event.preventDefault();
       document.querySelector<HTMLElement>('#main')?.focus();

@@ -15,7 +15,7 @@ test('Next serves every workspace with one identity and isolated browser assets'
   const base = `http://127.0.0.1:${address.port}`;
   try {
     let logo: string | undefined;
-    for (const path of ['/', '/home', '/community', '/profile', '/0g-pot', '/community?preview=1']) {
+    for (const path of ['/', '/orders', '/home', '/community', '/profile', '/0g-pot', '/community?preview=1']) {
       const response = await fetch(base + path);
       assert.equal(response.status, 200, path);
       assert.equal(response.headers.get('x-content-type-options'), 'nosniff');
@@ -30,14 +30,16 @@ test('Next serves every workspace with one identity and isolated browser assets'
       assert.ok(mark);
       logo ??= mark;
       assert.equal(mark, logo);
-      for (const label of ['Home', 'Trade', 'Communities', 'Profile', '0G Pot']) assert.ok(header.includes(label));
+      for (const label of ['Home', 'Trade', 'Orders', 'Communities', 'Profile', '0G Pot']) assert.ok(header.includes(label));
       assert.equal((html.match(/id="wallet-connect"/g) ?? []).length, 1);
       assert.match(html, /\/_next\/static\//);
       if (path === '/') {
         assert.match(html, /id="canvas"/);
+        assert.doesNotMatch(html, /id="market-chart-svg"/);
         assert.match(html, /draggable="true"/);
         assert.match(html, /id="publish-community"/);
       }
+      if(path === '/orders'){assert.match(html,/id="market-chart-svg"/);assert.match(html,/Transaction history/);assert.doesNotMatch(html,/id="canvas"/);}
     }
     for (const path of ['/.env', '/.env.local', '/vault.sqlite', '/src/main.ts', '/core/validation/strategy.ts', '/package.json', '/.git/config', '/server.mjs', '/community/app.js']) {
       assert.equal((await fetch(base + path)).status, 404, path);

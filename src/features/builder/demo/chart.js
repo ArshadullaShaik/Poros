@@ -32,7 +32,7 @@ export function createChartState({storage,now=Date.now}={}){
       if(raw&&raw.length<=250000){
         const entry=JSON.parse(raw),time=now();
         if(entry.pairId===id&&Number.isFinite(entry.savedAt)&&entry.savedAt<=time&&time-entry.savedAt<=maxAge&&Array.isArray(entry.points)&&entry.points.length<=1800&&entry.points.every((p,i)=>
-          p&&Number.isFinite(p.time)&&p.time<=time&&(i===0||p.time>entry.points[i-1].time)&&Number.isFinite(p.price)&&p.price>0&&p.price<=1000000&&Number.isFinite(p.oracleTime)&&p.oracleTime>0&&p.oracleTime<=p.time+60000&&['FLASH','CHAINLINK'].includes(p.source)
+          p&&Number.isFinite(p.time)&&p.time<=time&&(i===0||p.time>entry.points[i-1].time)&&Number.isFinite(p.price)&&p.price>0&&p.price<=1000000&&Number.isFinite(p.oracleTime)&&p.oracleTime>0&&p.oracleTime<=p.time+300000&&['FLASH','CHAINLINK'].includes(p.source)
         )){points=entry.points.filter(p=>time-p.time<=maxAge);cached=points.length>0;}
       }
     }catch{/* Browser storage is optional. */}
@@ -48,7 +48,7 @@ export function createChartState({storage,now=Date.now}={}){
     }catch{/* Quota or private browsing must not stop live prices. */}
   }
   function observe(data,time){
-    if(!['FLASH','CHAINLINK'].includes(data?.source)||data.pairId!==pairId||data.stale!==false||!validPrice(data.priceUsd)||!Number.isFinite(data.observedAtMs)||data.observedAtMs<=0||data.observedAtMs>time+60000||!Number.isFinite(time)||time<(points.at(-1)?.time??0))return false;
+    if(!['FLASH','CHAINLINK'].includes(data?.source)||data.pairId!==pairId||data.stale!==false||!validPrice(data.priceUsd)||!Number.isFinite(data.observedAtMs)||data.observedAtMs<=0||data.observedAtMs>time+300000||!Number.isFinite(time)||time<(points.at(-1)?.time??0))return false;
     const point={time,price:Number(data.priceUsd),oracleTime:data.observedAtMs,source:data.source};
     if(points.at(-1)?.time===time)points[points.length-1]=point;else points.push(point);
     points=points.slice(-1800);cached=false;save();return true;
@@ -65,7 +65,7 @@ export function createChartState({storage,now=Date.now}={}){
       if(data?.pair?.id!==pairId)return;
       position=paperPosition(data);
       livePosition=data.mode==='LIVE'?{confirmed:(data.liveOrders??[]).filter(order=>order.status==='ORDER_STATUS_FILLED').length,pending:(data.liveOrders??[]).filter(order=>!['ORDER_STATUS_FILLED','ORDER_STATUS_CANCELLED','ORDER_STATUS_REJECTED','ORDER_STATUS_TERMINATED'].includes(order.status)).length}:null;
-      inferences=Array.isArray(data.inference)?data.inference.length:0;
+      inferences=Number.isSafeInteger(data.inferenceCount)&&data.inferenceCount>=0?data.inferenceCount:Array.isArray(data.inference)?data.inference.length:0;
       for(const fill of data.orders??[])if(data.mode==='PAPER'&&validPrice(fill.priceUsd))marker(`${data.id}:paper:${fill.actionId}:${fill.filledAtMs}`,fill.filledAtMs,Number(fill.priceUsd),`Paper ${fill.side} · $${fill.notionalUsd}`,fill.side);
       for(const order of data.liveOrders??[]){
         const filled=order.status==='ORDER_STATUS_FILLED',label=({'ORDER_STATUS_FILLED':'Flash confirmed','ORDER_STATUS_CANCELLED':'Cancelled','ORDER_STATUS_REJECTED':'Rejected','ORDER_STATUS_TERMINATED':'Terminated'})[order.status]??'Submitted';
@@ -76,7 +76,7 @@ export function createChartState({storage,now=Date.now}={}){
     const next=event.message??data?.message;
     if(typeof next==='string'&&next!==message){message=next;events.push({time,message});events=events.slice(-30);}
   }
-  return {select,observe,activity,snapshot:()=>({pairId,points:[...points],markers:[...markers],events:[...events],message,inferences,cached,position,livePosition})};
+  return {select,observe,activity,resetActivity(){markers=[];events=[];seen.clear();position=null;livePosition=null;inferences=0;message='Ready · start a strategy to monitor its targets.';},snapshot:()=>({pairId,points:[...points],markers:[...markers],events:[...events],message,inferences,cached,position,livePosition})};
 }
 
 export function chartTimeRange(points,windowMs,now){
@@ -166,17 +166,18 @@ export function mountMarketChart({root=document,getPair,getDraft,request=fetch,n
     }catch(error){if(current===sequence){$('chart-feed-status').textContent='PRICE UNAVAILABLE';$('chart-feed-status').dataset.state='error';$('chart-observation').textContent='Fresh price unavailable. Previous observations remain on the chart; gaps are not filled.';}}
     finally{if(current===sequence)pending=false;}
   }
+  const listeners=new AbortController();
   for(const button of root.querySelectorAll('[data-chart-window]'))button.addEventListener('click',()=>{
     windowMs=Number(button.dataset.chartWindow)*60000;
     for(const item of root.querySelectorAll('[data-chart-window]'))item.setAttribute('aria-pressed',String(item===button));render();
-  });
+  },{signal:listeners.signal});
   svg.addEventListener('pointermove',event=>{
     if(!lastPlot)return;
     const rect=svg.getBoundingClientRect(),xx=(event.clientX-rect.left)*lastPlot.W/rect.width;
     const candle=lastPlot.candles.reduce((a,b)=>Math.abs(lastPlot.x((a.start+a.end)/2)-xx)<Math.abs(lastPlot.x((b.start+b.end)/2)-xx)?a:b);
     $('chart-hover').textContent=`${clock(candle.time)} · O ${money(candle.open)} H ${money(candle.high)} L ${money(candle.low)} C ${money(candle.close)} · ${candle.source==='FLASH'?'Flash quotes':'Chainlink reference'}`;
-  });
-  svg.addEventListener('pointerleave',()=>{$('chart-hover').textContent='Move over the chart to inspect a price';});
+  },{signal:listeners.signal});
+  svg.addEventListener('pointerleave',()=>{$('chart-hover').textContent='Move over the chart to inspect a price';},{signal:listeners.signal});
   state.select(getPair().id);render();
-  return {refresh,draftChanged(){if(state.select(getPair().id)){sequence++;controller?.abort();pending=false;$('chart-feed-status').textContent='CONNECTING';$('chart-feed-status').dataset.state='loading';void refresh();}render();},activity(event){state.activity(event);render();},stop(){stopped=true;sequence++;controller?.abort();}};
+  return {refresh,draftChanged(){if(state.select(getPair().id)){sequence++;controller?.abort();pending=false;$('chart-feed-status').textContent='CONNECTING';$('chart-feed-status').dataset.state='loading';void refresh();}render();},activity(event){state.activity(event);render();},resetActivity(){state.resetActivity();render();},stop(){listeners.abort();stopped=true;sequence++;controller?.abort();}};
 }

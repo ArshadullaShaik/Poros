@@ -1,4 +1,4 @@
-import {createFlashPerformance} from "../execution/performance.ts";
+import {createFlashPerformance,validHistoryWallet} from "../execution/performance.ts";
 import { Readable } from "node:stream";
 import { AgentError, readBoundedJson, runStrategyAgent, validateInferenceKey } from "../ai/zero-g.ts";
 import { marketContext, marketStrategy, pairForStrategy } from "../market/config.ts";
@@ -127,7 +127,7 @@ export function createApiHandler({fetcher = fetch, market = createLiveMarkets({f
         (request.headers["sec-fetch-site"] && !["same-origin","none"].includes(request.headers["sec-fetch-site"]))){response.writeHead(403).end();return;}
       response.setHeader("Content-Type","application/json; charset=utf-8");
       const wallet=new URL(request.url,"http://127.0.0.1").searchParams.get("wallet");
-      if(!wallet || !/^0x[0-9a-f]{40}$/i.test(wallet)){response.writeHead(400).end(JSON.stringify({ok:false,error:"Invalid wallet"}));return;}
+      if(!validHistoryWallet(wallet)){response.writeHead(400).end(JSON.stringify({ok:false,error:"Invalid wallet"}));return;}
       try{const data=await performance(wallet);response.writeHead(200).end(JSON.stringify({ok:true,data}));}
       catch{response.writeHead(503).end(JSON.stringify({ok:false,error:"Flash performance could not be verified. Try again shortly."}));}
       return;

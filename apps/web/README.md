@@ -52,6 +52,6 @@ The builder offers virtual-fund modes and separately wallet-authorized live exec
 
 For a production-style local demo, run `npm --prefix apps/web run build` followed by `npm --prefix apps/web start`. `npm --prefix apps/web run dev` enables development compilation. Root `.env.local` is loaded only by the server launcher.
 
-Home, Trade, Communities, Profile, and 0G Pot share one header, logo, and theme. Workspace links use full-document navigation to preserve the builder draft warning and clear in-memory private keys when leaving a workspace. Community deep links retain their existing hash routes. The existing canvas and community controllers run inside Next client boundaries.
+Home, Trade, Orders, Communities, Profile, and 0G Pot share one header, logo, and theme. Trade and Orders share a persistent layout so switching between them keeps the draft and active run in memory. Other workspaces use full-document navigation to preserve the builder draft warning and clear in-memory private keys when leaving the trading workspace. Community deep links retain their existing hash routes. The existing canvas and community controllers run inside Next client boundaries.
 
 Run the production build before the web tests, which verify the actual Next server and generated assets.

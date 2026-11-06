@@ -16,7 +16,7 @@ test('performance endpoint limits reads to one requested wallet and rejects cros
   assert.equal((await fetch(base+path,{method:'POST'})).status,405);
   assert.equal((await fetch(base+'/api/performance')).status,400);assert.equal(calls,0);
   const response=await fetch(base+path);assert.equal(response.status,200);assert.equal(response.headers.get('cache-control'),'no-store');
-  assert.deepEqual(await response.json(),{ok:true,data:{complete:true,fills:0,feesUsd:'0',markets:[]}});
+  assert.deepEqual(await response.json(),{ok:true,data:{complete:true,fills:0,feesUsd:'0',markets:[],transactions:[]}});
   await fetch(base+path);assert.equal(calls,1);
  }finally{server.close();await once(server,'close');}
 });
