@@ -432,7 +432,7 @@ class Application {
             failure('STALE_VIEW');
         this.activeCommunity = room;
         const membershipButton = this.preview ? '' : owner ? tag('Community owner', 'green') : button('membership', this.membership?.banned ? 'Posting restricted' : joined ? 'Leave community' : 'Join community', joined ? 'secondary' : 'primary', this.membership?.banned ? 'disabled' : '');
-        const top = `<a href="#/communities" class="back-link">← All communities</a>` + heading('THE OPEN ROOMS', room.name, room.description, membershipButton) + `<div class="community-meta">${tag('Public community', 'green')}<span>Owned by <a href="#/profile/${room.owner}">${e(this.label(room.owner))}</a></span><code>${e(short(room.communityKey))}</code>${owner ? button('edit-community', 'Edit details', 'text-button') + button('moderate', 'Moderation', 'text-button') : ''}${canModerate&&!owner?tag('Moderator','green'):''}</div>${this.preview?'':notice('Votes and moderation are public Arkiv transactions. Each action uses tGLM gas.')}`;
+        const top = `<a href="#/communities" class="back-link">← All communities</a>` + heading('THE OPEN ROOMS', room.name, room.description, membershipButton) + `<div class="community-meta">${tag('Public community', 'green')}<span class="community-timer" title="Expires at Arkiv block ${room.expiresAtBlock}">⏱ Expires block #${e(room.expiresAtBlock)}</span><span>Owned by <a href="#/profile/${room.owner}">${e(this.label(room.owner))}</a></span><code>${e(short(room.communityKey))}</code>${button('extend-community', '⏱ Extend expiration', 'secondary compact')}${owner ? button('edit-community', 'Edit details', 'text-button') + button('moderate', 'Moderation', 'text-button') : ''}${canModerate&&!owner?tag('Moderator','green'):''}</div>${this.preview?'':notice('Votes, moderation, and expiration extensions are public Arkiv transactions. Each action uses tGLM gas.')}`;
         if (thread) {
             if (!keyPattern.test(thread))
                 failure('INVALID_INPUT');
@@ -1087,6 +1087,11 @@ class Application {
             location.hash = '/create-community';
             return;
         }
+        if (action === 'extend-community' && this.activeCommunity) {
+            const room = this.activeCommunity;
+            this.openDialog('Extend community expiration', `<form data-form="extend-community"><p>Any member or visitor can permissionlessly extend this community's active lifetime on Arkiv DB by paying tGLM gas.</p><p class="small muted">Current Arkiv expiration: <strong>Block #${e(room.expiresAtBlock)}</strong></p><label class="field"><span>Additional duration</span><select name="duration"><option value="7">Extend by 7 days (1 week)</option><option value="30">Extend by 30 days (1 month)</option><option value="60">Extend by 60 days (2 months)</option><option value="90">Extend by 90 days (1 quarter)</option><option value="180" selected>Extend to Arkiv maximum (~182 days / 180 days)</option></select><small>Arkiv enforces a hard consensus limit of ~182 days (7,884,000 blocks). Extensions can be repeated any time.</small></label>${notice('Approving the transaction in MetaMask will extend this community on Arkiv. Creation and extensions are permissionless.')}<button class="button primary">Confirm extension & pay gas</button></form>`);
+            return;
+        }
         if (action === 'edit-community' && this.activeCommunity) {
             const room = this.activeCommunity;
             this.openDialog('A clearer introduction.', `<form data-form="edit-community">${field('name', 'Community name', { required: true, value: room.name })}${field('description', 'Description', { area: true, value: room.description })}<button class="button primary">Update public details</button></form>`);
@@ -1268,9 +1273,20 @@ class Application {
             }
             else if (kind === 'community') {
                 const name = checkedText(value('name').trim(), 1, 80), description = checkedText(value('description'), 0, 4096);
-                const result = await this.write('community', { name, description }, requestId => this.api.strategies.createCommunity({ requestId, name, description }));
+                const durationDays = Number(value('duration')) || 180;
+                const result = await this.write('community', { name, description, durationDays }, requestId => this.api.strategies.createCommunity({ requestId, name, description, durationDays }));
                 const communityKey = result.state === 'written' ? result.receipt.entityKey : result.entityKey;
                 location.hash = '/community/' + communityKey;
+            }
+            else if (kind === 'extend-community') {
+                const room = this.activeCommunity!;
+                const durationDays = Number(value('duration')) || 180;
+                await this.write('community-extend', { durationDays }, () => this.api.strategies.extendOwnedEntity({ entityKey: room.communityKey, durationDays }), room.communityKey);
+                this.toast('Community expiration successfully extended on Arkiv!');
+                this.closeDialog();
+                const updated = await this.getCommunity(room.communityKey);
+                this.activeCommunity = updated;
+                await this.render();
             }
             else if (kind === 'edit-community') {
                 const account = await this.requireAccount();

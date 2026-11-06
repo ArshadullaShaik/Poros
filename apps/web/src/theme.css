@@ -390,3 +390,30 @@ body{background:var(--paper);color:var(--ink)}
   color: #3b506d;
 }
 
+/* Community Expiration Timer and Extension */
+.community-timer {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: #f0f4fa;
+  border: 1px solid #d2deed;
+  border-radius: 6px;
+  padding: 3px 9px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #2c4a70;
+  font-variant-numeric: tabular-nums;
+}
+.community-card-timer {
+  font-size: 10px;
+  color: var(--muted);
+  font-weight: 500;
+  margin-left: auto;
+  margin-right: 8px;
+  font-variant-numeric: tabular-nums;
+  background: #f4f6fa;
+  padding: 2px 7px;
+  border-radius: 4px;
+}
+
+

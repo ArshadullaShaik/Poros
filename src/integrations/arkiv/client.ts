@@ -85,11 +85,21 @@ export function createSDKBackend(options:StoreOptions={}):Backend {
       };
       return {
         account,assertCurrent,
-        create:(kind,values,readonly)=>write(async()=>{return client.createEntity(Schemas[kind] as Schema,encodeValues(values),{
-          expiration:ExpirationTime.fromDays(DURABLE_LIFETIME_DAYS),flags:{readonly,permissionlessExtension:false},
-        });}),
+        create:(kind,values,readonly,durationDays)=>write(async()=>{
+          const expiration = durationDays !== undefined
+            ? (durationDays >= 182 ? ExpirationTime.max() : ExpirationTime.fromDays(durationDays))
+            : ExpirationTime.fromDays(DURABLE_LIFETIME_DAYS);
+          return client.createEntity(Schemas[kind] as Schema,encodeValues(values),{
+            expiration,flags:{readonly,permissionlessExtension:kind === 'communities'},
+          });
+        }),
         patch:(entity,values)=>write(async()=>{return client.patchEntity(Schemas.communities,entity,{set:encodeValues(values)});}),
-        extend:entity=>write(async()=>{return client.extendEntity({entityKey:entity,expiration:ExpirationTime.fromDays(DURABLE_LIFETIME_DAYS)});}),
+        extend:(entity,durationDays)=>write(async()=>{
+          const expiration = durationDays !== undefined
+            ? (durationDays >= 182 ? ExpirationTime.max() : ExpirationTime.fromDays(durationDays))
+            : ExpirationTime.fromDays(DURABLE_LIFETIME_DAYS);
+          return client.extendEntity({entityKey:entity,expiration});
+        }),
         delete:entity=>write(async()=>{return client.deleteEntity({entityKey:entity});}),
       };
     }),

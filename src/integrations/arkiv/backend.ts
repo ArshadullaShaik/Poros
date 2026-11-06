@@ -12,9 +12,9 @@ export interface EntityPage { entities: StoredEntity[]; blockNumber: bigint; raw
 export interface Inclusion { entityKey: Hex; txHash: Hex; expiresAt?: bigint }
 export interface Writer {
   account: Hex; assertCurrent(): Promise<void>;
-  create(kind: Kind, values: Values, readonly: boolean): Promise<Inclusion>;
+  create(kind: Kind, values: Values, readonly: boolean, durationDays?: number): Promise<Inclusion>;
   patch(entityKey: Hex, values: Values): Promise<Inclusion>;
-  extend(entityKey: Hex): Promise<Inclusion>;
+  extend(entityKey: Hex, durationDays?: number): Promise<Inclusion>;
   delete(entityKey: Hex): Promise<Inclusion>;
 }
 // Internal test seam; callers use the public facade, never this transport contract.

@@ -32,6 +32,16 @@ test('renewal is a no-op early and extends from current block near expiry',async
   backend.block+=1_296_001n;
   await assert.rejects(store.getCommunity({communityKey:c.communityKey}),{code:'NOT_FOUND_OR_EXPIRED'});
 });
+test('community expiration duration is configurable and any person can permissionlessly extend near expiry',async()=>{
+  const {store,backend}=createMockArkivStore({account:alice});
+  const c=value(await store.createCommunity({requestId:request,name:'Expiring group',description:'',durationDays:30}));
+  assert.equal(BigInt(c.expiresAtBlock),backend.block + 216_000n);
+  backend.account=bob;
+  backend.block=BigInt(c.expiresAtBlock)-100n;
+  const extension=await store.extendOwnedEntity({entityKey:c.communityKey,durationDays:90});
+  assert.equal(extension.state,'extended');
+  if(extension.state==='extended')assert.equal(BigInt(extension.receipt.expiresAtBlock),backend.block + 648_000n);
+});
 test('pagination advances past a malformed page instead of ending the feed',async()=>{
   const {store,backend}=createMockArkivStore({account:alice});
   const c=value(await store.createCommunity({requestId:request,name:'First',description:''}));
