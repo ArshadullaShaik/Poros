@@ -66,13 +66,13 @@ export const tradeMarkup = `
         <p id="unlocked-status" class="small muted" role="status">Connect your community wallet to load purchased strategies.</p>
         </section>
         <section id="library-creators" role="tabpanel" aria-labelledby="tab-creators" tabindex="0" hidden>
-        <h2>Discover creators</h2>
+        <div class="panel-title"><h2>Discover creators</h2><span class="small-tag">COMMUNITY</span></div>
         <div id="trade-creator-directory"></div>
-        <h3>Your subscriptions</h3>
+        <div class="section-divider"></div>
+        <div class="panel-title"><h3>Your subscriptions</h3><a class="small" href="/community#/memberships">Manage ↗</a></div>
         <p class="small muted">Creators whose paid memberships are active on the community page.</p>
-        <button id="refresh-creator-library" class="button secondary" type="button">Refresh</button>
+        <button id="refresh-creator-library" class="button secondary compact" type="button">Refresh subscriptions</button>
         <p id="creators-status" class="small muted" role="status"></p>
-        <a href="/community#/memberships">Manage memberships</a>
         <div id="creator-library" class="creator-list"></div>
         <p id="creators-empty" class="library-empty small muted">No active creator memberships to show yet.</p>
         </section>

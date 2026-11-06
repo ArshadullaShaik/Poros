@@ -89,7 +89,14 @@ export function mountMemberLibrary({root=document,loadApi=()=>import('../../../.
       $('unlocked-status').textContent=result.locked?'Enter your community recovery code to decrypt purchased creator strategies.':result.entries.length?'Drag an unlocked creator strategy onto the canvas.':'No delivered strategies for your active memberships yet.';
       $('creators-status').textContent=result.creators.length?'Creators with verified active paid memberships.':'No active paid creator memberships.';
       if(result.creators.length)expiryTimer=setTimeout(()=>lock('Membership expired. Refresh to verify access.'),Math.max(0,Math.min(2147483647,Math.min(...result.creators.map(row=>row.expiresAt))-Date.now())));
-    }catch(error){if(current===generation)status(error.message??'Could not verify your community library.');}
+    }catch(error){
+      if(current===generation){
+        const msg=error?.message==='ACCOUNT_CHANGED'||error?.code==='ACCOUNT_CHANGED'
+          ?'Wallet changed. Reconnect to view subscriptions.'
+          :(error?.message??'Could not verify your community library.');
+        status(msg);
+      }
+    }
   }
   $('unlock-library-form').addEventListener('submit',event=>{event.preventDefault();const code=$('library-recovery').value;$('library-recovery').value='';void refresh(code);});
   $('lock-library').addEventListener('click',()=>lock());

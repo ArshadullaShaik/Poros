@@ -336,6 +336,26 @@ body{background:var(--paper);color:var(--ink)}
 .trade-page .backtest-report-dialog svg{background:#fff;border-radius:2px}
 .trade-page .field input,.trade-page .field select,.trade-page .field textarea,.app-layout .field>input,.app-layout .field>select,.app-layout .field>textarea,.app-layout .chat-compose textarea{border-radius:2px;background:#fff;color:var(--ink);border-color:var(--line)}
 .trade-page .price-ticker{background:#fff;border-radius:2px}.trade-page .ticker-prices .price-symbol{color:var(--muted)}
+
+/* ── Clean styling for Library Creators tab ── */
+#library-creators h2, #library-creators h3 { font-size: 13px; font-weight: 600; margin: 0; }
+#library-creators .panel-title { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+#library-creators .panel-title a { font-size: 10px; color: var(--blue); text-decoration: none; }
+#library-creators .panel-title a:hover { text-decoration: underline; }
+#library-creators .section-divider { height: 1px; background: var(--line); margin: 16px 0 12px; }
+#library-creators .membership-toolbar.compact { display: flex; flex-direction: column; gap: 6px; margin: 8px 0 12px; }
+#library-creators .membership-toolbar.compact .button { width: 100%; justify-content: center; font-size: 10px; min-height: 32px; padding: 6px 10px; border-radius: 2px; }
+#library-creators #refresh-creator-library { width: 100%; justify-content: center; font-size: 10px; min-height: 32px; margin-bottom: 8px; border-radius: 2px; }
+.creator-discovery-card, .creator-card { display: block; padding: 12px; background: var(--paper); border: 1px solid var(--line); border-radius: 3px; margin-bottom: 8px; text-decoration: none; color: var(--ink); transition: border-color .15s, background .15s; }
+.creator-discovery-card:hover, .creator-card:hover { border-color: var(--blue); background: var(--pale); }
+.creator-discovery-card strong, .creator-card strong { display: block; font-size: 11px; font-weight: 600; color: var(--ink); margin-bottom: 3px; }
+.creator-discovery-card small, .creator-card small { display: block; font-size: 9px; color: var(--muted); line-height: 1.4; margin-bottom: 4px; }
+.creator-discovery-card p { font-size: 10px; color: var(--blue); font-family: var(--mono); margin: 4px 0 8px; }
+.creator-discovery-card .button { font-size: 9px; padding: 4px 8px; min-height: 26px; border-radius: 2px; }
+#library-creators .small.muted { font-size: 10px; line-height: 1.5; color: var(--muted); margin: 4px 0 8px; }
+#library-creators [role="status"] { font-size: 10px; line-height: 1.5; color: var(--muted); margin: 6px 0; display: block; }
+#library-creators .library-empty { padding: 8px 0; }
+
 .app-layout .hero{min-height:360px;padding:26px 0 38px;gap:32px}
 .app-layout .hero h1{font-size:clamp(42px,4.6vw,68px);letter-spacing:-.05em;line-height:1.13}
 .app-layout .hero h1 em{display:inline;padding:0 7px;background:var(--blue);color:#fff;font-family:Georgia,'Times New Roman',serif;font-style:italic;font-weight:400;border-radius:2px;box-decoration-break:clone;-webkit-box-decoration-break:clone}
