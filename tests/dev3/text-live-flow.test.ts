@@ -70,5 +70,5 @@ test('a failed market refresh returns an error without committing success header
   const {FlashError}=await import('../../src/features/builder/market/flash.ts');
   const server=createDemoServer({market:{read:()=>({}),refresh:async()=>{throw new FlashError('Feed is temporarily unavailable.');}}});
   await new Promise<void>(resolve=>server.listen(0,'127.0.0.1',resolve));
-  try{const address=server.address();assert.ok(address&&typeof address!=='string');const base=`http://127.0.0.1:${address.port}`;const response=await fetch(base+'/api/market');assert.equal(response.status,503);assert.equal((await response.json()).ok,false);assert.equal((await fetch(base+'/')).status,200);}finally{await new Promise<void>(resolve=>server.close(()=>resolve()));}
+  try{const address=server.address();assert.ok(address&&typeof address!=='string');const base=`http://127.0.0.1:${address.port}`;const response=await fetch(base+'/api/market');assert.equal(response.status,503);assert.equal((await response.json()).ok,false);assert.equal((await fetch(base+'/api/monitor')).status,405);}finally{await new Promise<void>(resolve=>server.close(()=>resolve()));}
 });

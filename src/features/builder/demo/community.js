@@ -1,4 +1,4 @@
-export function mountCommunityLibrary({root=document,loadApi=()=>import('/community/builder.js'),onLoad}){
+export function mountCommunityLibrary({root=document,loadApi=()=>import('../../../../apps/web/src/builder.ts'),onLoad}){
   const $=id=>root.querySelector(`#${id}`);
   let cursor=null,busy=false,community;
   const key=value=>typeof value==='string'&&/^0x[0-9a-f]{64}$/i.test(value);
@@ -66,7 +66,7 @@ export function mountLibraryTabs({root=document,onCommunity,onSelect}){
   select(tabs[0]);
 }
 
-export function mountMemberLibrary({root=document,loadApi=()=>import('/community/builder.js'),onEntries,onCreators,onReset=()=>{}}){
+export function mountMemberLibrary({root=document,loadApi=()=>import('../../../../apps/web/src/builder.ts'),onEntries,onCreators,onReset=()=>{}}){
   const $=id=>root.querySelector(`#${id}`);
   let generation=0,expiryTimer,unsubscribe,stopped=false;
   const status=message=>{for(const id of ['unlocked-status','creators-status'])$(id).textContent=message;};

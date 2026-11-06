@@ -1,22 +1,6 @@
-<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="A local playground for building and validating crypto strategy rules.">
-  <title>Poros · Strategy builder</title>
-  <link rel="icon" href="data:,">
-  <link rel="stylesheet" href="/style.css">
-  <script type="module" src="/app.js"></script>
-</head>
-<body>
-  <header class="topbar">
-    <a class="brand" href="/home" aria-label="Poros Home"><span class="brand-mark">↗</span>Poros</a>
-    <nav class="primary-nav" aria-label="Main navigation"><a href="/home">Home</a><a href="/" aria-current="page">Trade</a><a href="/community">Communities</a><a href="/profile">Profile</a><a href="/0g-pot">0G Pot</a></nav>
-    <span class="demo-label"><span class="status-dot"></span>LOCAL DEMO</span>
-    <button id="wallet-connect" class="button secondary" type="button">Connect wallet</button>
-  </header>
-  <main>
+// Trusted static builder markup. User content is rendered by validated controllers.
+export const tradeMarkup = `
+<main>
     <section class="page-heading">
       <div><p class="eyebrow">YOUR STRATEGY WORKSHOP</p><h1>Run your strategy.</h1><p class="subheading">Load an unlocked strategy, set your limits, and monitor its live price targets.</p></div>
       <div class="heading-actions"><button id="ai-open" class="api-key-button" type="button" aria-label="Add 0G API key" aria-haspopup="dialog" aria-controls="ai-dialog" title="API key and AI tools"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8" cy="8" r="4.5"/><path d="m11.3 11.3 9.2 9.2m-3-3 2.5-2.5m-5 0 2.5-2.5"/></svg></button><button id="load-example" class="button secondary">Load example</button><button id="new-strategy" class="button primary"><span aria-hidden="true">＋</span> New strategy</button></div>
@@ -162,5 +146,4 @@
       <p id="import-error" class="import-error" role="alert"></p><div class="dialog-actions"><button type="button" id="cancel-import" class="button secondary">Cancel</button><button type="submit" class="button primary">Import strategy</button></div>
     </form>
   </dialog>
-</body>
-</html>
+`;

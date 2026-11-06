@@ -1,12 +1,12 @@
-import { recordPaperPerformance } from "/community/builder.js";
-import { editStrategy, importStrategyJson, exportStrategyJson } from "/core/adapters/editor.ts";
-import { tradingPairs, pairForStrategy, contextForPair, priceStrategy as defaultStrategy, validatePriceStrategy as validateMarketStrategy } from "/core/market/config.ts";
-import { keepFocus } from "/focus.js";
-import { mountStrategyAi } from "/ai.js";
-import { mountExecution } from "/execution.js";
-import { mountMarketChart, paperPosition } from "/chart.js";
-import { mountLivePrices } from "/prices.js";
-import { mountCommunityLibrary, mountLibraryTabs, mountMemberLibrary } from "/community-library.js";
+import { recordPaperPerformance } from "../../../../apps/web/src/builder.ts";
+import { editStrategy, importStrategyJson, exportStrategyJson } from "../adapters/editor.ts";
+import { tradingPairs, pairForStrategy, contextForPair, priceStrategy as defaultStrategy, validatePriceStrategy as validateMarketStrategy } from "../market/config.ts";
+import { keepFocus } from "./focus.js";
+import { mountStrategyAi } from "./ai.js";
+import { mountExecution } from "./execution.js";
+import { mountMarketChart, paperPosition } from "./chart.js";
+import { mountLivePrices } from "./prices.js";
+import { mountCommunityLibrary, mountLibraryTabs, mountMemberLibrary } from "./community.js";
 
 const $ = selector => document.querySelector(selector);
 const canvas = $("#canvas");
@@ -412,21 +412,21 @@ resetPositions(); render();
 
 async function loadMemberTransfer(raw) {
   try {
-    const {readMemberStrategy} = await import('/community/builder.js');
+    const {readMemberStrategy} = await import('../../../../apps/web/src/builder.ts');
     await executionUI.openUnlockedStrategy(readMemberStrategy(raw));
   } catch (error) { announce(error.message || 'Unable to load this member strategy.'); }
 }
 
 async function loadPublicReference(reference) {
   try {
-    const {strategyReference} = await import('/community/builder.js');
+    const {strategyReference} = await import('../../../../apps/web/src/builder.ts');
     await communityUI.load(strategyReference(reference,location.origin));
   } catch (error) { announce(error.message || 'Unable to read the strategy reference.'); }
 }
 
 $('#publish-community').addEventListener('click',async()=>{
   try {
-    const {builderDocument} = await import('/community/builder.js');
+    const {builderDocument} = await import('../../../../apps/web/src/builder.ts');
     const document = builderDocument(draft);
     sessionStorage.setItem('poros.public-draft',JSON.stringify({document,...forkSource?{sourceVersionKey:forkSource}:{}}));
     dirty = false;
@@ -439,7 +439,7 @@ const membershipDetails = $('#memberships');
 async function openMemberships() {
   if (!membershipDetails.open || membershipWorkspace) return;
   try {
-    const {mountBuilderMemberships} = await import('/community/builder.js');
+    const {mountBuilderMemberships} = await import('../../../../apps/web/src/builder.ts');
     membershipWorkspace = mountBuilderMemberships($('#builder-memberships'),{
       getDraft:()=>structuredClone(draft),
       openStrategy:entry=>executionUI.openUnlockedStrategy(entry),

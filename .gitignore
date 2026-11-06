@@ -7,3 +7,7 @@
 /Prompt.MD
 
 /.env.local
+
+/apps/web/.next/
+/apps/web/next-env.d.ts
+/apps/web/tsconfig.tsbuildinfo

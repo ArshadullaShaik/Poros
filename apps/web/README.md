@@ -1,6 +1,6 @@
 # Poros
 
-Local strategy builder and Arkiv community on one origin. Requires Node 24+.
+Next.js App Router pages and Node API routes serve the strategy builder and Arkiv community on one origin. Requires Node 24+.
 
 From the repository root, run these commands in order.
 
@@ -8,11 +8,11 @@ From the repository root, run these commands in order.
     npm --prefix apps/web ci --ignore-scripts
     npm --prefix apps/web run dev
 
-The server prints its loopback URL. The builder is at /, community at /community, and the explicitly read-only preview at /community?preview=1. Set PORT to use another port.
+The server uses http://127.0.0.1:4325 by default. The builder is at /, community at /community, and the explicitly read-only preview at /community?preview=1. Set PORT to use another port.
 
 Public community reads use Arkiv Rabdi. Wallet-signed writes require an injected EIP-1193 wallet and Rabdi tGLM. New discussion records last 180 days and public chat lasts 45 days. Existing records retain their original expiry.
 
-Use Chrome with MetaMask for the local wallet walkthrough. Choose Create community in the builder marquee, connect your disposable test wallet, and approve adding or switching to Rabdi when prompted. After funding the wallet with Rabdi tGLM, enter the community details and approve creation. Poros verifies the stored record before opening the community. Every wallet can create a community. The in-app browser shows instructions when a wallet extension is unavailable.
+Use Chrome with MetaMask for the local wallet walkthrough. Open Communities in the shared navigation, then choose Create community, connect your disposable test wallet, and approve adding or switching to Rabdi when prompted. After funding the wallet with Rabdi tGLM, enter the community details and approve creation. Poros verifies the stored record before opening the community. Every wallet can create a community. The in-app browser shows instructions when a wallet extension is unavailable.
 
 The source community and Arkiv modules were imported from surana-rishabh/holyfucc commit 1341eeec2e009ce928e7ca1d7f212e85563286ac. Arkiv stores community and creator-membership records.
 
@@ -38,7 +38,7 @@ The real builder validator checks the graph, envelope, network, and token regist
 
 Run this branch locally on both laptops with Node 24 or newer. Each laptop uses its own MetaMask account and saved encryption recovery code. Both read the same public Arkiv records. Use the creator's complete profile URL on the subscriber laptop, changing only the local port if needed. Both wallets need Rabdi tGLM, and the subscriber needs Sepolia ETH. The local server binds to loopback.
 
-The builder remains paper-only. Live AI requests require the user's 0G key. Private keys and API secrets must stay out of the repository. A failed live read remains an error. Preview content never replaces a failed network request.
+The builder offers virtual-fund modes and separately wallet-authorized live execution. Live AI requests require the user's 0G key. Private keys and API secrets must stay out of the repository. A failed live read remains an error. Preview content never replaces a failed network request.
 
 ## Checks
 
@@ -47,3 +47,11 @@ The builder remains paper-only. Live AI requests require the user's 0G key. Priv
     npm --prefix apps/web test
     npm --prefix apps/web run typecheck
     npm --prefix apps/web run build
+
+## Next.js runtime
+
+For a production-style local demo, run `npm --prefix apps/web run build` followed by `npm --prefix apps/web start`. `npm --prefix apps/web run dev` enables development compilation. Root `.env.local` is loaded only by the server launcher.
+
+Home, Trade, Communities, Profile, and 0G Pot share one header, logo, and theme. Workspace links use full-document navigation to preserve the builder draft warning and clear in-memory private keys when leaving a workspace. Community deep links retain their existing hash routes. The existing canvas and community controllers run inside Next client boundaries.
+
+Run the production build before the web tests, which verify the actual Next server and generated assets.

@@ -101,15 +101,14 @@ class Application {
         }
         catch { }
         if (new URLSearchParams(location.search).get('preview') === '1') {
-            const url = '/community/preview.js';
-            this.preview = (await import(url)).preview as PreviewData;
+            this.preview = (await import('./preview.ts')).preview as PreviewData;
             this.rooms = this.preview.communities;
             for (const p of this.preview.profiles)
                 this.profiles.set(p.wallet, p);
         }
         app.innerHTML = this.shell();
-        document.querySelector('.skip-link')?.addEventListener('click', event => { event.preventDefault(); document.querySelector<HTMLElement>('#main')!.focus(); });
         window.addEventListener('pagehide', () => { this.generation++; this.market.session.clear(); this.sellerDraft = undefined; this.closeDialog(); });
+        document.querySelector('#wallet-connect')?.addEventListener('click', event => { void this.action(event.currentTarget as HTMLElement).catch(error => this.report(error)); });
         app.addEventListener('click', event => {
             const target = (event.target as Element).closest<HTMLElement>('[data-action]');
             if (target) {
@@ -139,7 +138,7 @@ class Application {
         setInterval(() => void this.poll(), 1000);
     }
     shell() {
-        return `<header class="topbar"><a class="brand" href="/home" aria-label="Poros Home"><span class="brand-mark">${mark}</span><span>Poros<small>COMMUNITY</small></span></a><nav class="primary-nav" aria-label="Workspace"><a href="/home" data-workspace="home">Home</a><a href="/">Trade</a><a href="/community" data-workspace="community">Communities</a><a href="/profile" data-workspace="profile">Profile</a><a href="/0g-pot" data-workspace="pot">0G Pot</a></nav><div class="header-actions"><span class="source-badge">${this.preview ? 'DESIGN PREVIEW' : 'RABDI · TESTNET'}<i></i></span><button class="button wallet-button" data-action="connect">${icon('wallet')}<span id="wallet-label">Connect wallet</span></button></div></header>
+        return `
     ${this.preview ? `<div class="preview-banner">${icon('info')}<span>Read-only design preview. Every profile, strategy and price here is illustrative.</span><button data-action="live">Switch to real Rabdi ${icon('arrow')}</button></div>` : ''}
     <div class="app-layout"><aside class="sidebar"><span class="nav-label">POROS COMMUNITY</span><nav aria-label="Main navigation">${[['/communities', 'people', 'Communities'], ['/compose', 'plus', 'Write a strategy'], ['/memberships', 'lock', 'Memberships']].map(([route, glyph, label]) => `<a href="#${route}" data-nav="${route}">${icon(glyph!)}<span>${label}</span></a>`).join('')}</nav><div class="sidebar-divider"></div><div class="nav-label nav-label-row">OPEN ROOMS <a href="#/communities" aria-label="Browse communities">${icon('plus')}</a></div><div id="rooms" class="room-links"></div><div class="sidebar-bottom"><div class="sidebar-note">${icon('leaf')}<p>Better ideas grow<br>in good company.</p></div><button class="settings-button" data-action="setup">${icon('settings')} Connection details</button><small>Built in public. Stored on Arkiv.</small></div></aside><main id="main" tabindex="-1"><div id="pending"></div><p id="public-cache-status" class="muted" role="status"></p><div id="content"></div></main></div><footer><span>POROS COMMUNITY</span><p>Ideas are public. Trading decisions are yours.</p><button data-action="${this.preview ? 'live' : 'preview'}">${this.preview ? 'Return to Rabdi' : 'Explore the design preview'} ${icon('arrow')}</button></footer>`;
     }
@@ -239,7 +238,7 @@ class Application {
         const generation = this.generation;
         const [route = 'discover', id, thread] = this.route();
         const page=route==='discover'||route==='strategies'?'/home':route==='dashboard'?'/profile':route==='pot'?'/0g-pot':'/community';
-        if(location.pathname!==page)history.replaceState(null,'',page+location.hash);
+        if(location.pathname!==page)history.replaceState(null,'',page+location.search+location.hash);
         this.activeCommunity = undefined;
         this.membership = undefined;
         this.updateChrome();

@@ -13,7 +13,7 @@ function mod(value:bigint){return (value%FIELD+FIELD)%FIELD;}
 function power(value:bigint,exponent:bigint){let result=1n;for(value=mod(value);exponent;exponent>>=1n,value=mod(value*value))if(exponent&1n)result=mod(result*value);return result;}
 const EDWARDS_D=mod(-121665n*power(121666n,FIELD-2n));
 function onCurve(bytes:Uint8Array){
- let y=0n;for(let i=31;i>=0;i--)y=(y<<8n)+BigInt(i===31?bytes[i]&127:bytes[i]);
+ let y=0n;for(let i=31;i>=0;i--)y=(y<<8n)+BigInt(i===31?bytes[i]!&127:bytes[i]!);
  if(y>=FIELD)return false;
  const ySquared=mod(y*y),denominator=mod(EDWARDS_D*ySquared+1n);
  if(!denominator)return false;
@@ -62,13 +62,13 @@ export function validateSetupInstructions(ixs:Instruction[],options:{funder:stri
   const data=Buffer.from(base58Decode(ix.data)),a=ix.accounts;
   require(a.every(account=>!account.isSigner||account.pubkey===funder));
   if(ix.programId===TOKEN||ix.programId===TOKEN2022){
-   if(data[0]===4||data[0]===13){const checked=data[0]===13;require(data.length===(checked?10:9)&&a.length===(checked?4:3));const amount=data.readBigUInt64LE(1);const authority=a[checked?3:2],delegateAccount=a[checked?2:1];require(amount>0n&&amount<=max&&a[0].isWritable&&(!inputAccount||a[0].pubkey===inputAccount)&&authority.pubkey===funder&&authority.isSigner&&delegateAccount.pubkey===delegate&&(!checked||mints.includes(a[1].pubkey)));}
-   else if(data[0]===17)require(data.length===1&&a.length===1&&!!wrappedATA&&a[0].pubkey===wrappedATA&&a[0].isWritable&&ix.programId===TOKEN);
+   if(data[0]===4||data[0]===13){const checked=data[0]===13;require(data.length===(checked?10:9)&&a.length===(checked?4:3));const amount=data.readBigUInt64LE(1);const authority=a[checked?3:2]!,delegateAccount=a[checked?2:1]!;require(amount>0n&&amount<=max&&a[0]!.isWritable&&(!inputAccount||a[0]!.pubkey===inputAccount)&&authority.pubkey===funder&&authority.isSigner&&delegateAccount.pubkey===delegate&&(!checked||mints.includes(a[1]!.pubkey)));}
+   else if(data[0]===17)require(data.length===1&&a.length===1&&!!wrappedATA&&a[0]!.pubkey===wrappedATA&&a[0]!.isWritable&&ix.programId===TOKEN);
    else require(false);
   }else if(ix.programId===ATA){
-   require(data.length===1&&data[0]===1&&a.length===6&&a[0].pubkey===funder&&a[0].isSigner&&a[0].isWritable&&a[1].isWritable&&a[2].pubkey===funder&&mints.includes(a[3].pubkey)&&a[4].pubkey===SYSTEM&&(a[5].pubkey===TOKEN||a[5].pubkey===TOKEN2022));
+   require(data.length===1&&data[0]===1&&a.length===6&&a[0]!.pubkey===funder&&a[0]!.isSigner&&a[0]!.isWritable&&a[1]!.isWritable&&a[2]!.pubkey===funder&&mints.includes(a[3]!.pubkey)&&a[4]!.pubkey===SYSTEM&&(a[5]!.pubkey===TOKEN||a[5]!.pubkey===TOKEN2022));
   }else if(ix.programId===SYSTEM){
-   require(data.length===12&&data.readUInt32LE(0)===2&&a.length===2&&a[0].pubkey===funder&&a[0].isSigner&&a[0].isWritable&&!!wrappedATA&&a[1].pubkey===wrappedATA&&a[1].isWritable);
+   require(data.length===12&&data.readUInt32LE(0)===2&&a.length===2&&a[0]!.pubkey===funder&&a[0]!.isSigner&&a[0]!.isWritable&&!!wrappedATA&&a[1]!.pubkey===wrappedATA&&a[1]!.isWritable);
    transferred+=data.readBigUInt64LE(4);require(transferred<=max);
   }else require(false);
  }

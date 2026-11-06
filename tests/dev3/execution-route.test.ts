@@ -57,7 +57,7 @@ test("market data is read-only and does not expose Flash implementation or signi
   assert.equal((await fetch(`${base}/api/market`,{method:"POST"})).status,405);
   assert.equal((await fetch(`${base}/api/market`,{headers:{Origin:"https://evil.invalid"}})).status,403);
   assert.equal((await fetch(`${base}/core/market/flash.ts`)).status,404);
-  assert.equal((await fetch(`${base}/core/market/config.ts`)).status,200);
+  assert.equal((await fetch(`${base}/core/market/config.ts`)).status,404);
 });
 
 test("server rejects RSI warm-up before making a paid inference request",async()=>{
@@ -73,8 +73,8 @@ test("server rejects RSI warm-up before making a paid inference request",async()
     assert.equal(inferenceCalls,0);
   } finally {await new Promise<void>(resolve=>coldServer.close(()=>resolve()));}
 });
-test("replay and execution browser modules are served but agent implementation stays private",async()=>{
-  for(const path of ["/replay.js","/execution.js"])assert.equal((await fetch(base+path)).status,200);
+test("API harness does not expose browser or agent source modules",async()=>{
+  for(const path of ["/replay.js","/execution.js"])assert.equal((await fetch(base+path)).status,404);
   assert.equal((await fetch(base+"/core/execution/agent.ts")).status,404);
 });
 
