@@ -14,19 +14,19 @@ function fixture({rows=Array.from({length:100},(_,i)=>[time/1000-(i+1)*60,1999,2
     if(String(url).includes("coinbase"))return Response.json(rows);
     if(String(url).includes("flash"))return Response.json({quoteId:"test-quote",side:"buy",orderType:"market",targetAsset:marketStrategy.tokenOut,contraAsset:marketStrategy.tokenIn,from:{asset:"contra",amount:"20"},to:{asset:"target",amount:"0.01",notional:String(flashPrice/100)}});
     const calls=JSON.parse(init.body);
-    return Response.json(calls.map((call:any)=>({jsonrpc:"2.0",id:call.id,result:[chain,"0x"+word(8),oracle,sequencer][call.id-1]})).reverse());
+    return Response.json(calls.map((call:any)=>({jsonrpc:"2.0",id:call.id,result:[chain,"0x"+word(8),oracle,sequencer,{number:"0x1234",timestamp:"0x"+(time/1000).toString(16)}][call.id-1]})).reverse());
   };
   const market=createMarketData({fetcher,now:()=>clock});
   return {market,fail(){fail=true;},setTime(n:number){clock=n;},get hits(){return hits;}};
 }
 test("historical candles make RSI immediately ready with independent Chainlink and Flash provenance",async()=>{
   const f=fixture();
-  await Promise.all([f.market.refresh(),f.market.refresh()]);assert.equal(f.hits,3);
+  await Promise.all([f.market.refresh(),f.market.refresh()]);assert.equal(f.hits,4);
   const snapshot=f.market.read();assert.equal(snapshot.source,"COINBASE_ETH_USD");assert.equal(snapshot.closedObservations,100);assert.equal(snapshot.stale,false);
   assert.equal(snapshot.chainlink?.priceUsd,"2000.000000");assert.equal(snapshot.flash?.quoteId,"test-quote");
   const candles=f.market.candlesFor(marketStrategy);assert.equal(candles.length,100);assert.equal(candles.at(-1)?.closeTimeMs,time);
   candles[0]!.close=1;assert.equal(f.market.candlesFor(marketStrategy)[0]!.close,2000);
-  await f.market.refresh();assert.equal(f.hits,3);
+  await f.market.refresh();assert.equal(f.hits,4);
   f.setTime(time+61000);assert.equal(f.market.read().stale,true);assert.throws(()=>f.market.candlesFor(marketStrategy),/stale/);
 });
 test("incomplete minute is excluded and missing minutes are never fabricated",async()=>{

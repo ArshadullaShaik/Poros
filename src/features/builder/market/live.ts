@@ -3,7 +3,7 @@ import {createFlashMarket,FlashError} from "./flash.ts";
 import {pairForStrategy,tradingPairs,networks} from "./config.ts";
 function readOracle(pair:ReturnType<typeof pairForStrategy>,token:ReturnType<typeof pairForStrategy>["base"],fetcher:typeof fetch,now:()=>number){
   const network=networks[(token.oracleNetwork??pair.network.oracleNetwork??pair.network.key) as keyof typeof networks]??pair.network;
-  return readChainlink({fetcher,now,feed:token.feed,maxAgeSeconds:token.maxAgeSeconds,networkId:network.id,rpcUrl:network.rpc,sequencer:"sequencer" in network?network.sequencer??null:null});
+  return readChainlink({fetcher,now,feed:token.feed,maxAgeSeconds:token.maxAgeSeconds,networkId:network.id,rpcUrl:network.key==="base"?process.env.BASE_RPC_URL??network.rpc:network.rpc,sequencer:"sequencer" in network?network.sequencer??null:null});
 }
 export function createLiveMarket({fetcher=fetch,now=Date.now,pair=pairForStrategy()}={}) {
   const flash=createFlashMarket({fetcher,now,pair});
@@ -40,13 +40,15 @@ export function createLiveMarket({fetcher=fetch,now=Date.now,pair=pairForStrateg
 export function createLiveMarkets(options:Parameters<typeof createLiveMarket>[0]={}){
   const markets=new Map(tradingPairs.map(pair=>[pair.id,createLiveMarket({...options,pair})]));
   const select=(input?:unknown)=>markets.get(pairForStrategy(input).id)!;
-  const prices=new Map<string,{at:number;pending:Promise<{source:"CHAINLINK";pairId:string;priceUsd:string;stale:false;observedAtMs:number}>}>();
+  const prices=new Map<string,{at:number|null;pending:Promise<{source:"CHAINLINK";pairId:string;priceUsd:string;stale:false;observedAtMs:number}>}>();
   const now=options.now??Date.now;
   function displayPrice(input?:unknown){
     const pair=pairForStrategy(input),cached=prices.get(pair.id);
-    if(cached&&now()>=cached.at&&now()-cached.at<10000)return cached.pending;
+    if(cached&&(cached.at===null||now()>=cached.at&&now()-cached.at<10000))return cached.pending;
     const pending=readOracle(pair,pair.base,options.fetcher??fetch,now).then(price=>({source:"CHAINLINK" as const,pairId:pair.id,priceUsd:price.priceUsd,stale:false as const,observedAtMs:price.updatedAtMs}));
-    prices.set(pair.id,{at:now(),pending});
+    const entry={at:null as number|null,pending};
+    prices.set(pair.id,entry);
+    void pending.then(()=>{entry.at=now();},()=>{if(prices.get(pair.id)===entry)prices.delete(pair.id);});
     return pending;
   }
   async function chartPrice(input?:unknown){

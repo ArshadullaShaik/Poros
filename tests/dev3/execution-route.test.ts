@@ -14,7 +14,7 @@ function mockMarket(count=90,down=false) {
     if(String(url).includes("coinbase"))return Response.json(candles.slice(-count).map(c=>[c.openTimeMs/1000,c.low,c.high,c.open,c.close,10]));
     const price=candles.at(-1)!.close;
     if(String(url).includes("flash"))return Response.json({quoteId:"route-quote",side:"buy",orderType:"market",targetAsset:rsiStrategy.tokenOut,contraAsset:rsiStrategy.tokenIn,from:{asset:"contra",amount:"20"},to:{asset:"target",amount:"0.01",notional:String(price/100)}});
-    return Response.json(JSON.parse(init!.body as string).map((call:any)=>({jsonrpc:"2.0",id:call.id,result:["0x2105","0x"+word(8),round(price*1e8),round(down?1:0)][call.id-1]})));
+    return Response.json(JSON.parse(init!.body as string).map((call:any)=>({jsonrpc:"2.0",id:call.id,result:["0x2105","0x"+word(8),round(price*1e8),round(down?1:0),{number:"0x1234",timestamp:"0x"+(time/1000).toString(16)}][call.id-1]})));
   }});
 }
 const market=mockMarket();
