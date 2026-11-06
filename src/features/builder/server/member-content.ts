@@ -36,6 +36,11 @@ export function createMemberContentService({state,events,memberships,beeUrl,batc
  }
  const pointer=(row:NonNullable<ReturnType<MemberContentState['publication']>>):SwarmMessagePointer=>({format:'swarm-message/1',publicationId:row.publicationId,swarmAddress:row.reference!.slice(0,64),payloadHash:entityKey(row.hash),source:row.content.source});
  return {
+  async assertUploadReady(){
+   await bee('readiness',{method:'GET'},2048);
+   const batch=await bee('stamps/'+batchId,{method:'GET'},8192);
+   if(batch.usable!==true)memberFailure('SWARM_UNAVAILABLE');
+  },
   async upload({creator,publicationId,content,retryUncertain=false}:{creator:Hex;publicationId:string;content:SignalContent;retryUncertain?:boolean}){
    address(creator);requestId(publicationId);content=checkedMemberContent(content);
    const row=state.prepare(creator,publicationId,memberContentHash(content),content);

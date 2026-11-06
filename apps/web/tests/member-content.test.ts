@@ -82,3 +82,15 @@ test('relay reads use the signed creator and the canonical publication key, not 
   await assert.rejects(env.service.read({wallet:owner,signalKey}),{code:'CONTENT_UNAVAILABLE'});
  }finally{env.state.close();}
 });
+test('relay upload readiness requires a ready Bee and a usable stamp without making an upload',async()=>{
+ const state=openMemberContentState(':memory:',new Uint8Array(32));let usable=false,ready=true,uploads=0;
+ const service=createMemberContentService({state,beeUrl:'http://127.0.0.1:1633',batchId:'a'.repeat(64),events:{} as any,memberships:{} as any,fetcher:async(url:any,init:any)=>{
+  if(init.method==='POST')uploads++;
+  return String(url).endsWith('/readiness')?Response.json({status:ready?'ready':'unready'},{status:ready?200:503}):Response.json({usable});
+ }});
+ try{
+  await assert.rejects(service.assertUploadReady(),{code:'SWARM_UNAVAILABLE'});
+  usable=true;await service.assertUploadReady();ready=false;
+  await assert.rejects(service.assertUploadReady(),{code:'SWARM_UNAVAILABLE'});assert.equal(uploads,0);
+ }finally{state.close();}
+});

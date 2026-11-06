@@ -16,6 +16,10 @@ Use Chrome with MetaMask for the local wallet walkthrough. Open Communities in t
 
 The source community and Arkiv modules were imported from surana-rishabh/holyfucc commit 1341eeec2e009ce928e7ca1d7f212e85563286ac. Arkiv stores community and creator-membership records.
 
+## Cloud deployment
+
+Use [the Vercel and persistent backend setup](../../deploy/README.md) for deployment. The Vercel website proxies API requests to the persistent backend; the membership database, relay wallet, worker, and Bee stay on that server.
+
 ## Creator memberships
 
 Open Your profile in Chrome with MetaMask and publish a positive Rabdi tGLM price for a 30-day membership. No encryption identity or recovery code is needed for new messages. Public profiles show verified active subscriber counts.

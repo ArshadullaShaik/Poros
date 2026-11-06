@@ -33,7 +33,8 @@ export function createRelayWorker(runtime:Runtime,key:Hex,makeWriter= createMemb
   if(!recovered){for(const job of runtime.state.jobs())if(job.kind==='publish')runtime.state.recoverUploads(job.owner,job.id);recovered=true;}
   if(await writer.client.getChainId()!==RABDI_PAYMENT_CHAIN)throw new Error('Wrong relay chain');
   const funded=await writer.client.getBalance({address:writer.address})>0n;
-  if(funded)runtime.state.heartbeat(Date.now(),writer.address);
+  const storageReady=await runtime.service.assertUploadReady().then(()=>true,()=>false);
+  if(funded&&storageReady)runtime.state.heartbeat(Date.now(),writer.address);
   // Keep the lease alive during SDK receipt polling; a second process must never sign a competing nonce.
   const timer=setInterval(()=>{runtime.state.renewLease(owner,Date.now());},10000);
   try{
@@ -61,6 +62,7 @@ export function createRelayWorker(runtime:Runtime,key:Hex,makeWriter= createMemb
       const payment=await checkRelayPurchase(runtime,active.payload);
       event={actor:writer.address,type:'subscription-relay',subject:payment.buyer,scope:payment.creator,requestId:id,data:{planKey:payment.planKey,transactionHash:payment.hash,purchaseId:payment.requestId}};
      }else{
+      if(!storageReady)continue;
       const {content,authorization,retryUncertain}=active.payload;
       if(JSON.parse(authorization.message).relayActor!==writer.address)memberFailure('RELAY_UNAVAILABLE');
       if(retryUncertain)update({payload:{...active.payload,retryUncertain:false}});

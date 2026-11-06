@@ -112,3 +112,30 @@ test('private composer mounting and successful publishing never open the signed 
  try{await panel.mount(root,owner,owner,false,false);await panel.publishPost({title:'Private',body:'Rules',source:'manual'});assert.equal(feeds,0);}
  finally{panel.dispose();Object.defineProperty(globalThis,'window',{value:previous,configurable:true});Object.defineProperty(globalThis,'localStorage',{value:storage,configurable:true});}
 });
+
+test('opening a paid membership immediately shows the exclusive feed while posts load, then explains an empty feed',async()=>{
+ const previous=globalThis.window,storage=globalThis.localStorage;
+ Object.defineProperty(globalThis,'window',{value:new EventTarget(),configurable:true});
+ Object.defineProperty(globalThis,'localStorage',{value:{getItem:()=>null},configurable:true});
+ const subscriber=('0x'+'2'.repeat(40)) as `0x${string}`;
+ const panel=new CreatorMembershipPanel({getContext:async()=>({account:subscriber})} as any,{} as any);
+ const feed={innerHTML:''},status={textContent:''};
+ const root:any={isConnected:true,innerHTML:'',addEventListener(){},replaceChildren(){},querySelector:(selector:string)=>selector==='[data-private-feed]'?feed:status};
+ panel.service.getPlan=async()=>undefined;panel.service.members=async()=>[{wallet:subscriber,expiresAt:100000,lastClaim:('0x'+'a'.repeat(64)) as any}];panel.readers.now=async()=>1000;
+ let finish!:(value:any[])=>void;
+ panel.service.signals=()=>new Promise(resolve=>{finish=resolve;});
+ try{
+  const mounting=panel.mount(root,owner,subscriber,false);
+  await new Promise(resolve=>setImmediate(resolve));
+  try{assert.match(root.innerHTML,/Exclusive messages and strategies/);assert.match(root.innerHTML,/Loading exclusive posts/);}
+  finally{finish([]);await mounting;}
+  assert.match(feed.innerHTML,/No exclusive messages or strategies/);
+  assert.doesNotMatch(root.innerHTML,/data-member-form="subscribe"/,'no plan means no renewal checkout');
+  await (panel as any).load(false);
+  assert.match(root.innerHTML,/data-member-action="open-messages"/,'after purchase the feed can be opened without renewing');
+  panel.service.signals=async()=>{throw Error('Read unavailable');};
+  await (panel as any).action('open-messages');
+  assert.match(feed.innerHTML,/Unable to open exclusive posts/);
+  assert.equal(status.textContent,'Read unavailable');
+ }finally{panel.dispose();Object.defineProperty(globalThis,'window',{value:previous,configurable:true});Object.defineProperty(globalThis,'localStorage',{value:storage,configurable:true});}
+});

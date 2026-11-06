@@ -1,3 +1,4 @@
+import {applicationOrigin,allowedApiHost} from './deployment.mjs';
 import {createFlashPerformance,validHistoryWallet} from "../execution/performance.ts";
 import {createTradeHistoryHandler} from './trade-history.mjs';
 import {createMemberContentHandler} from './member-content-api.mjs';
@@ -34,7 +35,7 @@ export function createApiHandler({fetcher = fetch, market = createLiveMarkets({f
       response.setHeader("Content-Type", "application/json; charset=utf-8");
       response.writeHead(status).end(JSON.stringify(payload));
     };
-    if ((request.headers.origin && request.headers.origin !== `http://${request.headers.host}`) ||
+    if ((request.headers.origin && request.headers.origin !== applicationOrigin(request)) ||
         (request.headers["sec-fetch-site"] && !["same-origin", "none"].includes(request.headers["sec-fetch-site"]))) {
       json(403, {ok: false, error: {code: "FORBIDDEN", message: "Open AI from this local demo only."}}); return;
     }
@@ -91,7 +92,7 @@ export function createApiHandler({fetcher = fetch, market = createLiveMarkets({f
   }
   async function handleMonitor(request,response,interpret=false) {
     const json=(status,payload)=>{response.setHeader("Content-Type","application/json; charset=utf-8");response.writeHead(status).end(JSON.stringify(payload));};
-    if((request.headers.origin&&request.headers.origin!==`http://${request.headers.host}`)||(request.headers["sec-fetch-site"]&&!["same-origin","none"].includes(request.headers["sec-fetch-site"]))) {json(403,{ok:false,error:{message:"Open this from the local demo only."}});return;}
+    if((request.headers.origin&&request.headers.origin!==applicationOrigin(request))||(request.headers["sec-fetch-site"]&&!["same-origin","none"].includes(request.headers["sec-fetch-site"]))) {json(403,{ok:false,error:{message:"Open this from the local demo only."}});return;}
     if(!/^application\/json(?:\s*;.*)?$/i.test(request.headers["content-type"]??"")){json(415,{ok:false,error:{message:"Send application/json."}});return;}
     const abort=new AbortController();
     const timer=setTimeout(()=>abort.abort(),45000);
@@ -124,7 +125,7 @@ export function createApiHandler({fetcher = fetch, market = createLiveMarkets({f
     response.setHeader("Cache-Control", "no-store");
     response.setHeader("Content-Security-Policy", "default-src 'self'; connect-src 'self' https://rpc.rabdi.db-chain.testnet.arkiv.network; style-src 'self' 'unsafe-inline'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'");
     if ((request.url??'').split('?')[0].startsWith('/api/member-content/')) return memberContent(request,response);
-    if (!/^(127\.0\.0\.1|localhost)(:\d+)?$/.test(request.headers.host ?? "")) {
+    if (!allowedApiHost(request)) {
       response.writeHead(403).end("Local requests only.");
       return;
     }
@@ -134,7 +135,7 @@ export function createApiHandler({fetcher = fetch, market = createLiveMarkets({f
     if (pathname.startsWith('/api/trade-history/')) return tradeHistory(request,response);
     if (pathname === "/api/performance") {
       if(request.method!=="GET"){response.setHeader("Allow","GET");response.writeHead(405).end();return;}
-      if((request.headers.origin && request.headers.origin!==`http://${request.headers.host}`)||
+      if((request.headers.origin && request.headers.origin!==applicationOrigin(request))||
         (request.headers["sec-fetch-site"] && !["same-origin","none"].includes(request.headers["sec-fetch-site"]))){response.writeHead(403).end();return;}
       response.setHeader("Content-Type","application/json; charset=utf-8");
       const wallet=new URL(request.url,"http://127.0.0.1").searchParams.get("wallet");
@@ -147,7 +148,7 @@ export function createApiHandler({fetcher = fetch, market = createLiveMarkets({f
       response.setHeader('Content-Type','application/json; charset=utf-8');
       const json=(status,payload)=>response.writeHead(status).end(JSON.stringify(payload));
       if(request.method!=='POST'){response.setHeader('Allow','POST');json(405,{ok:false,error:{message:'Send a POST request.'}});return;}
-      if((request.headers.origin&&request.headers.origin!==`http://${request.headers.host}`)||(request.headers['sec-fetch-site']&&!['same-origin','none'].includes(request.headers['sec-fetch-site']))){json(403,{ok:false,error:{message:'Open backtesting from this application.'}});return;}
+      if((request.headers.origin&&request.headers.origin!==applicationOrigin(request))||(request.headers['sec-fetch-site']&&!['same-origin','none'].includes(request.headers['sec-fetch-site']))){json(403,{ok:false,error:{message:'Open backtesting from this application.'}});return;}
       if(!/^application\/json(?:\s*;.*)?$/i.test(request.headers['content-type']??'')){json(415,{ok:false,error:{message:'Send application/json.'}});return;}
       if(Number(request.headers['content-length'])>65536){json(413,{ok:false,error:{message:'Backtest requests must be at most 64 KiB.'}});return;}
       if(backtestBusy){json(429,{ok:false,error:{message:'A historical request is already running. Try again shortly.'}});return;}
@@ -166,7 +167,7 @@ export function createApiHandler({fetcher = fetch, market = createLiveMarkets({f
     if (pathname === "/api/sepolia-rpc") {await handleSepolia(request,response);return;}
     if (pathname === "/api/market" || pathname === "/api/price" || pathname === "/api/chart-price" || pathname === "/api/chart-history") {
       if (request.method !== "GET") {response.setHeader("Allow","GET");response.writeHead(405).end("Method not allowed.");return;}
-      if ((request.headers.origin && request.headers.origin !== `http://${request.headers.host}`) ||
+      if ((request.headers.origin && request.headers.origin !== applicationOrigin(request)) ||
           (request.headers["sec-fetch-site"] && !["same-origin","none"].includes(request.headers["sec-fetch-site"]))) {response.writeHead(403).end("Open market data from this local demo only.");return;}
       response.setHeader("Content-Type","application/json; charset=utf-8");
       try {const pairId=new URL(request.url,"http://127.0.0.1").searchParams.get("pair")??"eth-usdc";pairForStrategy(pairId);const data=await (pathname==="/api/chart-history"?chartHistory(pairId):pathname==="/api/chart-price"?market.chartPrice(pairId):pathname==="/api/price"?market.displayPrice(pairId):market.refresh(pairId));response.writeHead(200).end(JSON.stringify({ok:true,data}));}

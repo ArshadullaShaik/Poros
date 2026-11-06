@@ -37,7 +37,7 @@ export function createMemberContentHandler({getRuntime=getMemberContentRuntime,n
    if(request.method!=='POST'||!['challenge','upload','read','publish','activate','status'].includes(action)){response.setHeader('Allow','POST');return json(405,{ok:false,error:{code:'METHOD_NOT_ALLOWED',message:'Send a POST request.'}});}
    if(!/^application\/json(?:\s*;.*)?$/i.test(request.headers['content-type']??''))return json(415,{ok:false,error:{code:'INVALID_INPUT',message:'Send application/json.'}});
    if(Number(request.headers['content-length'])>65536)return json(413,{ok:false,error:{code:'INVALID_INPUT',message:'Message request is too large.'}});
-   limit('ip:'+(request.socket?.remoteAddress??'unknown'),120);
+   limit('ip:'+(request.porosClientIp??request.socket?.remoteAddress??'unknown'),120);
    const body=await readBoundedJson(new Response(Readable.toWeb(request)),65536,'INVALID_INPUT',AbortSignal.timeout(10000));
    if(action==='status'){
     if(body.ready===true){keys(body,'ready');relayReady(runtime);return json(200,{ok:true,data:{ready:true}});}
@@ -51,7 +51,7 @@ export function createMemberContentHandler({getRuntime=getMemberContentRuntime,n
     return json(200,{ok:true,data:publicRelayJob(job)});
    }
    if(action==='challenge'){
-    limit('challenge:'+(request.socket?.remoteAddress??'unknown'),30);
+    limit('challenge:'+(request.porosClientIp??request.socket?.remoteAddress??'unknown'),30);
     keys(body,'wallet,operation,target');const wallet=address(body.wallet);if(!['upload','read','publish'].includes(body.operation))memberFailure('INVALID_INPUT');
     if(body.operation==='read'){
      if(Object.hasOwn(body.target??{},'signalKeys')){keys(body.target,'signalKeys');if(!Array.isArray(body.target.signalKeys)||!body.target.signalKeys.length||body.target.signalKeys.length>20||new Set(body.target.signalKeys).size!==body.target.signalKeys.length)memberFailure('INVALID_INPUT');body.target.signalKeys.forEach(entityKey);}

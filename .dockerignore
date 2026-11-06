@@ -1,0 +1,16 @@
+.git
+.vercel
+**/node_modules
+**/.next
+**/dist
+**/.data
+**/.env*
+**/*.sqlite*
+**/bee-data
+**/bee-password
+**/bee.env
+**/.aws
+**/.codex
+**/.agents
+docs
+tests

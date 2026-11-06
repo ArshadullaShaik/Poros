@@ -1,3 +1,4 @@
+import {applicationOrigin} from './deployment.mjs';
 import { rabdi } from '../../../integrations/arkiv/index.ts';
 import { Readable } from 'node:stream';
 import { readBoundedJson } from '../ai/zero-g.ts';
@@ -12,7 +13,7 @@ function createReadProxy(fetcher, network) {
   return async (request, response) => {
     const json = (status, body) => { response.writeHead(status, { 'Content-Type': 'application/json', 'Cache-Control':'no-store' }).end(JSON.stringify(body)); };
     if (request.method !== 'POST') { response.setHeader('Allow', 'POST'); json(405, { error: 'METHOD_NOT_ALLOWED' }); return; }
-    if ((request.headers.origin && request.headers.origin !== `http://${request.headers.host}`) ||
+    if ((request.headers.origin && request.headers.origin !== applicationOrigin(request)) ||
         (request.headers['sec-fetch-site'] && !['same-origin', 'none'].includes(request.headers['sec-fetch-site']))) {
       json(403, { error: 'FORBIDDEN' }); return;
     }

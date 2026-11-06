@@ -67,18 +67,23 @@ export function mountMembershipWorkspace(root: HTMLElement, options: WorkspaceOp
     const current = ++generation;
     clearTimeout(timer);
     const connected = account;
+    const subscribedCreators = new Set<string>();
     activeCreators.clear();
+    root.querySelector('[data-plan-list]')!.closest('section')!.hidden = false;
     root.querySelector('[data-plan-list]')!.textContent = 'Reading creator plans…';
     root.querySelector('[data-subscriptions-list]')!.textContent = connected ? 'Verifying saved memberships…' : 'Connect your wallet to load saved memberships.';
     options.onCreators?.([]);
     const plans = async () => {
       try {
         const rows = await panel.service.plans();
+        await subscriptionsReady;
         if (disposed || current !== generation) return;
-        root.querySelector('[data-plan-list]')!.innerHTML = rows.length
-          ? rows.map(plan => card(plan.actor,formatAmount(String(plan.data.priceWei),18)+' '+planCurrency(plan)+' / 30 days',plan.actor===connected?'Manage membership':activeCreators.has(plan.actor)?'Open messages':'Buy membership')).join('')
+        const available = rows.filter(plan => !subscribedCreators.has(plan.actor));
+        root.querySelector('[data-plan-list]')!.closest('section')!.hidden = rows.length > 0 && available.length === 0;
+        root.querySelector('[data-plan-list]')!.innerHTML = available.length
+          ? available.map(plan => card(plan.actor,formatAmount(String(plan.data.priceWei),18)+' '+planCurrency(plan)+' / 30 days',plan.actor===connected?'Manage membership':'Buy membership')).join('')
           : '<p>No creator has published a membership price yet.</p>';
-        void loadNames(rows.map(row=>row.actor));
+        void loadNames(available.map(row=>row.actor));
       } catch {
         if (!disposed && current === generation) root.querySelector('[data-plan-list]')!.textContent = 'Creator plans could not be loaded. Reload this page to try again.';
       }
@@ -88,6 +93,7 @@ export function mountMembershipWorkspace(root: HTMLElement, options: WorkspaceOp
       try {
         const [rows,now] = await Promise.all([panel.service.subscriptions(connected),panel.readers.now()]);
         if (disposed || current !== generation) return;
+        for(const row of rows)subscribedCreators.add(row.creator);
         const active = rows.filter(row => row.expiresAt > now);
         for(const row of active)activeCreators.add(row.creator);
         root.querySelector('[data-subscriptions-list]')!.innerHTML = rows.length
@@ -103,7 +109,8 @@ export function mountMembershipWorkspace(root: HTMLElement, options: WorkspaceOp
         if (!disposed && current === generation) root.querySelector('[data-subscriptions-list]')!.textContent = 'Membership verification is unavailable. Reload this page to try again.';
       }
     };
-    await Promise.all([plans(),subscriptions()]);
+    const subscriptionsReady = subscriptions();
+    await Promise.all([plans(),subscriptionsReady]);
   }
 
   async function accountChanged() {

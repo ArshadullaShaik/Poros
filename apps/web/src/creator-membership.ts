@@ -213,12 +213,12 @@ export class CreatorMembershipPanel {
       html += '<p data-member-status role="status"></p>' + actionButton('refresh','Refresh membership');
       if (!account) { root.innerHTML = html + notice('Connect your wallet using the header to access membership.'); return; }
       if (pending) html += notice(pending.kind==='signal'&&pending.uploadUncertain?'The upload is uncertain. Retrying may use storage funds again.':'A saved write needs recovery. Reuse it before starting another write.') + actionButton('recover-write',pending.kind==='signal'&&pending.uploadUncertain?'Retry upload':'Recover '+pending.kind+' write');
+      if ((owner || access) && this.options.readFeed!==false) html += `<section data-private-feed aria-live="polite"><h3>Exclusive messages and strategies</h3>${readFeed?'<p>Loading exclusive posts… Approve the wallet signature if requested.</p>':actionButton('open-messages','Open messages')}</section>`;
       if (!owner && plan) html += `<form data-member-form="subscribe" data-plan="${plan?.key ?? ''}"><p>Pay <code>${e(creator)}</code> directly on ${planCurrency(plan)} · chain ${planChain(plan)}. ${planChain(plan)===7794095?'One payment approval; activation is automatic.':'Access starts after the verified Arkiv claim.'}</p><label class="check-field"><input type="checkbox" name="reviewed" required> I reviewed the creator, price, network, and 30-day term.</label><button class="button primary" ${pending || payment ? 'disabled' : ''}>${access?'Renew':'Subscribe'} · ${plan ? e(formatAmount(String(plan.data.priceWei),18))+' '+planCurrency(plan) : 'Membership not offered'}</button></form>`;
       if (owner) html += `<form data-member-form="plan"><h3>Membership price</h3>${field('price','Rabdi tGLM for 30 days',{required:true,value:plan&&planChain(plan)===7794095?formatAmount(String(plan.data.priceWei),18):'0.0001'})}<button class="button primary">${plan?'Update':'Publish'} membership price</button></form>`;
       if (payment) html += `<section><h3>Recover your payment</h3><p>Creator <code>${e(payment.creator)}</code> · ${e(formatAmount(payment.priceWei,18))} ${payment.chainId?'tGLM':'Sepolia ETH'}</p><form data-member-form="claim">${field('hash','Original transaction hash',{required:true,value:payment.hash,placeholder:'0x…'})}<button class="button primary">${payment.chainId?'Check activation':'Verify payment and activate'}</button></form>${actionButton('failed-payment','Check and clear a failed transaction')}<p>An uncertain payment uses this original transaction for recovery.</p></section>`;
       if (access) html += `<p>Membership expires ${e(new Date(access.expiresAt).toLocaleString())}.</p>`;
       if (owner) html += `<form data-member-form="signal"><h3>Publish to your members</h3>${field('title','Title',{required:true})}${field('body','Message to members',{required:true,area:true})}<label class="field"><span>Source</span><select name="source"><option value="manual">Creator</option><option value="ai-proposal">AI proposal reviewed by creator</option><option value="rule-engine">Rule engine reviewed by creator</option></select></label><label class="check-field"><input name="approved" type="checkbox" required> I reviewed and approve this message for my current members.</label><button class="button primary">Publish</button></form>`;
-      if (owner || access) html += `<div data-private-feed></div>`;
       root.innerHTML = html;
       this.accessDeadline = owner ? Infinity : access ? performance.now() + Math.max(0,access.expiresAt-now) : 0;
       if (access) this.expiryTimer = setTimeout(()=>{
@@ -226,7 +226,11 @@ export class CreatorMembershipPanel {
       },Math.min(access.expiresAt-now,2147483647));
       if (readFeed && (owner || access)) await this.feed(generation, owner);
     } catch(error) {
-      if (generation === this.generation && root === this.root) this.status(error instanceof Error&&error.message!==errorCode(error)?error.message:errors[errorCode(error)]??'Membership verification is unavailable. Try refreshing.');
+      if (generation === this.generation && root === this.root) {
+        const feed=root.querySelector('[data-private-feed]');
+        if(feed)feed.innerHTML='<h3>Exclusive messages and strategies</h3><p>Unable to open exclusive posts. Use Refresh membership to try again.</p>';
+        this.status(error instanceof Error&&error.message!==errorCode(error)?error.message:errors[errorCode(error)]??'Membership verification is unavailable. Try refreshing.');
+      }
     }
   }
   private async feed(generation: number, owner: boolean) {
@@ -254,10 +258,11 @@ export class CreatorMembershipPanel {
       items.push(`<article class="paper-panel member-strategy-card" draggable="true" data-signal="${signal.key}"><h3>${e(content.title)}</h3><p class="preserve">${e(content.body)}</p>${content.communityKey?`<a href="/community#/community/${content.communityKey}">Selected community</a>`:''}<small>${e(content.source)} · ${e(new Date(publishedAt).toLocaleString())} · Stored encrypted on Swarm</small><p>${content.strategy?'Editable strategy attached.':'Text instructions require 0G interpretation before editing.'} Drag onto the strategy canvas.</p>${this.options.openStrategy?actionButton('open-strategy','Load on canvas',`data-key="${signal.key}"`):`<a class="button secondary" href="/">Open strategy builder</a>`}</article>`);
     }
     if(generation!==this.generation||!this.root?.isConnected||performance.now()>=this.accessDeadline)return;
-    this.root.querySelector('[data-private-feed]')!.innerHTML='<h3>Members-only messages</h3>'+(items.join('')||'<p>Your future messages will appear here.</p>')+(this.feedOffset?actionButton('newer-messages','Newer messages'):'')+(this.feedOffset+20<eligible.length?actionButton('older-messages','Older messages'):'')+(legacy?'<p>Older encrypted messages require the previous recovery flow.</p>':'');
+    this.root.querySelector('[data-private-feed]')!.innerHTML='<h3>Exclusive messages and strategies</h3>'+(items.join('')||'<p>No exclusive messages or strategies are available for your active membership yet. Only posts published during your membership are included.</p>')+(this.feedOffset?actionButton('newer-messages','Newer messages'):'')+(this.feedOffset+20<eligible.length?actionButton('older-messages','Older messages'):'')+(legacy?'<p>Older encrypted messages require the previous recovery flow.</p>':'');
   }
   private async action(action: string, key?: string) {
     if(action==='older-messages'||action==='newer-messages'){this.feedOffset=Math.max(0,this.feedOffset+(action==='older-messages'?20:-20));await this.load();return;}
+    if (action === 'open-messages') { await this.load(true); return; }
     if (action === 'refresh') { await this.load(); return; }
     if (action === 'lock') { this.lock(); await this.load(); return; }
     const account = await this.checkAccount();

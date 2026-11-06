@@ -13,6 +13,7 @@
     "start": "node tooling/next.mjs start",
     "trade:worker": "node tooling/trade-worker.mjs",
     "membership:worker": "node tooling/membership-worker.mjs",
+    "backend": "node tooling/backend.mjs",
     "membership:init": "node tooling/member-content-init.mjs",
     "trade:smoke": "node tooling/trade-smoke.mjs"
   },
