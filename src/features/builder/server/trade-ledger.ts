@@ -77,8 +77,8 @@ export function createTradeLedger({state,repository,sourceAdapter,now=Date.now}:
   trackSubmission(input:{wallet:string;chainFamily:'evm'|'solana';runId:string;actionId:string;quoteId:string;orderId?:string;createdAt:number}){
    const wallet=input.chainFamily==='evm'?input.wallet.toLowerCase():input.wallet;
    const source=state.sources().find(s=>s.active&&s.binding.source.kind==='flash'&&s.binding.source.wallet===wallet);
-   if(!source)throw new Error('Link this wallet as a Flash trading source in Profile before trading');
-   if(source.lastError)throw new Error('This source has a recording delay. Resolve it in Profile before submitting another tracked trade.');
+   if(!source)throw new Error('This wallet needs a verified Flash source registration before trading');
+   if(source.lastError)throw new Error('This source has a recording delay. Recording must resume before another tracked trade is submitted.');
    if(now()-Number(state.meta('heartbeat')??0)>120000)throw new Error('Trade recording worker is offline');
    return state.trackOrder({source:source.binding.source,trader:source.binding.trader,runId:input.runId,actionId:input.actionId,quoteId:input.quoteId,...input.orderId?{orderId:input.orderId}:{},createdAt:input.createdAt});
   },

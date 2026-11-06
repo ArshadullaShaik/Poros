@@ -7,7 +7,7 @@ const {getTradeRuntime}=await import('../../../src/features/builder/server/trade
 const runtime=getTradeRuntime();assert.ok(runtime,'Trade writer is not configured');
 try{
  const trader=process.env.TRADE_LEDGER_SMOKE_TRADER;assert.match(trader??'',/^0x[0-9a-f]{40}$/);
- const source=runtime.state.sources(trader).find(s=>s.active);assert.ok(source,'Link a real source in Profile first');
+ const source=runtime.state.sources(trader).find(s=>s.active);assert.ok(source,'Register a proved trading source first');
  await runtime.repository.ready();
  await runtime.ledger.syncSource(source.id,AbortSignal.timeout(600000));
  const fill=runtime.state.receipts().find(e=>e.kind==='fill'&&e.trader===trader);assert.ok(fill,'No verified real fill has been recorded; check source access and recording status');

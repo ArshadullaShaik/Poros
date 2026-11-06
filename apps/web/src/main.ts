@@ -1,5 +1,4 @@
 import {normalizeHandle,resolveProfileReference,profileIdentityPanel,profileEditor,profileSearchForm,profileMatches,publicProfilePage} from './profile-identity.ts';
-import {mountTradeSources} from './trade-history.ts';
 import {readCreatorDirectory,mountCreatorDirectory} from './creator-directory.ts';
 import {strategyQuestions,mountStrategyQuestions,strategyPostBody} from './strategy-post.ts';
 import {zeroGPotPage,mountZeroGPot} from './zero-g-pot.ts';
@@ -63,7 +62,6 @@ class Application {
     strategyCursor: number | null = null;
     communityCursor: number | null = null;
     creatorDirectory?: ReturnType<typeof mountCreatorDirectory>;
-    tradeSources?: ReturnType<typeof mountTradeSources>;
     historyCursor: number | null = null;
     skipped = 0;
     profiles = new Map<string, Profile>();
@@ -251,7 +249,6 @@ class Application {
         return this.api.community.getVoteSummaries({communityKey:room,contentKeys:rows.map(row=>row.key),...(this.account?{viewer:this.account}:{})});
     }
     async render() {
-        this.tradeSources?.dispose(); this.tradeSources=undefined;
         this.creatorMembership.detach();
         this.creatorDirectory?.dispose();
         this.creatorDirectory = undefined;
@@ -282,7 +279,7 @@ class Application {
             else if (route === 'dashboard' || route === 'creator')
                 html = this.dashboardView(route === 'creator');
             else if (route === 'creators')
-                html = heading('Community creators','Creators and profit leaderboard','Discover public strategies, review results, and subscribe to future exclusive signals.') + '<section id="creator-directory"></section>';
+                html = '<h1 class="sr-only">Creators</h1><section id="creator-directory"></section>';
             else if (route === 'compose')
                 html = this.composerView();
             else if (route === 'memberships')
@@ -337,8 +334,6 @@ class Application {
                     creator:new URLSearchParams(location.hash.split('?')[1] ?? '').get('creator') ?? undefined});
             }
             const membershipRoot = content.querySelector<HTMLElement>('#creator-membership');
-            const sourceRoot=content.querySelector<HTMLElement>('#trade-sources');
-            if(route==='profile'&&sourceRoot&&this.host.wallet&&this.account)this.tradeSources=mountTradeSources(sourceRoot,this.host.wallet,this.account);
             const profileWallet = route === 'creator' ? this.account : this.activeProfileWallet;
             if (membershipRoot && profileWallet && walletPattern.test(profileWallet))
                 void this.creatorMembership.mount(membershipRoot,profileWallet as Hex,this.account,!!this.preview);
@@ -465,10 +460,9 @@ class Application {
     }
     dashboardView(creator = false) {
         if(!this.account || this.preview)return heading(creator?'CREATOR DASHBOARD':'YOUR PROFILE',creator?'Become a creator':'Profile',creator?'Anyone can become a creator. Connect your wallet, create a public profile, set up private access, and publish your 30-day membership price.':'Connect your wallet to see membership income and saved trading results.',button('connect','Connect wallet'))+(!creator?profileSearchForm():'');
-        const intro = heading(creator?'CREATOR DASHBOARD':'YOUR PROFILE',creator?'Your creator dashboard':'Your activity',creator?'Set up your creator profile and publish memberships.':'Membership income and trading results, in one place.',button('refresh','Refresh','secondary'))+
-            (creator?'<section class="paper-panel"><h2>Build your creator presence</h2><ol><li><a href="/community#/profile/me">Create or edit your public profile</a>.</li><li>Set up your encryption key below and keep its recovery code.</li><li>Publish your 30-day Sepolia ETH membership price below.</li><li><a href="/community#/compose">Post a strategy</a> for everyone or your paid subscribers.</li></ol><p>Memberships are open to everyone. Public strategy activity improves discovery; finalized Flash results determine your <a href="/community#/creators">profit leaderboard</a> position. Profit is never guaranteed.</p></section><section id="creator-membership" class="paper-panel"></section>':'<p><a class="button primary" href="/community#/creator">Become a creator / Dashboard</a></p>');
-        if (creator) return intro;
-        return intro + '<section id="trade-sources" class="paper-panel" role="region" aria-label="Trading sources">Checking trade recording…</section>' +
+        if(creator)return '<h1 class="sr-only">Creator dashboard</h1><section id="creator-membership" class="paper-panel"></section>';
+        const intro=heading('YOUR PROFILE','Your activity','Membership income and trading results, in one place.',button('refresh','Refresh','secondary'));
+        return intro +
             `<div id="profile-identity">${profileIdentityPanel(null,this.account,true)}</div>`+profileSearchForm()+
             `<section class="profile-metrics" aria-label="Income and profit summary"><article class="paper-panel"><h2>Membership income</h2><strong class="metric-value" id="membership-income">Loading…</strong><p>Sepolia ETH · testnet</p><small>Verified payments in available Arkiv records. Not lifetime income; expired records may be missing.</small></article><article class="paper-panel"><h2>Paper trading profit</h2><strong class="metric-value" id="paper-profit">—</strong><p>Realized P/L · simulated USD</p><small>After simulated fees. Last 100 runs saved in this browser for this wallet. Open positions excluded.</small></article><article class="paper-panel"><h2>Real trading profit</h2><strong class="metric-value" id="real-profit">Loading…</strong><p>Realized fill P/L · by settlement currency</p><small>Verified Arkiv fill records only. Reported fees shown separately; excludes external trades, transfers and open-position gains.</small></article></section>`+
             `<section class="paper-panel"><div class="section-title"><h2>Membership payments</h2><a href="/community#/memberships">Manage memberships →</a></div><div id="income-payments" role="status">Checking payments…</div></section><section class="paper-panel"><h2>Real trading results</h2><div id="real-results" role="status">Reading verified Arkiv fills…</div></section><section class="paper-panel"><div class="section-title"><h2>Recent paper runs</h2><a href="/">Open Trade →</a></div><div id="paper-runs"></div></section>`;
@@ -488,8 +482,6 @@ class Application {
     async mountDashboard(content:HTMLElement,serial:number){
         const account=this.account;
         if(!account || this.preview)return;
-        const sources=content.querySelector<HTMLElement>('#trade-sources');
-        if(sources&&this.host.wallet)this.tradeSources=mountTradeSources(sources,this.host.wallet,account);
         void this.mountProfileIdentity(content,serial,account);
         void this.mountRealPerformance(content,serial,account);
         const money=(value:number)=>new Intl.NumberFormat('en-US',{style:'currency',currency:'USD'}).format(value);
@@ -527,7 +519,7 @@ class Application {
         }catch{
             if(serial!==this.pageSerial || account!==this.account)return;
             content.querySelector('#real-profit')!.textContent='Unavailable';
-            content.querySelector('#real-results')!.textContent='Arkiv trade history is unavailable. Check recording setup and linked sources above, then Refresh.';
+            content.querySelector('#real-results')!.textContent='Arkiv trade history is unavailable. Refresh to try again.';
         }
     }
     async mountCreatorReport(root:HTMLElement,serial:number,wallet:Hex){

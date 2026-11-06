@@ -129,7 +129,7 @@ export function createPriceMonitor({market,now=Date.now,invoke=invokePriceExecut
       if(!validMoney(quotePrice)||quotePrice<condition.minPriceUsd||quotePrice>condition.maxPriceUsd)throw new PaperError("Fresh Flash price is outside the creator’s target range.");
       await orders.revalidate(prepared,condition,activeSignal,fresh.quotePriceUsd??"1.000000",fresh.priceUsd);activeSignal.throwIfAborted();
       const recorder=typeof tradeLedger==="function"?tradeLedger():tradeLedger;
-      if(tradeLedger&&!recorder)throw new PaperError("Configure Arkiv trade recording and link your source in Profile before submitting real trades.");
+      if(tradeLedger&&!recorder)throw new PaperError("Trade recording needs a configured writer and a registered trading source before real orders can be submitted.");
       const intent={wallet:run.wallet!,chainFamily:pairForStrategy(run.strategy).network.family,runId:run.id,actionId:action.id,quoteId:prepared.quoteId,createdAt:now()};
       if(recorder)run.recordingIntent=recorder.trackSubmission(intent);
       run.status="SUBMITTING";run.done.add(action.id);

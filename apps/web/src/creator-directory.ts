@@ -66,9 +66,9 @@ export function mountCreatorDirectory(root:HTMLElement,load:()=>Promise<Awaited<
   const controller=new AbortController();
   root.innerHTML=compact
     ? `<div class="membership-toolbar compact"><a class="button secondary" href="/community#/creator">Become a creator / Dashboard</a><a class="button secondary" href="/community#/creators">Leaderboard &amp; discovery ↗</a><button type="button" class="button secondary" data-directory-refresh>Refresh list</button></div><p data-directory-status class="small muted" role="status"></p><div data-creator-cards class="creator-directory"></div>`
-    : `<div class="membership-toolbar"><a class="button primary" href="/community#/creator">Become a creator / Dashboard</a><a class="button secondary" href="/community#/memberships">My subscriptions</a><button type="button" class="button secondary" data-directory-refresh>Refresh creators</button></div><p>Anyone can publish a membership. Public strategy activity helps readers discover you; verified results determine profit rank.</p><p data-directory-status role="status"></p><div data-creator-cards class="creator-directory"></div><section class="paper-panel"><h2>Profit leaderboard</h2><p>Verified Arkiv fills, ranked separately for each market and network. Higher gross realized P/L ranks first; public strategy count, then community post count, break ties. Paper results and self-reported profits never count.</p><button type="button" class="button secondary" data-profit-load disabled>Load verified profits</button><p data-profit-status role="status">Load on demand to keep browsing fast.</p><label class="field"><span>Compare a market</span><select data-profit-market disabled><option>No verified results loaded</option></select></label><div data-profit-table></div><p class="muted">Ranks compare only verified creators loaded in this directory. Linked-source Arkiv history; incomplete history or missing cost basis is unranked. Fees are reported separately in profiles; gas, external trades and open-position gains are excluded. Results cover available history, not a fixed contest period or proof that a posted strategy caused the profit.</p></section>`;
+    : `<p data-directory-status role="status"></p><div data-creator-cards class="creator-directory"></div><section class="paper-panel"><h2>Profit leaderboard</h2><p>Verified Arkiv fills, ranked separately for each market and network. Higher gross realized P/L ranks first; public strategy count, then community post count, break ties. Paper results and self-reported profits never count.</p><button type="button" class="button secondary" data-profit-load disabled>Load verified profits</button><p data-profit-status role="status">Load on demand to keep browsing fast.</p><label class="field"><span>Compare a market</span><select data-profit-market disabled><option>No verified results loaded</option></select></label><div data-profit-table></div><p class="muted">Ranks compare only verified creators loaded in this directory. Linked-source Arkiv history; incomplete history or missing cost basis is unranked. Fees are reported separately in profiles; gas, external trades and open-position gains are excluded. Results cover available history, not a fixed contest period or proof that a posted strategy caused the profit.</p></section>`;
   const status=root.querySelector<HTMLElement>('[data-directory-status]')!;
-  const refresh=root.querySelector<HTMLButtonElement>('[data-directory-refresh]')!;
+  const refresh=root.querySelector<HTMLButtonElement>('[data-directory-refresh]');
   const profit=root.querySelector<HTMLButtonElement>('[data-profit-load]');
   const market=root.querySelector<HTMLSelectElement>('[data-profit-market]');
   const profitStatus=root.querySelector<HTMLElement>('[data-profit-status]');
@@ -78,7 +78,7 @@ export function mountCreatorDirectory(root:HTMLElement,load:()=>Promise<Awaited<
     root.querySelector('[data-profit-table]')!.innerHTML=ranked.length?`<div class="profile-table-wrap"><table class="profile-table"><thead><tr><th>Rank</th><th>Creator</th><th>Realized P/L</th><th>Public strategies</th><th>Matched sells</th></tr></thead><tbody>${ranked.map((row,i)=>`<tr><td>${i+1}</td><td><a href="/community#/profile/${row.wallet}">${e(row.name)}</a></td><td>${e(row.profit)} ${e(results.flatMap(r=>r.markets).find(m=>m.marketId===market.value)?.currency)}</td><td>${row.strategies}</td><td>${row.sells}</td></tr>`).join('')}</tbody></table></div>`:'<p>No ranked results to display.</p>';
   }
   async function refreshDirectory() {
-    if(disposed||busy)return;busy=true;refresh.disabled=true;if(profit)profit.disabled=true;
+    if(disposed||busy)return;busy=true;if(refresh)refresh.disabled=true;if(profit)profit.disabled=true;
     status.textContent='Reading public creator activity…';
     try {
       const result=await load();if(disposed)return;
@@ -88,11 +88,11 @@ export function mountCreatorDirectory(root:HTMLElement,load:()=>Promise<Awaited<
       if(market){market.innerHTML='<option>No verified results loaded</option>';market.disabled=true;renderRanking();}
       if(profitStatus)profitStatus.textContent='Load on demand to keep browsing fast.';
     } catch {status.textContent='Creator discovery is unavailable. Refresh to try again.';}
-    finally {busy=false;if(!disposed){refresh.disabled=false;if(profit)profit.disabled=!rows.length;}}
+    finally {busy=false;if(!disposed){if(refresh)refresh.disabled=false;if(profit)profit.disabled=!rows.length;}}
   }
   async function loadProfits() {
     if(disposed||busy||!profit||!market||!profitStatus)return;
-    busy=true;profit.disabled=true;refresh.disabled=true;results=[];market.disabled=true;
+    busy=true;profit.disabled=true;if(refresh)refresh.disabled=true;results=[];market.disabled=true;
     root.querySelector('[data-profit-table]')!.textContent='Checking finalized fills…';
     const signal=AbortSignal.any([controller.signal,AbortSignal.timeout(120000)]);
     for(const creator of rows) {
@@ -113,10 +113,10 @@ export function mountCreatorDirectory(root:HTMLElement,load:()=>Promise<Awaited<
     market.innerHTML=markets.size?[...markets].map(([id,row])=>`<option value="${e(id)}">${e(row.chain)} · ${e(row.market)}</option>`).join(''):'<option>No markets available</option>';
     market.disabled=!markets.size;renderRanking();
     profitStatus.textContent=`Checked ${results.length}/${rows.length} creators at ${new Date().toLocaleTimeString()}. ${results.filter(row=>row.error).length} unavailable; ${results.filter(row=>!row.error&&!row.complete).length} incomplete histories. Missing results are excluded, not treated as zero profit.`;
-    busy=false;profit.disabled=false;refresh.disabled=false;
+    busy=false;profit.disabled=false;if(refresh)refresh.disabled=false;
   }
-  refresh.addEventListener('click',refreshDirectory);
+  refresh?.addEventListener('click',refreshDirectory);
   profit?.addEventListener('click',loadProfits);market?.addEventListener('change',renderRanking);
   void refreshDirectory();
-  return {dispose(){disposed=true;controller.abort();refresh.removeEventListener('click',refreshDirectory);profit?.removeEventListener('click',loadProfits);market?.removeEventListener('change',renderRanking);}};
+  return {dispose(){disposed=true;controller.abort();refresh?.removeEventListener('click',refreshDirectory);profit?.removeEventListener('click',loadProfits);market?.removeEventListener('change',renderRanking);}};
 }

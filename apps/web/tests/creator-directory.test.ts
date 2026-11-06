@@ -46,12 +46,14 @@ test('written post authors are discoverable but hidden posts are never counted',
 test('directory waits for an explicit profit request, then ranks verified history and aborts on disposal',async(t)=>{
   const nodes=new Map<string,any>();
   const root={innerHTML:'',querySelector:(selector:string)=>{
+    if(selector==='[data-directory-refresh]')return null;
     if(!nodes.has(selector))nodes.set(selector,{innerHTML:'',textContent:'',value:'base:eth/usdc',disabled:false,handlers:{},addEventListener(name:string,fn:Function){this.handlers[name]=fn;},removeEventListener(name:string){delete this.handlers[name];}});
     return nodes.get(selector);
   }};
   let calls=0,signal:AbortSignal|undefined;
   t.mock.method(globalThis,'fetch',async(_url:unknown,options:RequestInit)=>{assert.match(String(_url),/\/api\/trade-history\/report\?trader=/);calls++;signal=options.signal??undefined;return Response.json({ok:true,data:{...result(a,'5'),provenance:'arkiv'}});});
   const ui=mountCreatorDirectory(root as any,async()=>({rows:[creator()],partial:false}));
+  assert.doesNotMatch(root.innerHTML,/Become a creator \/ Dashboard|My subscriptions|Anyone can publish a membership/);
   await new Promise(resolve=>setImmediate(resolve));assert.equal(calls,0);
   await nodes.get('[data-profit-load]').handlers.click();assert.equal(calls,1);
   assert.match(nodes.get('[data-profit-table]').innerHTML,/5 USDC/);

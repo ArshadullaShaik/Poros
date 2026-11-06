@@ -16,8 +16,13 @@ interface WorkspaceOptions {
   onCreators?: (creators: {id:string;name:string}[]) => void;
 }
 
+export function membershipCreatorCard(creator:string,name:string|undefined,detail:string,action:string){
+  return `<article class="creator-discovery-card"><strong data-creator-name="${e(creator)}">${e(name??short(creator))}</strong><small><code title="${e(creator)}">${e(short(creator))}</code></small><p>${e(detail)}</p><a class="button secondary" href="/profile#/profile/${e(creator)}">View profile</a> <button type="button" class="button primary" data-creator="${e(creator)}">${e(action)}</button></article>`;
+}
+
 export function mountMembershipWorkspace(root: HTMLElement, options: WorkspaceOptions) {
   const names = new Map<string,string>();
+  const activeCreators = new Set<string>();
   let account: Hex | undefined;
   let generation = 0;
   let selected: string | undefined;
@@ -27,9 +32,9 @@ export function mountMembershipWorkspace(root: HTMLElement, options: WorkspaceOp
   const panel = new CreatorMembershipPanel(options.wallet,options.events,options.accessKey,{
     openStrategy:options.openStrategy,getDraft:options.getDraft,saved:() => { void refreshLists(); },
   });
-  root.innerHTML = `<p data-workspace-status role="status"></p><section><h3>Your subscriptions</h3><div data-subscriptions-list>Connect your wallet to load saved memberships.</div></section><section><h3>Creator memberships</h3><div data-plan-list>Reading creator plans…</div></section><form data-creator-search><label class="field"><span>Find a creator by handle</span><input name="creator" required placeholder="creator_handle"></label><button class="button secondary">Find creator</button></form><div data-creator-results></div><p class="muted">Names identify profiles. The connected wallet verifies ownership and receives membership payments. You can also search with a full wallet address.</p><div data-creator-panel></div>`;
+  root.innerHTML = `<p>Choose a creator and buy their 30-day membership. Members do not pay to open individual messages.</p><p data-workspace-status role="status"></p><section><h3>Your subscriptions</h3><div data-subscriptions-list>Connect your wallet to load saved memberships.</div></section><section><h3>Creator memberships</h3><div data-plan-list>Reading creator plans…</div></section><form data-creator-search><label class="field"><span>Find a creator by handle</span><input name="creator" required placeholder="creator_handle"></label><button class="button secondary">Find creator</button></form><div data-creator-results></div><p class="muted">Names identify profiles. The connected wallet verifies ownership and receives membership payments. You can also search with a full wallet address.</p><div data-creator-panel></div>`;
   const status = (message: string) => { root.querySelector('[data-workspace-status]')!.textContent = message; };
-  const card = (creator: string, detail: string) => `<button type="button" class="button secondary membership-card" data-creator="${e(creator)}"><strong data-creator-name="${e(creator)}">${e(names.get(creator) ?? short(creator))}</strong><span>${e(detail)}</span></button>`;
+  const card = (creator: string, detail: string, action='View membership') => membershipCreatorCard(creator,names.get(creator),detail,action);
 
   async function loadNames(creators: string[]) {
     for (let offset=0;offset<creators.length;offset+=4) {
@@ -61,6 +66,7 @@ export function mountMembershipWorkspace(root: HTMLElement, options: WorkspaceOp
     const current = ++generation;
     clearTimeout(timer);
     const connected = account;
+    activeCreators.clear();
     root.querySelector('[data-plan-list]')!.textContent = 'Reading creator plans…';
     root.querySelector('[data-subscriptions-list]')!.textContent = connected ? 'Verifying saved memberships…' : 'Connect your wallet to load saved memberships.';
     options.onCreators?.([]);
@@ -69,7 +75,7 @@ export function mountMembershipWorkspace(root: HTMLElement, options: WorkspaceOp
         const rows = await panel.service.plans();
         if (disposed || current !== generation) return;
         root.querySelector('[data-plan-list]')!.innerHTML = rows.length
-          ? rows.map(plan => card(plan.actor,formatAmount(String(plan.data.priceWei),18)+' Sepolia ETH / 30 days')).join('')
+          ? rows.map(plan => card(plan.actor,formatAmount(String(plan.data.priceWei),18)+' Sepolia ETH / 30 days',plan.actor===connected?'Manage membership':activeCreators.has(plan.actor)?'Open messages':'Buy membership')).join('')
           : '<p>No creator has published a membership price yet.</p>';
         void loadNames(rows.map(row=>row.actor));
       } catch {
@@ -82,10 +88,14 @@ export function mountMembershipWorkspace(root: HTMLElement, options: WorkspaceOp
         const [rows,now] = await Promise.all([panel.service.subscriptions(connected),panel.readers.now()]);
         if (disposed || current !== generation) return;
         const active = rows.filter(row => row.expiresAt > now);
+        for(const row of active)activeCreators.add(row.creator);
         root.querySelector('[data-subscriptions-list]')!.innerHTML = rows.length
-          ? rows.map(row => card(row.creator,(row.expiresAt > now?'Active until ':'Expired ')+new Date(row.expiresAt).toLocaleString())).join('')
+          ? rows.map(row => card(row.creator,(row.expiresAt > now?'Active until ':'Expired ')+new Date(row.expiresAt).toLocaleString(),row.expiresAt>now?'Open messages':'Renew membership')).join('')
           : '<p>This wallet has no verified creator memberships yet.</p>';
         void loadNames(rows.map(row=>row.creator));
+        root.querySelectorAll<HTMLButtonElement>('button[data-creator]').forEach(button=>{
+          if(activeCreators.has(button.dataset.creator??'')&&button.dataset.creator!==connected)button.textContent='Open messages';
+        });
         options.onCreators?.(active.map(row => ({id:row.creator,name:short(row.creator)})));
         if (active.length) timer = setTimeout(() => { void refreshLists(); },Math.min(...active.map(row=>row.expiresAt-now),2147483647));
       } catch {

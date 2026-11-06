@@ -48,9 +48,11 @@ The 0G inference key is saved in this browser's local storage across reloads and
 
 ## Verified live trade recording on Arkiv
 
+The Members tab lists creator profiles, their 30-day membership price, a profile link, and **Buy membership**. Active subscribers get **Open messages**; expired memberships can be renewed. Membership is the purchase: there is no per-message checkout. Opening encrypted messages with a recovery code does not send a payment. Existing publication-time eligibility and encryption checks still apply.
+
 Profile also includes **Set username / Edit username** and public username lookup. Saving uses the existing wallet-approved Arkiv profile write, linking the lowercase handle to its author wallet. Open `/profile#/profile/@username` to retrieve the current profile by handle. Existing shared handles show matching wallet choices instead of silently selecting a different trader. Renaming retains the wallet identity; the previous handle stops matching that wallet's current profile. Profile pages no longer embed community chat; community conversations remain in Communities.
 
-Real execution history has a separate Arkiv ledger. Profiles and the profit leaderboard read records from its configured trusted writer; local receipts and trader-supplied profits are not verified history. A trader links a Flash funding wallet or a Definitive portfolio from **Profile → Verified trading history**. Linking publishes executions, including losses. Unlinking retains attributed records and excludes that incomplete source from ranking. Linking a Solana trading wallet requires its message signature as well as the EVM profile signature. Portfolio access additionally checks the profile against the provider's vault signers.
+Real execution history has a separate Arkiv ledger. Profiles and the profit leaderboard read records from its configured trusted writer; local receipts and trader-supplied profits are not verified history. Trading sources are registered through the wallet-proved source-link API; the setup card is no longer displayed on Profile. Linking publishes executions, including losses. Unlinking retains attributed records and excludes that incomplete source from ranking. Linking a Solana trading wallet requires its message signature as well as the EVM profile signature. Portfolio access additionally checks the profile against the provider's vault signers.
 
 Configure these **server-only** variables in the root `.env.local` or deployment secret store:
 
