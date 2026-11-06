@@ -7,8 +7,6 @@ import {createInjectedWallet} from './wallet.ts';
 import {createCreatorMemberships,createMembershipReaders} from '../../../src/integrations/arkiv/community/index.ts';
 import {readMemberLibrary,readCommunityStrategies,readCommunityPost} from './builder-library.ts';
 import { validateBuilderDocument } from './strategy-document.ts';
-import { mountMembershipWorkspace } from './membership-workspace.ts';
-import type { memberStrategy } from './member-strategy.ts';
 export { builderDocument, validateBuilderDocument } from './strategy-document.ts';
 const integration=typeof window==='undefined'?{}:window.__COMMON_GROUND__;
 const wallet=typeof window==='undefined'?undefined:integration?.wallet??createInjectedWallet();
@@ -27,15 +25,6 @@ export async function readPersonalLibrary(recoveryCode?:string){
   return {...result,account};
 }
 export function subscribeLibraryWallet(listener:()=>void){return wallet?.subscribe(listener)??(()=>{});}
-
-export function mountBuilderMemberships(root: HTMLElement, options: {
-  getDraft: () => unknown;
-  openStrategy: (entry: ReturnType<typeof memberStrategy>) => Promise<void>;
-  onCreators: (creators: {id:string;name:string}[]) => void;
-}) {
-  return mountMembershipWorkspace(root,{...options,wallet,events:api.events,community:api.community,accessKey:integration?.accessKey,
-    creator:new URLSearchParams(location.search).get('creator') ?? undefined});
-}
 
 export function strategyReference(text: string, origin: string): `0x${string}` {
   if (text.length > 2048) throw new Error('Drop a public strategy card.');

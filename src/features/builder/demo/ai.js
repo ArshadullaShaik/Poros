@@ -1,6 +1,15 @@
 export function mountStrategyAi({root = document, getDraft, applyDraft, request = fetch, onKeyChange, interpreterOnly = false}) {
   const $ = id => root.querySelector(`#${id}`);
   let apiKey = "", busy = false, pending, snapshot, controller, sequence = 0;
+  const storageKey = "poros.0g-inference-key";
+  const validKey = key => typeof key === "string" && /^sk-[A-Za-z0-9_-]{8,240}$/.test(key);
+  try {
+    const saved = root.defaultView.localStorage.getItem(storageKey);
+    if (validKey(saved)) {
+      apiKey = saved;
+      $("ai-key-status").textContent = "Saved key restored from this browser. 0G checks it when you ask AI.";
+    }
+  } catch { /* The key can still be used in memory when browser storage is blocked. */ }
   const status = message => { $("ai-status").textContent = message; };
   $("ai-open").addEventListener("click", () => $("ai-dialog").showModal());
   $("ai-close").addEventListener("click", () => $("ai-dialog").close());
@@ -25,14 +34,19 @@ export function mountStrategyAi({root = document, getDraft, applyDraft, request 
     if (busy) return;
     const entered = $("ai-key").value.trim();
     $("ai-key").value = "";
-    if (!/^sk-[A-Za-z0-9_-]{8,240}$/.test(entered)) {
+    if (!validKey(entered)) {
       $("ai-key-status").textContent = "Use an inference key starting with sk-. Management keys are not accepted.";
       return;
     }
     apiKey = entered;
     onKeyChange?.();
     discard();
-    $("ai-key-status").textContent = "Key ready for this tab. 0G checks it when you ask AI.";
+    try {
+      root.defaultView.localStorage.setItem(storageKey, apiKey);
+      $("ai-key-status").textContent = "Key saved in this browser until you forget it. 0G checks it when you ask AI.";
+    } catch {
+      $("ai-key-status").textContent = "Key ready for this tab, but not saved: browser storage is unavailable.";
+    }
     status("Choose an action and ask AI. Each request can spend your 0G balance.");
     refresh();
   });
@@ -44,9 +58,16 @@ export function mountStrategyAi({root = document, getDraft, applyDraft, request 
     onKeyChange?.();
     $("ai-key").value = "";
     $("ai-key-status").textContent = "Key forgotten. Enter it again to use AI.";
+    let removalFailed = false;
+    try { root.defaultView.localStorage.removeItem(storageKey); }
+    catch {
+      removalFailed = true;
+      $("ai-key-status").textContent = "Key cleared from memory, but could not remove the saved key. Retry Forget key or clear this site's browser data.";
+    }
     discard();
     status("Key cleared from this tab. An already accepted request may still be charged by 0G.");
     refresh();
+    if (removalFailed) $("ai-forget").disabled = false;
   });
   $("ai-operation").addEventListener("change", refresh);
   $("ai-discard").addEventListener("click", () => { discard(); status("Proposal discarded. Your draft is unchanged."); });

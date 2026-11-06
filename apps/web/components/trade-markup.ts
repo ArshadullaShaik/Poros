@@ -69,13 +69,12 @@ export const tradeMarkup = `
         <p class="small muted">Creators whose paid memberships are active on the community page.</p>
         <button id="refresh-creator-library" class="button secondary" type="button">Refresh</button>
         <p id="creators-status" class="small muted" role="status"></p>
-        <a href="#memberships">Manage memberships</a>
+        <a href="/community#/memberships">Manage memberships</a>
         <div id="creator-library" class="creator-list"></div>
         <p id="creators-empty" class="library-empty small muted">No active creator memberships to show yet.</p>
         </section>
       </aside>
     </section>
-    <details id="memberships" class="membership-workspace panel"><summary>Memberships and exclusive strategies</summary><p>Connect your membership wallet to restore subscriptions. Unlock a creator feed, then drag a strategy onto the canvas.</p><div id="builder-memberships"></div></details>
     <footer class="page-footer"><p>Review your draft before publishing it publicly.</p><div><button id="publish-community" class="button primary">Publish to community</button><button id="import" class="button secondary">↑ Import JSON</button><button id="export" class="button secondary">↓ Export JSON</button></div></footer>
     <p id="notice" class="notice" role="status" aria-live="polite"></p>
   </main>
@@ -86,7 +85,7 @@ export const tradeMarkup = `
         <button id="ai-use-key" class="button secondary" type="submit">Use key</button>
         <button id="ai-forget" class="button secondary" type="button" disabled>Forget key</button>
       </form>
-      <p id="ai-key-status" class="muted small" role="status">Kept in this tab only. Closing this window keeps the saved key; reloading clears it.</p>
+      <p id="ai-key-status" class="muted small" role="status">Saved in this browser across restarts until you choose Forget key. Scripts running on this site can read browser storage.</p>
       <p class="muted small">Get a dedicated inference key from <a href="https://pc.0g.ai" target="_blank" rel="noopener noreferrer">0G Private Computer</a>. Requests are billed to your account and may use deposited funds. Set a key budget in 0G where available. The interpreter translates text; the separate execution agent follows the validated rules. Live mode uses real funds only after your wallet approval and signature.</p>
       <details class="ai-tools"><summary>Strategy interpreter</summary>
       <form id="ai-form">

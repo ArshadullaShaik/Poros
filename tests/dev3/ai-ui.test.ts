@@ -7,7 +7,8 @@ function setup(request = async () => Response.json({ok: true, data: {
   explanation: "Paper rules", changeSummary: ["Renamed"], warnings: [],
   proposedDraft: {...rsiStrategy, name: "AI version"},
   inferenceMetadata: {mode: "REAL_0G", model: "cheap", totalCostNeuron: "100"},
-}})) {
+}}), storage: Storage = new Map() as any) {
+  if (storage instanceof Map) Object.assign(storage, {getItem(key) {return this.get(key) ?? null;}, setItem(key, value) {this.set(key, value);}, removeItem(key) {this.delete(key);}});
   const controls = new Map<string, any>();
   const ids = ["ai-open", "ai-close", "ai-dialog", "ai-key-form", "ai-key", "ai-key-status", "ai-use-key", "ai-forget", "ai-form", "ai-operation", "ai-prompt", "ai-run", "ai-status", "ai-result", "ai-explanation", "ai-metadata", "ai-draft", "ai-accept", "ai-discard"];
   for (const id of ids) controls.set(`#${id}`, {value: "", textContent: "", hidden: false, disabled: false, handlers: {}, addEventListener(event: string, handler: Function) {this.handlers[event] = handler;}});
@@ -15,11 +16,42 @@ function setup(request = async () => Response.json({ok: true, data: {
   controls.get("#ai-prompt").value = "Rename";
   Object.assign(controls.get("#ai-dialog"), {open: false, showModal() {this.open = true;}, close() {this.open = false; this.handlers.close?.();}});
   let draft = structuredClone(rsiStrategy), applied = 0;
-  mountStrategyAi({root: {querySelector: selector => controls.get(selector)}, getDraft: () => draft, applyDraft: next => {draft = next; applied++;}, request});
+  const ai = mountStrategyAi({root: {defaultView: {localStorage: storage}, querySelector: selector => controls.get(selector)}, getDraft: () => draft, applyDraft: next => {draft = next; applied++;}, request});
   const event = async (id: string, name = "click") => controls.get(`#${id}`).handlers[name]({preventDefault() {}});
   const enterKey = async () => {controls.get("#ai-key").value = "sk-tab-only-test-key"; await event("ai-key-form", "submit");};
-  return {controls, event, enterKey, get draft() {return draft;}, get applied() {return applied;}, edit() {draft = {...draft, name: "Newer manual draft"};}};
+  return {controls, event, enterKey, getKey: ai.getKey, get draft() {return draft;}, get applied() {return applied;}, edit() {draft = {...draft, name: "Newer manual draft"};}};
 }
+
+test("saved keys survive remounts and Forget removes them from future sessions", async () => {
+  const storage = new Map() as any;
+  const first = setup(undefined, storage);
+  await first.enterKey();
+  const restored = setup(undefined, storage);
+  assert.equal(restored.getKey(), "sk-tab-only-test-key");
+  assert.equal(restored.controls.get("#ai-run").disabled, false);
+  assert.equal(restored.controls.get("#ai-key").value, "");
+  await restored.event("ai-forget");
+  assert.equal(restored.getKey(), "");
+  assert.equal(setup(undefined, storage).getKey(), "");
+});
+
+test("invalid stored keys are ignored", () => {
+  const storage = {getItem: () => "invalid-key"} as any;
+  const ui = setup(undefined, storage);
+  assert.equal(ui.getKey(), "");
+  assert.equal(ui.controls.get("#ai-run").disabled, true);
+});
+
+test("blocked storage keeps the key usable but reports that it was not saved", async () => {
+  const storage = {getItem() {throw Error("blocked");}, setItem() {throw Error("blocked");}, removeItem() {throw Error("blocked");}} as any;
+  const ui = setup(undefined, storage);
+  await ui.enterKey();
+  assert.equal(ui.getKey(), "sk-tab-only-test-key");
+  assert.match(ui.controls.get("#ai-key-status").textContent, /not saved/i);
+  await ui.event("ai-forget");
+  assert.equal(ui.getKey(), "");
+  assert.match(ui.controls.get("#ai-key-status").textContent, /could not remove/i);
+});
 
 test("the toolbar icon opens key settings; closing clears unsaved input and retains the saved key", async () => {
   const ui = setup();

@@ -436,22 +436,3 @@ $('#publish-community').addEventListener('click',async()=>{
   } catch(error) { announce(error.message || 'Unable to prepare the public draft.'); }
 });
 if (new URLSearchParams(location.search).has('strategy')) void loadPublicReference(location.href);
-let membershipWorkspace;
-const membershipDetails = $('#memberships');
-async function openMemberships() {
-  if (!membershipDetails.open || membershipWorkspace) return;
-  try {
-    const {mountBuilderMemberships} = await import('../../../../apps/web/src/builder.ts');
-    membershipWorkspace = mountBuilderMemberships($('#builder-memberships'),{
-      getDraft:()=>structuredClone(draft),
-      openStrategy:entry=>executionUI.openUnlockedStrategy(entry),
-      onCreators:creators=>executionUI.setFollowedCreators(creators),
-    });
-  } catch { $('#builder-memberships').textContent = 'Memberships could not load. Open the community and try again.'; }
-}
-membershipDetails.addEventListener('toggle',()=>void openMemberships());
-window.addEventListener('pagehide',()=>membershipWorkspace?.dispose());
-if (new URLSearchParams(location.search).has('creator') || location.hash === '#memberships') {
-  membershipDetails.open = true;
-  void openMemberships();
-}

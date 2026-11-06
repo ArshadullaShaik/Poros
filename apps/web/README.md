@@ -40,6 +40,8 @@ Run this branch locally on both laptops with Node 24 or newer. Each laptop uses 
 
 The builder offers virtual-fund modes and separately wallet-authorized live execution. Live AI requests require the user's 0G key. Private keys and API secrets must stay out of the repository. A failed live read remains an error. Preview content never replaces a failed network request.
 
+The 0G inference key is saved in this browser's local storage across reloads and browser restarts. Forget key removes it. Scripts running on the same site can read it; use a dedicated inference key. If storage is blocked, the key remains usable in memory and the settings report that it was not saved.
+
 ## Checks
 
     npm --prefix src/integrations/arkiv test
