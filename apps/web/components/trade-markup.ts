@@ -7,12 +7,6 @@ export const tradeMarkup = `
     </section>
     <section class="workspace" aria-label="Strategy builder">
       <aside class="palette panel" aria-label="Block palette">
-
-        <section class="live-prices" aria-labelledby="live-prices-title">
-          <div class="panel-title"><h2 id="live-prices-title">Live prices</h2><span class="small-tag">USD</span></div>
-          <p class="tiny muted">Chainlink USD prices. Flash availability is checked before execution.</p>
-        <div id="live-prices-list" class="price-list" aria-label="Live crypto prices"></div><p id="live-prices-status" class="tiny muted" role="status">Loading live prices…</p>
-        </section>
         <div class="panel-title"><h2>Building blocks</h2><span class="small-tag">3 TYPES</span></div>
         <p class="muted small">Drag onto the canvas, or click to add.</p>
         <button class="palette-block indicator" data-kind="signal.price" draggable="true"><span class="block-icon">∿</span><span><strong>Price range</strong><small>When the market meets a rule</small></span><span class="grip" aria-hidden="true">⠿</span></button>
@@ -23,16 +17,17 @@ export const tradeMarkup = `
       </aside>
       <div class="editor-column">
         <div class="canvas-toolbar"><div><span class="canvas-symbol" aria-hidden="true">⌘</span><strong>Strategy canvas</strong></div><div class="view-switch" role="group" aria-label="View"><button id="canvas-view" class="active" aria-pressed="true">Canvas</button><button id="json-view" aria-pressed="false">JSON</button></div></div>
-        <div class="canvas-runbar"><span id="execution-selected" class="tiny muted">Current draft · live monitoring / paper funds</span><div class="heading-actions"><button id="execution-start" class="button primary compact" type="button" aria-describedby="execution-help">Run strategy</button><button id="execution-stop" class="button secondary compact" type="button" disabled>Stop</button></div></div>
-        <details class="execution-settings"><summary>Run settings <span class="small-tag">CHOOSE EXECUTION MODE</span></summary>
-          <label class="field"><span>Execution mode</span><select id="execution-mode"><option value="LIVE">LIVE · 0G agent + connected wallet (real funds)</option><option value="AI" selected>0G execution agent · virtual funds</option><option value="RULES_ONLY">Local live-price monitor (no AI cost)</option></select></label>
-          <div class="execution-limits">
-            <label class="field"><span>Starting virtual cash / live buy spending cap (USD)</span><input id="execution-capital" type="number" value="1000" min="0.000001" max="1000000" step="0.000001"></label>
-            <label class="field"><span>Total turnover limit, including fees (USD)</span><input id="execution-turnover" type="number" value="2000" min="0.000001" max="1000000" step="0.000001"></label>
-            <label class="field"><span>Simulated fee (basis points)</span><input id="execution-fee" type="number" value="10" min="0" max="1000" step="1"></label>
-            <label class="field"><span>Simulated slippage (basis points)</span><input id="execution-slippage" type="number" value="25" min="0" max="500" step="1"></label>
-          </div><p class="tiny muted">100 basis points = 1%. Slippage must fit the strategy limit. Uses current prices and virtual funds. Each action executes once per run. Fees and fills are simulated.</p>
-        </details>
+        <div class="canvas-runbar"><span id="execution-selected" class="tiny muted">Current draft · live monitoring / paper funds</span><div class="heading-actions"><button id="open-run-settings" class="button secondary compact" type="button" aria-haspopup="dialog" aria-controls="run-settings-dialog">Run settings</button><button id="execution-start" class="button primary compact" type="button" aria-describedby="execution-help">Run strategy</button><button id="execution-stop" class="button secondary compact" type="button" disabled>Stop</button></div></div>
+        <section class="price-ticker" aria-label="Live cryptocurrency prices in USD">
+      <button id="live-prices-pause" class="ticker-pause" type="button" aria-pressed="false">Pause scrolling</button>
+      <div class="ticker-viewport" tabindex="0" aria-label="Scrolling live crypto prices">
+        <div class="ticker-track">
+          <div id="live-prices-list" class="ticker-prices" aria-label="Live crypto prices"></div>
+          <div id="live-prices-copy" class="ticker-prices" aria-hidden="true" inert></div>
+        </div>
+      </div>
+      <p id="live-prices-status" class="ticker-status" role="status">Loading live prices…</p>
+    </section>
 
         <p id="creator-text" class="tiny muted"></p>
         <p id="execution-help" class="run-help tiny muted"></p>
@@ -116,6 +111,18 @@ export const tradeMarkup = `
       </div>
       </details>
     </dialog>
+  <dialog id="run-settings-dialog" class="strategy-dialog run-settings-dialog" aria-labelledby="run-settings-title">
+    <div class="dialog-heading"><h2 id="run-settings-title">Run settings</h2><button id="close-run-settings" class="icon-button" type="button" aria-label="Close run settings">×</button></div>
+        <section class="execution-settings">
+          <label class="field"><span>Execution mode</span><select id="execution-mode"><option value="LIVE">LIVE · 0G agent + connected wallet (real funds)</option><option value="AI" selected>0G execution agent · virtual funds</option><option value="RULES_ONLY">Local live-price monitor (no AI cost)</option></select></label>
+          <div class="execution-limits">
+            <label class="field"><span>Starting virtual cash / live buy spending cap (USD)</span><input id="execution-capital" type="number" value="1000" min="0.000001" max="1000000" step="0.000001"></label>
+            <label class="field"><span>Total turnover limit, including fees (USD)</span><input id="execution-turnover" type="number" value="2000" min="0.000001" max="1000000" step="0.000001"></label>
+            <label class="field"><span>Simulated fee (basis points)</span><input id="execution-fee" type="number" value="10" min="0" max="1000" step="1"></label>
+            <label class="field"><span>Simulated slippage (basis points)</span><input id="execution-slippage" type="number" value="25" min="0" max="500" step="1"></label>
+          </div><p class="tiny muted">100 basis points = 1%. Slippage must fit the strategy limit. Uses current prices and virtual funds. Each action executes once per run. Fees and fills are simulated.</p>
+        </section>
+  </dialog>
   <dialog id="strategy-settings" class="strategy-dialog" aria-labelledby="strategy-settings-title">
     <div class="dialog-heading"><h2 id="strategy-settings-title">Strategy settings</h2><button id="close-strategy-settings" class="icon-button" type="button" aria-label="Close strategy settings">×</button></div>
     <section id="validation" class="validation" aria-labelledby="validation-title" aria-live="polite" hidden>

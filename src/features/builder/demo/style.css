@@ -38,3 +38,26 @@ main{max-width:1700px;padding:36px 42px 20px;margin:auto}.page-heading{display:f
 .membership-workspace{padding:20px;margin:24px 0}.membership-workspace>summary{font-weight:600;cursor:pointer}.membership-workspace p{font-size:13px;line-height:1.6}.membership-workspace section{margin:20px 0}.membership-workspace .paper-panel{border:1px solid var(--line);border-radius:10px;padding:20px}.membership-workspace .field{display:grid;gap:8px;margin:14px 0}.membership-workspace textarea{width:100%;min-height:110px}.membership-workspace input{max-width:100%}.membership-workspace .check-field{display:flex;gap:8px;margin:14px 0}.membership-workspace .preserve{white-space:pre-wrap;overflow-wrap:anywhere}
 
 @media(max-width:740px){.topbar{flex-wrap:wrap;height:auto;gap:12px;padding-block:12px}.primary-nav{flex-wrap:wrap;gap:12px}}
+
+.price-ticker { position: relative; margin: 0 0 24px; background: #fff; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+.ticker-viewport { overflow: hidden; }
+.ticker-track { display: flex; width: max-content; animation: price-scroll 65s linear infinite; }
+.ticker-prices { display: flex; flex-shrink: 0; }
+.ticker-prices .price-row { flex: 0 0 170px; width: 170px; gap: 12px; padding: 16px; border: 0; border-right: 1px solid var(--line); white-space: nowrap; }
+.ticker-prices .price-symbol { color: var(--muted); font-size: 11px; }
+.ticker-prices .price-value { font-size: 12px; font-variant-numeric: tabular-nums; }
+.price-ticker.paused .ticker-track, .ticker-viewport:hover .ticker-track, .ticker-viewport:focus-within .ticker-track { animation-play-state: paused; }
+@keyframes price-scroll { to { transform: translateX(-50%); } }
+@media (prefers-reduced-motion: reduce) {
+  .ticker-track { animation: none; }
+  .ticker-viewport { overflow-x: auto; }
+  #live-prices-copy, #live-prices-pause { display: none; }
+}
+@media (max-width: 760px) {
+  .ticker-prices .price-row { padding: 14px 12px; }
+}
+
+.run-settings-dialog .execution-settings { margin: 0; padding: 0; border: 0; }
+
+.ticker-pause { position: absolute; right: 6px; top: 6px; z-index: 1; border: 1px solid var(--line); border-radius: 5px; padding: 5px 8px; background: white; color: var(--blue); font-size: 11px; }
+.ticker-status, .ticker-pause:not(:focus-visible) { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; border: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }

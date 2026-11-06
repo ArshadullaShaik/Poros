@@ -56,3 +56,11 @@ h1, h2, h3 { font-family: var(--sans); }
 
 .hero-footnote .poros-mark { width: 14px; height: 14px; }
 .poros-brand > span:first-child { display: flex; }
+
+html { scroll-behavior: smooth; }
+#main > main, #content > * { animation: poros-page-in 220ms ease-out; }
+@keyframes poros-page-in { from { opacity: 0; transform: translateY(6px); } }
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  #main > main, #content > * { animation: none; }
+}

@@ -11,6 +11,8 @@ import { mountCommunityLibrary, mountLibraryTabs, mountMemberLibrary } from "./c
 const $ = selector => document.querySelector(selector);
 const canvas = $("#canvas");
 const dialog = $("#import-dialog");
+$("#open-run-settings").addEventListener("click", () => $("#run-settings-dialog").showModal());
+$("#close-run-settings").addEventListener("click", () => $("#run-settings-dialog").close());
 const kinds = {
   "signal.price": {label: "Price range", className: "indicator", icon: "$"},
   "guard.risk": {label: "Risk limit", className: "guard", icon: "◇"},
