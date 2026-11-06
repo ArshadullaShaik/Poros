@@ -1,7 +1,7 @@
 import {zeroGPotPage} from './zero-g-pot.ts';
 import {readPaperRuns} from './performance.ts';
 import serialize from 'canonicalize';
-import {archiveUnsubmittedWrite} from './pending-write.ts';
+import {archiveUnsubmittedWrite,createPendingWriteChecker} from './pending-write.ts';
 import {createPublicReadCache,browserStorage,cachedPublicLists,validProfile} from './public-cache.ts';
 import { keccak256, toBytes, type Hex } from 'viem';
 import type { CommunityDTO, StrategySummaryDTO, VersionDTO, Json, StrategyDocumentV1 } from '../../../src/integrations/arkiv/index.ts';
@@ -60,6 +60,23 @@ class Application {
     skipped = 0;
     profiles = new Map<string, Profile>();
     pending: PendingWrite | undefined;
+    pendingCheckMessage = '';
+    pendingChecking = false;
+    verifyPendingWrite = createPendingWriteChecker(async () => {
+        await this.reconcile(true);
+        return !this.pending;
+    }, (request, state) => {
+        if (!this.pending || request !== this.pending.account + ':' + this.pending.requestId) return;
+        this.pendingChecking = state === 'checking';
+        this.pendingCheckMessage = {
+            checking: 'Checking transaction automatically…',
+            waiting: 'Waiting for Arkiv confirmation. Checking automatically…',
+            retrying: 'Verification is delayed. Retrying automatically…',
+            review: 'Verification needs review. Use Check status for details.',
+            verified: '',
+        }[state];
+        this.updateChrome();
+    });
     activeCommunity: CommunityDTO | undefined;
     activeVersion: VersionDTO | undefined;
     activeListing: Listing | undefined;
@@ -164,7 +181,7 @@ class Application {
                 item.removeAttribute('aria-current');
         });
         document.querySelector('#rooms')!.innerHTML = this.rooms.length ? this.rooms.slice(0, 5).map((room, i) => `<a href="#/community/${room.communityKey}"><span class="room-dot dot-${i % 3}"></span>${e(room.name)}</a>`).join('') : '<a href="#/communities">' + icon('plus') + ' Find a community</a>';
-        document.querySelector('#pending')!.innerHTML = this.pending ? `<div class="pending-bar">${icon('info')}<span>A write needs verification. ${e(short(this.pending.requestId))}</span>${button('reconcile', 'Check status', 'secondary')}${!this.pending.txHash && !this.pending.entityKey ? button('recover-write', 'No transaction?', 'secondary') : ''}</div>` : '';
+        document.querySelector('#pending')!.innerHTML = this.pending ? `<div class="pending-bar">${icon('info')}<span role="status">${e(this.pending.account !== this.account ? 'Connect the original wallet to verify this write.' : this.pendingCheckMessage || 'Transaction verification starts automatically.')} ${e(short(this.pending.requestId))}</span>${button('reconcile', 'Check status', 'secondary', this.pendingChecking ? 'disabled' : '')}${!this.pending.txHash && !this.pending.entityKey ? button('recover-write', 'No transaction?', 'secondary') : ''}</div>` : '';
         if (this.lastHidden && this.lastHidden.owner === this.account)
             document.querySelector('#pending')!.insertAdjacentHTML('beforeend', `<div class="pending-bar">${icon('shield')}<span>Content hidden from the community view.</span>${button('unhide', 'Undo hide', 'secondary', `data-key="${this.lastHidden.key}" data-room="${this.lastHidden.room}"`)}</div>`);
     }
@@ -547,6 +564,9 @@ class Application {
         return html + (orders.length ? `<div class="purchase-list">${orders.map(order => `<article class="purchase-row"><div>${icon(order.transactionHash ? 'lock' : 'book')}</div><span><strong>${e(order.listing.title)}</strong><small>${e(short(order.orderId))} · ${e(formatAmount(order.listing.amount, order.listing.currency.decimals))} token units</small></span>${tag(order.transactionHash ? 'Previously settled' : 'Awaiting payment', order.transactionHash ? 'green' : '')}${order.transactionHash ? button('download', 'Open package', 'secondary', `data-package="${e(order.listing.packageId)}" data-hash="${e(order.listing.contentHash)}"`) : button('resume', 'Recover order', 'secondary', `data-order="${e(order.orderId)}"`)}</article>`).join('')}</div>` : empty('Room for your first discovery.', 'No orders are associated with this wallet yet.', link('/marketplace', 'Browse private strategies', 'secondary'))) + notice('Previously settled orders are checked again at download. A reorg or unavailable RPC can temporarily block delivery.');
     }
     async poll() {
+        if (!document.hidden && navigator.onLine && !this.busy && !this.preview && this.pending && this.pending.account === this.account) {
+            void this.verifyPendingWrite(this.pending.account + ':' + this.pending.requestId);
+        }
         if (document.hidden || !navigator.onLine || this.polling || this.busy || this.dialog?.open || Date.now() < this.nextPoll || this.route()[0] !== 'community' || !this.activeCommunity)
             return;
         const room = this.activeCommunity;
@@ -634,6 +654,7 @@ class Application {
         }
     }
     persistPending() {
+        if (!this.pending) this.pendingChecking = false;
         try {
             if (this.pending)
                 localStorage.setItem('common-ground.pending-write', JSON.stringify(this.pending));
@@ -660,6 +681,7 @@ class Application {
             const generation = this.generation;
             const requestId = crypto.randomUUID();
             this.pending = { account, requestId, kind, expected, ...(scope ? { scope } : {}) };
+            this.pendingCheckMessage = '';
             this.persistPending();
             try {
                 const result = await operation(requestId);
@@ -687,13 +709,15 @@ class Application {
             }
         }, navigator.locks);
     }
-    async reconcile() {
+    async reconcile(automatic = false) {
         const pending = this.pending;
         if (!pending)
             return;
         if (await this.requireAccount() !== pending.account)
             failure('ACCOUNT_CHANGED');
+        const generation = this.generation;
         return withWalletLock(async () => {
+            this.ensureGeneration(generation);
             let stored: PendingWrite | undefined;
             try {
                 const raw = localStorage.getItem('common-ground.pending-write');
@@ -722,7 +746,7 @@ class Application {
                 if (found.state === 'duplicates')
                     failure('DUPLICATE_REQUEST');
                 if (found.state === 'absent') {
-                    this.toast('No record found yet. The write remains locked; absence is not proof of failure.');
+                    if (!automatic) this.toast('No record found yet. The write remains locked; absence is not proof of failure.');
                     return;
                 }
                 if (pending.kind === 'community') {
@@ -741,19 +765,22 @@ class Application {
                 if (rows.length > 1)
                     failure('DUPLICATE_REQUEST');
                 if (!rows.length) {
-                    this.toast('No record found yet. Check again after the network catches up.');
+                    if (!automatic) this.toast('No record found yet. Check again after the network catches up.');
                     return;
                 }
                 const row = rows[0]!;
                 if (row.type !== pending.kind || pending.scope && row.scope !== pending.scope || Object.entries(pending.expected).some(([key, value]) => serialize(row.data[key]) !== serialize(value)))
                     failure('INTEGRITY_FAILED');
             }
+            this.ensureGeneration(generation);
             this.pending = undefined;
+            this.pendingCheckMessage = '';
             this.persistPending();
-            this.closeDialog();
+            if (!automatic) this.closeDialog();
             this.publicCache.clear();
             this.toast('Stored data matches the original intent. No second transaction was sent.');
-            await this.render();
+            if (automatic) this.refreshPublicView();
+            else await this.render();
         }, navigator.locks);
     }
     async requireMarket() {
