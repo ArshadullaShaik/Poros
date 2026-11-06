@@ -47,7 +47,7 @@ export function createPriceMonitor({market,now=Date.now,invoke=invokePriceExecut
       if(data.stale||!validMoney(Number(data.priceUsd)))throw new PaperError("Live prices are missing or stale. Run paused.");
       const activeOrder=run.liveOrders.find(order=>!["ORDER_STATUS_FILLED","ORDER_STATUS_CANCELLED","ORDER_STATUS_REJECTED","ORDER_STATUS_TERMINATED"].includes(order.status));
       if(activeOrder){
-        const orderStatus=await orders.status(activeOrder.orderId,activeSignal);
+        const orderStatus=await orders.status(activeOrder.orderId,run.wallet,activeSignal);
         activeSignal.throwIfAborted();activeOrder.status=orderStatus;
         if(["ORDER_STATUS_CANCELLED","ORDER_STATUS_REJECTED","ORDER_STATUS_TERMINATED"].includes(activeOrder.status))throw new PaperError("Flash order ended without a complete fill. Inspect the order before starting a new run.");
         if(activeOrder.status!=="ORDER_STATUS_FILLED"){run.message=`Flash order ${activeOrder.orderId}: ${activeOrder.status}. Submission is not a confirmed fill.`;return view(run);}

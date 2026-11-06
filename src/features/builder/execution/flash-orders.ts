@@ -84,9 +84,10 @@ export function createFlashOrders({fetcher=fetch,now=Date.now,apiKey=process.env
     if(typeof result?.orderId!=="string"||!/^[-\w]{1,128}$/.test(result.orderId))throw new FlashError("Flash did not return a valid order ID. Check wallet orders before retrying.");
     return result.orderId;
   }
-  async function status(id:string,signal?:AbortSignal){
+  async function status(id:string,funderAddress:string,signal?:AbortSignal){
     if(!/^[-\w]{1,128}$/.test(id))throw new FlashError("Invalid Flash order ID.");
-    const result=await request(`/orders/${encodeURIComponent(id)}`,undefined,signal),status=result?.order?.status;
+    if(!address(funderAddress)&&!(typeof funderAddress==="string"&&/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(funderAddress)))throw new FlashError("A valid funding wallet is required to check Flash orders.");
+    const result=await request(`/orders/${encodeURIComponent(id)}?funderAddress=${encodeURIComponent(funderAddress)}`,undefined,signal),status=result?.order?.status;
     if(typeof status!=="string"||!/^ORDER_STATUS_(PENDING|ACCEPTED|PARTIALLY_FILLED|FILLED|CANCELLED|REJECTED|TERMINATED)$/.test(status))throw new FlashError("Flash returned an unknown order status.");
     return status;
   }

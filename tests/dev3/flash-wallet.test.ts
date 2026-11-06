@@ -50,7 +50,7 @@ test("live monitor waits for a signature, submits once and only reports completi
   let clock=time,submits=0;
   const market={refresh:async()=>market.read(),read:()=>({priceUsd:"2050.000000",stale:false})};
   const prepared={...validateWalletQuote(quote(),order,time),order,side:"BUY",notionalUsd:"20.000000",expectedReceive:"0.01",effectivePriceUsd:"2000.000000"};
-  const monitor=createPriceMonitor({market,now:()=>clock,invoke:async({execute}:any)=>({fill:await execute(),inference:{model:"fake"}}),orders:{prepare:async()=>prepared,revalidate:async()=>{},submit:async()=>{submits++;return "ord-live";},status:async()=>"ORDER_STATUS_FILLED"}});
+  const monitor=createPriceMonitor({market,now:()=>clock,invoke:async({execute}:any)=>({fill:await execute(),inference:{model:"fake"}}),orders:{prepare:async()=>prepared,revalidate:async()=>{},submit:async()=>{submits++;return "ord-live";},status:async(id:string,funder:string,signal:AbortSignal)=>{assert.equal(id,"ord-live");assert.equal(funder,wallet);assert.ok(signal instanceof AbortSignal);return "ORDER_STATUS_FILLED";}}});
   const start=monitor.start({mode:"LIVE",wallet,strategy:{...structuredClone(priceStrategy),riskPolicy:{...priceStrategy.riskPolicy,paperTradingOnly:false}},initialCashUsd:100,maxTurnoverUsd:100,feeBps:0,slippageBps:25});
   const ready=await monitor.check(start.id,"sk-test-wallet-key");assert.equal(ready.status,"AWAITING_WALLET");assert.equal(ready.orders.length,0);assert.equal(submits,0);
   const submitted=await monitor.submit(start.id,"0x"+"a".repeat(130));assert.equal(submitted.status,"WAITING");assert.equal(submitted.liveOrders[0].status,"ORDER_STATUS_PENDING");assert.equal(submits,1);
@@ -90,4 +90,17 @@ test('a market-price rule prepares the exact small live order and still requires
   const prepared=await orders.prepare({action:{side:'BUY',notionalUsd:0.1},condition:marketPriceBounds,funderAddress:wallet,priceUsd:'2750.000000',maxSlippageBps:50});
   assert.equal(prepared.order.qty,'0.100000');assert.equal(prepared.notionalUsd,'0.100000');assert.equal(prepared.effectivePriceUsd,'2500.000000');
   assert.equal(JSON.parse(prepared.typedData).message.fromAmount,'100000');assert.equal(submissions,0);
+});
+
+test('Flash order status includes the funding wallet required by the API',async()=>{
+  const id='11111111-2222-4333-8444-555555555555';
+  const orders=createFlashOrders({fetcher:async(url:any)=>{
+    const request=new URL(String(url));
+    return request.searchParams.get('funderAddress')===wallet?Response.json({order:{status:'ORDER_STATUS_FILLED'}}):Response.json({error:{code:'INVALID_ARGUMENT',message:'funderAddress is required'}},{status:400});
+  }});
+  assert.equal(await orders.status(id,wallet),'ORDER_STATUS_FILLED');
+  const solanaWallet='11111111111111111111111111111111';
+  const solana=createFlashOrders({fetcher:async(url:any)=>new URL(String(url)).searchParams.get('funderAddress')===solanaWallet?Response.json({order:{status:'ORDER_STATUS_FILLED'}}):Response.json({},{status:400})});
+  assert.equal(await solana.status(id,solanaWallet),'ORDER_STATUS_FILLED');
+  await assert.rejects(orders.status(id,''),/wallet/i);
 });
