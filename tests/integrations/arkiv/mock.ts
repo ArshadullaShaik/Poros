@@ -35,25 +35,23 @@ export class MemoryBackend implements Backend {
     const receipt = (entityKey: Key) => ({ entityKey, txHash: `0x${(++this.signed).toString(16).padStart(64,'0')}` as Key });
     return {
       account, assertCurrent: () => guard(),
-      create: async (kind, values, readonly, durationDays) => {
+      create: async (kind, values, readonly) => {
         await guard(); this.block++;
         const key = `0x${(++this.counter).toString(16).padStart(64,'0')}` as Key;
         const result = receipt(key);
-        const addedBlocks = BigInt(durationDays ? durationDays * 7200 : 1_296_000);
         this.entities.set(key, { kind, key, creator: account, owner: account, createdAt: this.block,
-          expiresAt: this.block+addedBlocks, readonly, permissionlessExtension: false, values:structuredClone(values) });
+          expiresAt: this.block+1_296_000n, readonly, permissionlessExtension:false, values:structuredClone(values) });
         if (this.timeoutAfterCreate) { this.timeoutAfterCreate=false; throw new StorageError('WRITE_STATUS_UNKNOWN', undefined, {txHash:result.txHash}); }
         if (this.failReadAfterCreate) this.unavailable=true;
-        return { ...result, expiresAt:this.block+addedBlocks };
+        return { ...result, expiresAt:this.block+1_296_000n };
       },
       patch: async (key, values) => {
         await guard(key); const e = this.entities.get(key)!;
         if (e.readonly) throw new StorageError('TRANSACTION_FAILED');
         Object.assign(e.values,structuredClone(values)); this.block++; return receipt(key);
       },
-      extend: async (key, durationDays) => { await guard(key); const e=this.entities.get(key)!; this.block++;
-        const addedBlocks = BigInt(durationDays ? durationDays * 7200 : 1_296_000);
-        e.expiresAt=this.block+addedBlocks; return {...receipt(key),expiresAt:e.expiresAt}; },
+      extend: async key => { await guard(key); const e=this.entities.get(key)!; this.block++;
+        e.expiresAt=this.block+1_296_000n; return {...receipt(key),expiresAt:e.expiresAt}; },
       delete: async key => { await guard(key); this.entities.delete(key);this.block++;return receipt(key); },
     };
   }

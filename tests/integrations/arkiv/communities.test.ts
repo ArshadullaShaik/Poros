@@ -32,18 +32,6 @@ test('renewal is a no-op early and extends from current block near expiry',async
   backend.block+=1_296_001n;
   await assert.rejects(store.getCommunity({communityKey:c.communityKey}),{code:'NOT_FOUND_OR_EXPIRED'});
 });
-test('community lifetime is configurable and only its owner can extend it',async()=>{
-  const {store,backend}=createMockArkivStore({account:alice});
-  const c=value(await store.createCommunity({requestId:request,name:'Expiring group',description:'',durationDays:30}));
-  assert.equal(BigInt(c.expiresAtBlock),backend.block + 216_000n);
-  backend.account=bob;
-  backend.block=BigInt(c.expiresAtBlock)-100n;
-  await assert.rejects(store.extendOwnedEntity({entityKey:c.communityKey,durationDays:90}),{code:'NOT_OWNER'});
-  backend.account=alice;
-  const extension=await store.extendOwnedEntity({entityKey:c.communityKey,durationDays:90});
-  assert.equal(extension.state,'extended');
-  if(extension.state==='extended')assert.equal(BigInt(extension.receipt.expiresAtBlock),backend.block + 648_000n);
-});
 test('pagination advances past a malformed page instead of ending the feed',async()=>{
   const {store,backend}=createMockArkivStore({account:alice});
   const c=value(await store.createCommunity({requestId:request,name:'First',description:''}));
@@ -75,22 +63,5 @@ test('renewal rejects other wallets and expired records without signing',async()
  assert.equal(backend.signed,1);
  backend.account=alice;backend.block=BigInt(c.expiresAtBlock);
  await assert.rejects(store.extendOwnedEntity({entityKey:c.communityKey}),{code:'NOT_FOUND_OR_EXPIRED'});
- assert.equal(backend.signed,1);
-});
-
-test('merged lifetime options reject invalid durations before signing and keep legacy communities readable',async()=>{
- const {store,backend}=createMockArkivStore({account:alice});
- for(const durationDays of [0,-1,1.5,181,Infinity,NaN,'30']){
-  await assert.rejects(store.createCommunity({requestId:id(80),name:'Invalid',description:'',durationDays} as never),{code:'INVALID_INPUT'});
- }
- assert.equal(backend.signed,0);
- const c=value(await store.createCommunity({requestId:id(81),name:'Compatible',description:'',durationDays:180}));
- assert.equal(backend.entities.get(c.communityKey)!.permissionlessExtension,false);
- backend.entities.get(c.communityKey)!.permissionlessExtension=true;
- assert.equal((await store.getCommunity({communityKey:c.communityKey})).name,'Compatible');
- backend.block=BigInt(c.expiresAtBlock)-10n;
- for(const durationDays of [0,181,1.5,Infinity])await assert.rejects(store.extendOwnedEntity({entityKey:c.communityKey,durationDays}),{code:'INVALID_INPUT'});
- backend.account=bob;
- await assert.rejects(store.extendOwnedEntity({entityKey:c.communityKey,durationDays:180}),{code:'NOT_OWNER'});
  assert.equal(backend.signed,1);
 });

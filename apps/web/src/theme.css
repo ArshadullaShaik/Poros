@@ -403,3 +403,18 @@ button, input, select, textarea { font-family: var(--sans); font-size: 14px; lin
 .app-layout .chat-disclosure, .app-layout .message-meta small, .app-layout .profile-table th, .app-layout .history-row small { font-size: 12px; line-height: 1.5; }
 .community-lifetime { display: block; font-variant-numeric: tabular-nums; min-height: 1.5em; color: var(--muted); }
 .transaction-link { font: 12px/1.5 var(--mono); overflow-wrap: anywhere; text-decoration: underline; }
+
+/* Community timer display from the incoming update. */
+.community-timer {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: #f0f4fa;
+  border: 1px solid #d2deed;
+  border-radius: 6px;
+  padding: 3px 9px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #2c4a70;
+  font-variant-numeric: tabular-nums;
+}

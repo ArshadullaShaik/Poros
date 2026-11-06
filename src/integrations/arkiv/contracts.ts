@@ -68,11 +68,11 @@ export interface ArkivStore {
   forkVersion(input: { requestId: string; sourceVersionKey: Hex; document: unknown; communityKey?: Hex }): Promise<CreateResult<VersionDTO>>;
   listCommunities(input?: { creator?: Hex; page?: PageInput }): Promise<Page<CommunityDTO>>;
   getCommunity(input: { communityKey: Hex }): Promise<CommunityDTO>;
-  createCommunity(input: { requestId: string; name: string; description: string; durationDays?: number }): Promise<CreateResult<CommunityDTO>>;
+  createCommunity(input: { requestId: string; name: string; description: string }): Promise<CreateResult<CommunityDTO>>;
   updateCommunity(input: { communityKey: Hex; name: string; description: string }): Promise<WriteReceipt<CommunityDTO>>;
   listPosts(input: { communityKey: Hex; page?: PageInput }): Promise<Page<PostDTO>>;
   createPost(input: { requestId: string; communityKey: Hex; strategyVersionKey?: Hex; body: string }): Promise<CreateResult<PostDTO>>;
-  extendOwnedEntity(input: { entityKey: Hex; durationDays?: number }): Promise<RenewResult>;
+  extendOwnedEntity(input: { entityKey: Hex }): Promise<RenewResult>;
   deleteOwnedEntity(input: { entityKey: Hex }): Promise<{ entityKey: Hex; txHash: Hex; source: Source; readBackMissing: true }>;
   reconcileRequest(input: { creator: Hex; requestId: string }): Promise<{ state: 'absent' | 'one' | 'duplicates'; entityKeys: Hex[]; source: Source }>;
 }

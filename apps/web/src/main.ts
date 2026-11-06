@@ -1138,8 +1138,14 @@ class Application {
         }
         if(action==='extend-community' && this.activeCommunity){
             const room=this.activeCommunity;
-            if(this.preview || await this.requireAccount()!==room.owner)failure('NOT_OWNER');
-            this.openDialog('Extend community expiration', `<form data-form="extend-community"><p>Only the verified owner can extend this community. This sets the remaining lifetime from confirmation, up to 180 days; it does not add days to the old expiry.</p><p>Current expiration: block ${e(room.expiresAtBlock)}</p><label class="field"><span>Remaining lifetime</span><select name="duration"><option value="7">7 days</option><option value="30">30 days</option><option value="60">60 days</option><option value="90">90 days</option><option value="180" selected>180 days</option></select></label>${notice('An extension must move expiry forward. Expired communities cannot be restored. Review the Rabdi gas transaction in your wallet.')}<p class="form-error" role="alert"></p><button class="button primary">Review extension in wallet</button></form>`);return;
+            this.openDialog('Extend community lifetime',notice('Only the verified owner can extend this community. Renewal is available in its final 302,400 blocks (about 7 days), sets a new 180-day lifetime, and uses Rabdi gas. Expired records cannot be restored.')+button('confirm-extension','Review in wallet'));return;
+        }
+        if(action==='confirm-extension' && this.activeCommunity){
+            const room=this.activeCommunity;
+            await this.busyAction(async()=>{
+                const result=await this.write('community-extension',{expiresAtBlock:room.expiresAtBlock},()=>this.api.strategies.extendOwnedEntity({entityKey:room.communityKey}),room.communityKey);
+                if(result.state==='unchanged')this.toast('No transaction needed. Extension becomes available near expiry.');
+            });return;
         }
         if (action === 'share-strategy' && this.activeVersion) {
             const version = this.activeVersion;
@@ -1296,16 +1302,9 @@ class Application {
             }
             else if (kind === 'community') {
                 const name = checkedText(value('name').trim(), 1, 80), description = checkedText(value('description'), 0, 4096);
-                const durationDays = Number(value('duration')) || 180;
-                const result = await this.write('community', { name, description, durationDays }, requestId => this.api.strategies.createCommunity({ requestId, name, description, durationDays }));
+                const result = await this.write('community', { name, description }, requestId => this.api.strategies.createCommunity({ requestId, name, description }));
                 const communityKey = result.state === 'written' ? result.receipt.entityKey : result.entityKey;
                 location.hash = '/community/' + communityKey;
-            }
-            else if (kind === 'extend-community') {
-                const room=this.activeCommunity!;
-                if(await this.requireAccount()!==room.owner)failure('NOT_OWNER');
-                const durationDays=Number(value('duration'));
-                await this.write('community-extension',{expiresAtBlock:room.expiresAtBlock,durationDays},()=>this.api.strategies.extendOwnedEntity({entityKey:room.communityKey,durationDays}),room.communityKey);
             }
             else if (kind === 'edit-community') {
                 const account = await this.requireAccount();

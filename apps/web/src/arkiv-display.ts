@@ -13,4 +13,4 @@ export function remainingLifetime(expiry:string,clock:ChainClock|undefined,now=D
   if(seconds===0)return 'Expired — awaiting chain refresh';
   return `~${Math.floor(seconds/86400)}d ${Math.floor(seconds%86400/3600)}h ${Math.floor(seconds%3600/60)}m ${seconds%60}s remaining`;
 }
-export function lifetime(expiry:string,preview=false){return `<span class="community-lifetime" ${preview?'':`data-expiry="${e(expiry)}"`}>${preview?'Preview lifetime': 'Checking remaining lifetime…'}</span>`;}
+export function lifetime(expiry:string,preview=false){return `<span class="community-lifetime community-timer" title="Expires at Arkiv block ${e(expiry)}" ${preview?'':`data-expiry="${e(expiry)}"`}>${preview?'Preview lifetime': 'Checking remaining lifetime…'}</span>`;}
