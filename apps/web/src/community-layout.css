@@ -1,0 +1,186 @@
+/* Each community workspace owns its scroll area below the shared navigation. */
+.community-shell {
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.community-shell > .poros-header { flex: none; }
+.community-shell > #app, .app-layout { flex: 1; min-height: 0; min-width: 0; }
+.community-shell > #app { display: flex; flex-direction: column; }
+.preview-banner, .workspace-foot { flex: none; }
+.preview-banner { min-height: 30px; padding: 4px 16px; border-color: var(--line); font-size: 12px; }
+.app-layout > main, .app-layout.standalone-page > main {
+  width: 100%;
+  height: 100%;
+  max-width: 1540px;
+  margin: 0 auto;
+  padding: clamp(16px, 2.4vw, 36px);
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: #bac5d5 transparent;
+  scroll-padding: 18px;
+}
+#content { min-height: 0; }
+#pending:empty, #public-cache-status:empty { display: none; }
+#main > #public-cache-status:not(:empty) { margin: 0 0 8px; }
+.app-layout + .workspace-foot {
+  display: flex;
+  min-height: 36px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 3px clamp(14px, 2.4vw, 36px);
+  border-top: 1px solid var(--line);
+  background: var(--white);
+}
+.workspace-foot button { min-height: 27px; color: var(--muted); font: 500 11px/1.3 var(--sans); }
+.workspace-foot .icon { width: 14px; height: 14px; }
+.app-layout .sidebar { width: clamp(180px, 16vw, 234px); overflow: auto; padding: 22px 12px; background: var(--white); }
+.app-layout .sidebar nav > a { min-height: 40px; padding: 9px 11px; border-radius: 7px; font-size: 13px; }
+.app-layout .sidebar nav > a.active { background: var(--pale); }
+.app-layout .nav-label { font: 600 12px/1.3 var(--sans); letter-spacing: 0; }
+.app-layout .room-links a { font-size: 12px; }
+.app-layout .page-heading { align-items: center; gap: 16px; padding: 0 0 22px; }
+.app-layout .page-heading h1, .pot-heading h1, .profile-entry h1 {
+  margin: 0 0 8px;
+  font: 550 clamp(28px, 3.2vw, 46px)/1.1 var(--sans);
+  letter-spacing: -.04em;
+}
+.app-layout .page-heading p, .pot-heading > p, .profile-entry p { margin: 0; font: 400 14px/1.55 var(--sans); color: var(--muted); }
+.app-layout .button, .modal .button { min-height: 38px; padding: 8px 15px; border-radius: 7px; font: 600 13px/1.4 var(--sans); }
+.app-layout .section-title { align-items: center; justify-content: space-between; margin: 0 0 14px; gap: 12px; }
+.app-layout .section-title h2 { margin: 0; font: 600 clamp(18px, 1.6vw, 24px)/1.25 var(--sans); letter-spacing: -.03em; }
+.app-layout :is(.paper-panel,.profile-panel,.thread-row,.chat-panel) { margin-bottom: 16px; padding: clamp(16px, 2vw, 26px); border-radius: 12px; }
+.app-layout .paper-panel h2 { font-size: 21px; }
+.app-layout .paper-panel p, .app-layout .thread-row p { font-size: 14px; line-height: 1.55; }
+.app-layout :is(.field > input,.field > textarea,.field > select,.chat-compose textarea) { border-radius: 6px; font-size: 14px; }
+.app-layout :is(.notice,.empty-state) { border-radius: 8px; }
+.app-layout .empty-state { padding: 16px; text-align: left; }
+.app-layout .empty-state .empty-icon { display: none; }
+.app-layout .empty-state h3 { margin: 0 0 5px; font: 600 16px/1.35 var(--sans); }
+.app-layout .empty-state p { margin: 0 0 10px; font: 400 13px/1.5 var(--sans); }
+.app-layout .strategy-name small, .app-layout .profile-table th { font-size: 12px; }
+
+.app-layout main:has(.alpine-hero) { display: flex; flex-direction: column; }
+#content:has(> .alpine-hero) { display: flex; flex: 1; min-height: 0; flex-direction: column; gap: clamp(14px, 2.5vh, 24px); }
+.alpine-hero {
+  display: flex;
+  flex: none;
+  align-items: center;
+  min-height: clamp(210px, 32dvh, 360px);
+  padding: clamp(24px, 3.5vw, 56px);
+  border-radius: 14px;
+  background: linear-gradient(90deg, #f1f4fe 8%, #f1f4fef5 24%, #f1f4fe00 69%), url('/images/poros-alpine.webp') center 56% / cover, #e5ebfa;
+}
+.alpine-hero > div { max-width: 37em; }
+.alpine-hero h1 { margin: 0 0 12px; font: 550 clamp(40px, 4.7vw, 76px)/.99 var(--sans); letter-spacing: -.04em; }
+.alpine-hero em { display: block; font: italic 400 1.12em/.98 Georgia, 'Times New Roman', serif; color: #244aad; letter-spacing: -.04em; }
+.alpine-hero p { max-width: 37ch; margin: 0; font: 400 clamp(14px, 1.05vw, 16px)/1.5 var(--sans); color: #364765; }
+.alpine-actions { display: flex; align-items: center; gap: 18px; margin-top: 16px; }
+.alpine-actions .icon { width: 16px; height: 16px; }
+.hero-secondary { display: inline-flex; align-items: center; gap: 6px; font: 600 13px/1.4 var(--sans); color: #253c6c; }
+.hero-secondary:hover { text-decoration: underline; text-underline-offset: 4px; }
+.app-layout .discovery-columns { display: grid; flex: 1; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); min-height: 185px; min-width: 0; gap: clamp(14px, 2.5vw, 36px); }
+.discovery-columns > section { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+.discovery-columns > .route-error { align-self: start; grid-column: 1/-1; }
+.discovery-scroll { min-height: 0; overflow: auto; overscroll-behavior: contain; scrollbar-width: thin; }
+.app-layout .discovery-columns .section-title { flex: none; min-height: 34px; margin: 0 0 4px; }
+.app-layout .strategy-list, .app-layout .community-grid.compact { display: grid; gap: 0; grid-template-columns: 1fr; }
+.app-layout .strategy-row, .app-layout .compact .community-card {
+  min-height: 58px; margin: 0; padding: 10px 4px;
+  background: transparent; border: 0; border-bottom: 1px solid var(--line); border-radius: 0;
+}
+.app-layout .strategy-row { grid-template-columns: 34px minmax(0,1fr) auto auto; gap: 11px; }
+.app-layout .strategy-row .chain-label { display: none; }
+.app-layout .strategy-row .strategy-transfer { display: inline-flex; align-items: center; gap: 3px; color: var(--blue); font-size: 12px; }
+.strategy-transfer .icon { width: 14px; height: 14px; }
+.app-layout .strategy-name strong, .app-layout .compact .community-card h3 { font-size: 15px; font-weight: 600; line-height: 1.35; letter-spacing: -.018em; }
+.app-layout .strategy-name small { font-size: 11px; }
+.app-layout .strategy-glyph, .app-layout .community-symbol { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 8px; color: var(--blue); background: var(--pale); }
+.app-layout .tag { font-size: 11px; padding: 2px 7px; border-radius: 4px; }
+.app-layout .community-grid { gap: 12px; }
+.app-layout .community-card, .app-layout .compact .community-card {
+  display: grid; grid-template-columns: 34px minmax(0,1fr) 16px; gap: 12px; align-items: center;
+}
+.app-layout .community-card { padding: 18px; border-radius: 10px; }
+.app-layout .community-card h3, .app-layout .compact .community-card h3 { margin: 0 0 3px; }
+.app-layout .community-card h3 { font-size: 18px; }
+.app-layout .community-card p, .app-layout .compact .community-card p { margin: 0; font: 400 13px/1.45 var(--sans); color: var(--muted); overflow-wrap: anywhere; }
+.app-layout .community-card > .icon { width: 16px; height: 16px; color: var(--muted); }
+.app-layout .compact .community-card:hover, .app-layout .strategy-row:focus-within, .app-layout .strategy-row:hover { background: var(--white); }
+.app-layout .feed-loading { min-height: 90px; padding: 18px; }
+.app-layout .loading-view { color: var(--muted); font: 400 13px/1.5 var(--sans); }
+.app-layout .loading-view > span { border-color: var(--line); border-top-color: var(--blue); }
+.app-layout .profile-entry {
+  display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr); align-items: stretch;
+  min-height: clamp(310px, 47vh, 510px); border: 1px solid var(--line); overflow: hidden;
+  border-radius: 14px; background: var(--white);
+}
+.profile-entry > div:first-child { align-self: center; padding: clamp(24px, 4vw, 68px); }
+.profile-entry p { max-width: 37ch; }
+.profile-entry .button { margin-top: 20px; }
+.profile-art { background: #e1e9fc url('/images/ridge-observatory.webp') right center / cover; }
+.app-layout .pot-page { margin: 0 auto; padding: 0; max-width: 1160px; }
+.pot-heading { max-width: none; margin: 0 0 18px; }
+.pot-heading > div { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.pot-preview { font: 600 11px/1.4 var(--sans); letter-spacing: .04em; }
+.pot-layout { grid-template-columns: minmax(0, .85fr) minmax(0, 1.15fr); gap: clamp(16px, 2.3vw, 32px); }
+.pot-bank { padding: 16px 22px; border-radius: 12px; display: flex; align-items: center; flex-direction: column; }
+.pot-art { padding: 0 0 8px; }
+.pot-art pre { font-size: clamp(5px, min(2.5cqi,1.05dvh), 11px); color: #476297; }
+.pot-total { font-size: clamp(24px, 3vw, 40px); margin: 2px 0 10px; }
+.pot-total-label, .pot-totals dt { font: 600 12px/1.4 var(--sans); letter-spacing: 0; text-transform: none; }
+.pot-totals { width: 100%; padding-top: 12px; }
+.pot-balance, .pot-action { padding: 14px 20px; }
+.pot-balance { border-radius: 12px 12px 0 0; }
+.pot-action h2 { font-size: 19px; margin: 0 0 4px; }
+.pot-action > p { line-height: 1.5; margin-bottom: 10px; }
+.pot-action .pot-status { margin: 6px 0 0; }
+.pot-actions .pot-demo-tools { margin: 0; padding: 8px 20px; border-radius: 0 0 12px 12px; }
+.pot-feedback:empty { min-height: 0; margin: 0; }
+.pot-setup { display: block; margin: 14px 0 0; padding: 10px 0 0; background: transparent; font: 400 12px/1.4 var(--sans); letter-spacing: 0; color: var(--muted); }
+@media (max-width: 800px) {
+  .app-layout:not(.standalone-page) { display: flex; flex-direction: column; }
+  .app-layout .sidebar { display: block; flex: none; width: 100%; padding: 4px 12px; border-right: 0; border-bottom: 1px solid var(--line); }
+  .app-layout .sidebar nav { display: flex; justify-content: flex-start; gap: 4px; overflow-x: auto; scrollbar-width: thin; }
+  .app-layout .sidebar nav > a { flex: none; flex-direction: row; width: auto; padding: 6px 10px; gap: 6px; font-size: 12px; white-space: nowrap; }
+  .app-layout .sidebar :is(.sidebar-divider,.room-links,.nav-label) { display: none; }
+  .app-layout:not(.standalone-page) > main { flex: 1; min-height: 0; height: auto; }
+  .app-layout .discovery-columns { gap: 14px; }
+  .app-layout .strategy-row { grid-template-columns: 28px minmax(0,1fr) auto; }
+  .app-layout .strategy-row .tag { display: none; }
+  .app-layout .compact .community-card { padding: 8px 2px; }
+}
+@media (max-width: 650px) {
+  .app-layout > main, .app-layout.standalone-page > main { padding: 14px; }
+  .app-layout .page-heading h1, .pot-heading h1, .profile-entry h1 { font-size: 30px; }
+  .app-layout .page-heading { padding-bottom: 16px; }
+  .app-layout .page-heading > .button { margin-top: 10px; }
+  .app-layout .discovery-columns { grid-template-columns: 1fr; grid-template-rows: 1fr 1fr; min-height: 242px; }
+  .alpine-hero { padding: 20px; min-height: 170px; background-position: center, 53% 55%; }
+  .alpine-hero h1 { font-size: clamp(34px, 10vw, 48px); margin-bottom: 6px; }
+  .alpine-hero p { font-size: 13px; max-width: 32ch; }
+  .alpine-actions { gap: 12px; flex-wrap: wrap; margin-top: 12px; }
+  .alpine-actions .hero-secondary { font-size: 12px; }
+  .app-layout .section-title h2 { font-size: 19px; }
+  .app-layout .profile-entry { display: flex; flex-direction: column-reverse; }
+  .profile-entry > div:first-child { align-self: stretch; padding: 24px; }
+  .profile-art { height: clamp(120px,24dvh,240px); }
+  .pot-layout { gap: 12px; grid-template-columns: 1fr; }
+  .pot-bank { display: grid; grid-template-columns: 36% 1fr; grid-template-rows: auto auto auto; gap: 0 12px; text-align: left; align-content: center; padding: 10px 14px; }
+  .pot-art { grid-column: 1; grid-row: 1 / span 3; padding: 0; }
+  .pot-art pre { font-size: min(1.35cqi, 6px); }
+  .pot-totals { grid-column: 2; padding-top: 6px; justify-content: flex-start; gap: 12px; }
+  .pot-totals dt { font-size: 11px; }
+  .pot-totals dd { margin: 0; font-size: 12px; }
+  .pot-total { margin: 2px 0; font-size: 27px; }
+  .pot-heading { margin-bottom: 12px; }
+  .pot-balance, .pot-action { padding: 10px 14px; }
+  .pot-demo-tools { gap: 4px; }
+}
+@media (max-height: 570px) {
+  #content:has(> .alpine-hero) { flex: none; }
+  .discovery-scroll { max-height: 260px; }
+}

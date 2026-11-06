@@ -5,7 +5,7 @@ export function proxy(request: NextRequest) {
   const policy = [
     "default-src 'self'",
     `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${process.env.NODE_ENV === 'development' ? " 'unsafe-eval'" : ''}`,
-    "connect-src 'self' https://rpc.rabdi.db-chain.testnet.arkiv.network",
+    "connect-src 'self' https://rpc.rabdi.db-chain.testnet.arkiv.network https://api.exchange.coinbase.com",
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data:",
     "object-src 'none'",

@@ -134,3 +134,55 @@ main{max-width:1700px;padding:36px 42px 20px;margin:auto}.page-heading{display:f
 @media(max-width:1150px){.trade-page main{padding:22px 20px}.trade-intro{min-height:0}}
 @media(max-width:900px){.trade-intro{min-height:0}.trade-page .library{grid-column:auto}.trade-page .workspace{grid-template-columns:220px minmax(0,1fr)}.trade-page .library{grid-column:1/-1}}
 @media(max-width:760px){.trade-page main{padding:20px 14px}.trade-intro h1{font-size:30px}.trade-intro>.heading-actions{margin-top:16px}.trade-intro{padding-bottom:18px;margin-bottom:18px}.trade-page .backtest-launcher{flex:1 0 100%;margin-top:8px}.trade-page .canvas-viewport,.trade-page .json-panel{height:370px}.trade-page .canvas{min-height:370px}.trade-page dialog.backtest-setup-dialog{padding:20px}.backtest-setup-dialog .backtest-preset{padding:10px;gap:5px}.backtest-setup-dialog .backtest-preset .preset-name{font-size:11px}.backtest-setup-dialog .backtest-preset small{font-size:9px}.backtest-setup-dialog .backtest-advanced[open]{grid-template-columns:1fr}}
+
+/* The viewport stays fixed while nodes and connections share one coordinate system. */
+.trade-page #canvas-viewport { position: relative; overflow: clip; }
+.trade-page #canvas {
+  position: absolute; inset: 0; min-width: 0; min-height: 0; overflow: clip;
+  touch-action: none; user-select: none; cursor: grab;
+  background-color: #f7f9fc;
+  background-image: radial-gradient(circle, #b9c5d6 1px, transparent 1.2px);
+}
+.trade-page #canvas.drag-over { outline: 2px solid var(--blue); outline-offset: -2px; background-color: #edf3ff; }
+.trade-page .canvas-world { position: absolute; inset: 0; transform-origin: 0 0; pointer-events: none; }
+.trade-page #connections { overflow: visible; }
+.trade-page .edge-path { stroke: #8c9bb2; stroke-width: 1.8px; }
+.trade-page #canvas .node {
+  width: 210px; height: 122px; pointer-events: auto; cursor: grab;
+  border-radius: 10px; border: 1px solid #bbc6d5; box-shadow: 0 3px 9px #2634520b;
+  background: #fff;
+}
+.trade-page #canvas .node.selected { border-color: var(--blue); }
+.trade-page #canvas .node.invalid { border-color: #b28143; }
+.trade-page #canvas .node.is-dragging {
+  z-index: 3; box-shadow: 0 8px 16px #2437541f; border-color: var(--blue);
+}
+.trade-page #canvas.is-dragging, .trade-page #canvas .node.is-dragging * { cursor: grabbing; }
+.trade-page #canvas .node-header { height: 44px; border-radius: 9px 9px 0 0; padding: 8px 42px 8px 13px; color: var(--ink); }
+.trade-page #canvas .node-header strong { font: 600 14px/1.25 var(--sans, system-ui); letter-spacing: -.02em; }
+.trade-page #canvas .node-header .grip { margin-left: auto; }
+.trade-page #canvas .node-description { padding: 10px 13px 0; line-height: 1.3; font: 600 13px/1.3 var(--sans, system-ui); font-variant-numeric: tabular-nums; }
+.trade-page #canvas .node-meta { padding: 4px 13px 0; font: 11px/1.35 var(--sans, system-ui); color: #536178; }
+.trade-page #canvas .node-number { font: 600 10px/1.3 var(--mono, monospace); color: #566581; top: -18px; }
+.trade-page #canvas .node-remove { top: 7px; right: 6px; width: 28px; height: 28px; min-width: 28px; min-height: 28px; border: 0; color: #566175; background: transparent; }
+.trade-page #canvas .node-remove:hover { background-color: #eff2f7; }
+.trade-page #canvas .port { top: 50px; }
+.trade-page #canvas .port-label { font-size: 9px; color: #5d6d84; bottom: 7px; }
+.trade-page #canvas .empty-state { inset: 50% auto auto 50%; transform: translate(-50%,-50%); width: min(90%, 36ch); pointer-events: none; }
+.trade-page #canvas .empty-state h3 { margin: 0 0 8px; color: var(--ink); }
+.trade-page .canvas-zoom {
+  position: absolute; bottom: 10px; right: 10px; display: flex; align-items: center;
+  border-radius: 7px; border: 1px solid #c2cbd9; background: #fff; color: #283749;
+}
+.trade-page .canvas-zoom button {
+  min-width: 30px; height: 30px; padding: 0 7px; border: 0; border-radius: 6px;
+  background: transparent; font: 600 16px/1 var(--sans, system-ui); color: inherit;
+}
+.trade-page .canvas-zoom button:enabled:hover { background: #edf2fa; color: var(--blue); }
+.trade-page .canvas-zoom output { width: 4ch; text-align: center; font: 11px/1 var(--mono, monospace); }
+.trade-page .canvas-zoom #zoom-fit { border-left: 1px solid #d8dfe9; border-radius: 0 6px 6px 0; font-size: 12px; }
+.trade-page .palette-block { touch-action: none; user-select: none; }
+.trade-page .palette-preview {
+  position: fixed; inset: 0 auto auto 0; z-index: 100; margin: 0; pointer-events: none;
+  background: #fff; border-color: var(--blue); box-shadow: 0 7px 16px #26345222; transition: none;
+}

@@ -1,6 +1,6 @@
 import {connectSolanaWallet,signSolanaSetup,signSolanaOrderMessage} from "./solana-wallet.js";
 import {connectBrowserWallet,signFlashOrder} from "./wallet.js";
-export function mountExecution({root=document,getDraft,applyDraft,validateDraft,getApiKey,mayReplace=()=>true,request=fetch,onLoading=()=>{},onActivity=()=>{},getPair=()=>({id:"eth-usdc",base:{symbol:"WETH",reference:"ETH"},quote:{symbol:"USDC"}})}) {
+export function mountExecution({root=document,getDraft,applyDraft,validateDraft,getApiKey,onText,mayReplace=()=>true,request=fetch,onLoading=()=>{},onActivity=()=>{},getPair=()=>({id:"eth-usdc",base:{symbol:"WETH",reference:"ETH"},quote:{symbol:"USDC"}})}) {
   const $=id=>root.querySelector(`#${id}`);
   const setText=(id,text)=>{const node=$(id);if(node)node.textContent=text;};
   const entries=new Map();
@@ -47,7 +47,11 @@ export function mountExecution({root=document,getDraft,applyDraft,validateDraft,
     if(!keepResults){$("execution-results").hidden=true;$("execution-results").replaceChildren();}
     status(message);refresh();
   }
-  async function choose(entry) {
+  async function choose(entry,interpretText=false) {
+    if (!entry.strategy && onText && !interpretText) {
+      onText(structuredClone(entry));
+      return false;
+    }
     if(!mayReplace())return false;
     invalidate("Loading creator strategy…");
     const current=sequence,snapshot=JSON.stringify(getDraft());
@@ -209,5 +213,5 @@ export function mountExecution({root=document,getDraft,applyDraft,validateDraft,
   root.defaultView?.ethereum?.on?.("chainChanged",()=>invalidate("Wallet network changed. Reconnect on the selected network before Run."));
   root.defaultView?.addEventListener("pagehide",()=>invalidate("Monitoring stopped because this tab closed."));
   $("execution-results").hidden=true;refresh();
-  return {openUnlockedReference(id){if(!entries.has(id))throw new Error("Drop a strategy from the unlocked library.");return choose(entries.get(id));},clearUnlockedStrategies(){entries.clear();$("execution-library").replaceChildren();},addUnlockedStrategy,openUnlockedStrategy(entry){validateEntry(entry);return choose(structuredClone(entry));},setFollowedCreators,refreshMarket,invalidate,draftChanged(){const now=JSON.stringify(getDraft());if(now!==lastDraft){lastDraft=now;$("execution-selected").textContent="Current edited draft · live price monitor";invalidate("Draft changed. Review it before starting a new run.");if((market?.pairId??"eth-usdc")!==getPair().id){market=undefined;void refreshMarket();}}}};
+  return {openUnlockedReference(id){if(!entries.has(id))throw new Error("Drop a strategy from the unlocked library.");return choose(entries.get(id));},clearUnlockedStrategies(){entries.clear();$("execution-library").replaceChildren();},addUnlockedStrategy,openUnlockedStrategy(entry){validateEntry(entry);return choose(structuredClone(entry),true);},setFollowedCreators,refreshMarket,invalidate,draftChanged(){const now=JSON.stringify(getDraft());if(now!==lastDraft){lastDraft=now;$("execution-selected").textContent="Current edited draft · live price monitor";invalidate("Draft changed. Review it before starting a new run.");if((market?.pairId??"eth-usdc")!==getPair().id){market=undefined;void refreshMarket();}}}};
 }

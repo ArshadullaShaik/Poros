@@ -4,6 +4,8 @@ import { tradingPairs, marketPriceBounds, isMarketPrice, pairForStrategy, strate
 import {mountBacktest} from './backtest.js';
 import { keepFocus } from "./focus.js";
 import { mountCanvasDragTarget } from "./drag-target.js";
+import { mountGraphGestures } from "./canvas-gestures.js";
+import { dismissOnBackdrop } from "./dialogs.js";
 import { mountStrategyAi } from "./ai.js";
 import { mountExecution } from "./execution.js";
 import { mountFundsMode } from "./funds-mode.js";
@@ -19,12 +21,14 @@ function setStrategyLoading(loading) {
   canvas.setAttribute('aria-busy',String(strategyLoads>0));
 }
 const dialog = $("#import-dialog");
+const stopDialogs=dismissOnBackdrop();
+window.addEventListener('pagehide',stopDialogs,{once:true});
 $("#open-run-settings").addEventListener("click", () => $("#run-settings-dialog").showModal());
 $("#close-run-settings").addEventListener("click", () => $("#run-settings-dialog").close());
 const kinds = {
-  "signal.price": {label: "Price range", className: "indicator", icon: "$"},
-  "guard.risk": {label: "Risk limit", className: "guard", icon: "◇"},
-  "action.intent": {label: "Buy / sell", className: "action", icon: "⇄"},
+  "signal.price": {label: "Price range", className: "indicator"},
+  "guard.risk": {label: "Risk limit", className: "guard"},
+  "action.intent": {label: "Buy / sell", className: "action"},
 };
 let draft = structuredClone(defaultStrategy);
 let selected = draft.nodes[0]?.id;
@@ -52,7 +56,10 @@ function element(tag, className, text) {
 }
 
 function announce(message) { $("#notice").textContent = message; }
-function defaultPosition(index) { return {x: 55 + (index % 3) * 290, y: 75 + Math.floor(index / 3) * 225}; }
+function defaultPosition(index) {
+  const columns = canvas.clientWidth && canvas.clientWidth < 460 ? 1 : 3;
+  return {x: (index % columns) * 256, y: Math.floor(index / columns) * 165};
+}
 function resetPositions() { positions = new Map(draft.nodes.map((node, i) => [node.id, defaultPosition(i)])); }
 function edit(operation) {
   try {
@@ -72,6 +79,7 @@ function replaceDraft(next,preserveMode=false) {
   resetPositions();
   dirty = false;
   render();
+  graph.fit();
 }
 function mayReplace() { return !dirty || window.confirm("Replace your current draft? Export JSON first if you want to keep it."); }
 
@@ -120,29 +128,32 @@ function port(node, direction) {
   return button;
 }
 
-function drawEdges() {
+function drawEdges(moving) {
   const group = $("#edge-paths");
-  group.replaceChildren();
-  for (const edge of draft.edges) {
+  if (!moving) group.replaceChildren();
+  for (const [index, edge] of draft.edges.entries()) {
+    if (moving && moving !== edge.source && moving !== edge.target) continue;
     const from = positions.get(edge.source), to = positions.get(edge.target);
     if (!from || !to) continue;
-    const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
-    const x1 = from.x + 220, y1 = from.y + 75, x2 = to.x - 12, y2 = to.y + 75;
+    const path = moving ? group.children[index] : document.createElementNS("http://www.w3.org/2000/svg", "path");
+    if (!path) continue;
+    const x1 = from.x + 210, y1 = from.y + 61, x2 = to.x - 10, y2 = to.y + 61;
     const bend = Math.max(40, Math.abs(x2 - x1) / 2);
     path.setAttribute("d", `M ${x1} ${y1} C ${x1 + bend} ${y1}, ${x2 - bend} ${y2}, ${x2} ${y2}`);
-    path.setAttribute("class", "edge-path");
-    path.setAttribute("marker-end", "url(#arrow)");
-    group.append(path);
+    if (!moving) {
+      path.setAttribute("class", "edge-path");
+      path.setAttribute("marker-end", "url(#arrow)");
+      group.append(path);
+    }
   }
 }
 
 function moveNode(id, x, y) {
-  const position = {x: Math.max(20, Math.min(canvas.clientWidth - 235, x)), y: Math.max(40, Math.min(3000, y))};
+  const position = {x, y};
   positions.set(id, position);
   const card = [...canvas.querySelectorAll(".node")].find(item => item.dataset.id === id);
   if (card) { card.style.left = `${position.x}px`; card.style.top = `${position.y}px`; }
-  canvas.style.height = `${Math.max(500, ...[...positions.values()].map(point => point.y + 200))}px`;
-  drawEdges();
+  drawEdges(id);
 }
 
 function renderNodes(result) {
@@ -160,20 +171,16 @@ function renderNodes(result) {
     const header = element("button", "node-header");
     header.dataset.focusKey = `title:${node.id}`;
     header.ariaLabel = `Edit ${node.id}; arrow keys move block`;
-    header.draggable = true;
-    header.append(element("span", "block-icon", info.icon), element("strong", "", info.label), element("span", "grip", "⠿"));
+    const icon = document.querySelector(`.palette-block[data-kind="${node.type}"] .block-icon`).cloneNode(true);
+    header.append(icon, element("strong", "", info.label));
     header.addEventListener("click", () => select(node.id));
-    header.addEventListener("dragstart", event => {
-      const rect = card.getBoundingClientRect();
-      event.dataTransfer.setData("text/plain", JSON.stringify({kind: "move", id: node.id, offsetX: event.clientX - rect.left, offsetY: event.clientY - rect.top}));
-      event.dataTransfer.effectAllowed = "move";
-    });
     header.addEventListener("keydown", event => {
       const steps = {ArrowLeft: [-20, 0], ArrowRight: [20, 0], ArrowUp: [0, -20], ArrowDown: [0, 20]};
       if (steps[event.key]) {
         event.preventDefault();
         const point = positions.get(node.id), [dx, dy] = steps[event.key];
         moveNode(node.id, point.x + dx, point.y + dy);
+        graph.reveal(card);
       } else if (event.key === "Delete" || event.key === "Backspace") { event.preventDefault(); removeNode(node.id); }
     });
     const remove = element("button", "icon-button node-remove", "×");
@@ -182,12 +189,11 @@ function renderNodes(result) {
     remove.title = "Remove block";
     remove.dataset.focusKey = `remove:${node.id}`;
     remove.addEventListener("click", event => { event.stopPropagation(); removeNode(node.id); });
-    card.append(header, remove, element("div", "node-description", describe(node)), element("div", "node-meta", node.type === "signal.price" ? "Checks the current live price" : node.type === "guard.risk" ? `${draft.riskPolicy.maxSlippageBps} bps slippage cap · ${draft.riskPolicy.paperTradingOnly ? "virtual funds" : "LIVE wallet"}` : "Agent executes once when the condition matches"));
+    card.append(header, remove, element("div", "node-description", describe(node)), element("div", "node-meta", node.type === "signal.price" ? "Live price trigger" : node.type === "guard.risk" ? `${draft.riskPolicy.maxSlippageBps} bps · ${draft.riskPolicy.paperTradingOnly ? "virtual funds" : "LIVE wallet"}` : "Once per match"));
     if (node.type !== "signal.price") card.append(port(node, "input"), element("span", "port-label left", "IN"));
     if (node.type !== "action.intent") card.append(port(node, "output"), element("span", "port-label right", "OUT"));
-    canvas.append(card);
+    canvas.querySelector(".canvas-world").append(card);
   });
-  canvas.style.height = `${Math.max(500, ...[...positions.values()].map(point => point.y + 200))}px`;
   drawEdges();
 }
 
@@ -286,6 +292,7 @@ function render() {
     const result = validateMarketStrategy(draft);
     renderNodes(result); renderSettings(); renderConnections(); renderValidation(result);
     $("#block-count").textContent = `${draft.nodes.length} blocks · ${draft.edges.length} connections`;
+    $("#json-preview").textContent = JSON.stringify(draft,null,2);
   });
   executionUI?.draftChanged();
   backtestUI?.sync();
@@ -302,18 +309,19 @@ function addBlock(type, position) {
   const node = type === "signal.price" ? {id, type, minPriceUsd: 2000, maxPriceUsd: 2100} :
     type === "guard.risk" ? {id, type} : {id, type, side: "BUY", notionalUsd: Math.min(20, draft.riskPolicy.maxNotionalUsd)};
   const point = position ?? defaultPosition(draft.nodes.length);
-  positions.set(id, {x: Math.max(20, Math.min(canvas.clientWidth - 235, point.x)), y: Math.max(40, Math.min(3000, point.y))});
+  positions.set(id, point);
   selected = id;
-  if (edit({type: "addNode", node})) $("#strategy-settings").showModal();
+  if (!edit({type: "addNode", node})) { positions.delete(id); return; }
+  if (!position) {
+    graph.reveal(canvas.querySelector(`[data-id="${id}"]`));
+    $("#strategy-settings").showModal();
+  }
   announce(`${kinds[type].label} added. Connect it into a complete path.`);
 }
 
+const graph = mountGraphGestures(canvas, {positions:() => positions, moveNode, addBlock});
 document.querySelectorAll(".palette-block").forEach(button => {
   button.addEventListener("click", () => addBlock(button.dataset.kind));
-  button.addEventListener("dragstart", event => {
-    event.dataTransfer.setData("text/plain", JSON.stringify({kind: "palette", type: button.dataset.kind}));
-    event.dataTransfer.effectAllowed = "copy";
-  });
 });
 mountCanvasDragTarget(canvas);
 canvas.addEventListener("drop", event => {
@@ -323,11 +331,13 @@ canvas.addEventListener("drop", event => {
   const reference = event.dataTransfer.getData('text/uri-list') || event.dataTransfer.getData('text/plain');
   if (reference && !reference.trimStart().startsWith('{')) { void loadPublicReference(reference); return; }
   try {
-    const data = JSON.parse(event.dataTransfer.getData("text/plain")), rect = canvas.getBoundingClientRect();
+    const data = JSON.parse(event.dataTransfer.getData("text/plain"));
     if(data.kind === "public-strategy"){void communityUI.load(data.versionKey);return;}
     if(data.kind === "public-post"){void communityUI.loadPost(data.communityKey,data.postKey);return;}
-    if (data.kind === "palette") addBlock(data.type, {x: event.clientX - rect.left - 105, y: event.clientY - rect.top - 40});
-    else if (data.kind === "move" && positions.has(data.id) && Number.isFinite(data.offsetX) && Number.isFinite(data.offsetY)) moveNode(data.id, event.clientX - rect.left - data.offsetX, event.clientY - rect.top - data.offsetY);
+    if (data.kind === "palette") {
+      const at = graph.point(event.clientX, event.clientY);
+      addBlock(data.type, {x:at.x - 105, y:at.y - 24});
+    }
   } catch { announce("Drag a block from the palette onto the canvas."); }
 });
 $("#strategy-name").addEventListener("change", event => { draft = {...draft, name: event.target.value}; dirty = true; render(); });
@@ -341,6 +351,11 @@ $("#clear-canvas").addEventListener("click", () => {
   replaceDraft({...draft,nodes:[],edges:[]});
   dirty=true;
   announce("Canvas cleared. Add blocks or drop a strategy to start again.");
+});
+for(const mode of ['canvas','json'])$("#"+mode+"-view").addEventListener('click',()=>{
+  const json=mode==='json';
+  $("#canvas-viewport").hidden=json;$("#json-panel").hidden=!json;
+  for(const name of ['canvas','json']){$("#"+name+"-view").classList.toggle('active',name===mode);$("#"+name+"-view").setAttribute('aria-pressed',String(name===mode));}
 });
 $("#export").addEventListener("click", () => {
   try {
@@ -447,7 +462,12 @@ backtestUI=mountBacktest({getDraft:()=>draft,getPair:()=>pairForStrategy(draft),
 window.addEventListener('pagehide',()=>backtestUI.stop());
 const stopFundsMode = mountFundsMode($("#execution-mode"));
 window.addEventListener('pagehide', stopFundsMode, {once:true});
-resetPositions(); render();
+$("#backtest-open").addEventListener("click", () => {
+  backtestUI.sync();
+  $("#backtest-setup-dialog").showModal();
+});
+$("#backtest-close").addEventListener("click", () => $("#backtest-setup-dialog").close());
+resetPositions(); render(); graph.fit();
 
 async function loadMemberTransfer(raw) {
   try {

@@ -1,12 +1,13 @@
 'use client';
 import {useEffect, useLayoutEffect, useRef, useState} from 'react';
 import Link from 'next/link';
-import {MarketChart} from './market-chart';
+import {MarketActivity, MarketChart} from './market-chart';
 import {createInjectedWallet} from '../src/wallet.ts';
 import {historyOwner, readExecutionRuns, paperTransactions, type ExecutionRecord} from '../src/order-history.ts';
 import {readPaperRuns, type PaperRun} from '../src/performance.ts';
 import {pairForStrategy, tradingPairs, networks} from '../../../src/features/builder/market/config.ts';
 import {mountMarketChart} from '../../../src/features/builder/demo/chart.js';
+import {createExchangeFeed} from '../../../src/features/builder/demo/exchange-chart.js';
 import {connectSolanaWallet} from '../../../src/features/builder/demo/solana-wallet.js';
 import type {summarizeFlashFills} from '../../../src/features/builder/execution/performance.ts';
 
@@ -43,11 +44,11 @@ export function OrdersWorkspace() {
   }, []);
 
   useLayoutEffect(() => {
-    const chart = mountMarketChart({getPair:()=>pairRef.current,getDraft:()=>({nodes:rangesRef.current?.pairId===pairRef.current.id?rangesRef.current.ranges:[]})});
+    const chart = mountMarketChart({historyFeed:createExchangeFeed(),getPair:()=>pairRef.current,getDraft:()=>({nodes:rangesRef.current?.pairId===pairRef.current.id?rangesRef.current.ranges:[]})});
     chartRef.current = chart;
     void chart.preload();
     void chart.refresh();
-    const timer = setInterval(() => {if (!document.hidden) void chart.refresh();},2000);
+    const timer = setInterval(() => {if (!document.hidden) void chart.refresh();},5000);
     const visible = () => {if (!document.hidden) void chart.refresh();};
     document.addEventListener('visibilitychange',visible);
     return () => {clearInterval(timer);document.removeEventListener('visibilitychange',visible);chart.stop();chartRef.current=undefined;};
@@ -187,9 +188,7 @@ export function OrdersWorkspace() {
   return <main className="orders-page">
     <div className="page-heading">
       <div>
-        <p className="eyebrow">EXECUTION ACTIVITY</p>
         <h1>Orders</h1>
-        <p className="subheading">Live market prices and the results of your strategy runs.</p>
       </div>
       <Link className="button secondary" href="/">Back to Trade</Link>
     </div>
@@ -212,11 +211,13 @@ export function OrdersWorkspace() {
       </div>
     </div>
     {walletError && <p role="alert">{walletError}</p>}
+    <div className="orders-data">
     <MarketChart/>
+    <MarketActivity/>
     <section className="orders-history" aria-labelledby="orders-history-title">
       <h2 id="orders-history-title">Transaction history</h2>
-      <p className="muted">AI attribution and paper fills use the last 100 runs saved in this browser. Older paper records show run totals. Live P/L uses finalized Flash fills and average cost. Reported live fees are shown separately, and wallet gas is excluded.</p>
-      {!owner && <p className="muted">Connect your wallet to read live fills. Paper orders created without a wallet stay in this browser.</p>}
+      <details className="history-method"><summary>How history is calculated</summary><p>AI attribution and paper fills use the last 100 runs saved in this browser. Older paper records show run totals. Live P/L uses finalized Flash fills and average cost. Reported fees appear separately. Gas is excluded.</p></details>
+      {!owner && <p className="muted">Connect a wallet for live fills. Paper orders are saved in this browser.</p>}
       {cacheError && <p role="alert">{cacheError}</p>}
       {liveError && <p role="alert">{liveError}</p>}
       {verified && !verified.complete && <p role="status">Older Flash orders exist. Profit and loss is withheld where the cost basis is incomplete.</p>}
@@ -242,7 +243,8 @@ export function OrdersWorkspace() {
             <td><code title={row.reference}>{row.reference.slice(0,8)}…{row.reference.slice(-5)}</code></td>
           </tr>)}</tbody>
         </table>
-      </div> : <p>{loading?'Reading finalized fills…':'Run a strategy on Trade to record orders here.'}</p>}
+      </div> : <p>{loading?'Reading finalized fills…':'Run a strategy to see its orders here.'}</p>}
     </section>
+    </div>
   </main>;
 }

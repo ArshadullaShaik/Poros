@@ -22,7 +22,7 @@ const paths: Record<string, string> = {
     leaf: '<path d="M20 3c-9-1-17 2-16 10a6 6 0 0 0 10 5c4-3 5-9 6-15Z"/><path d="M4 21 15 9"/>',
 };
 export const icon = (name: string) => `<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths[name] ?? paths.grid}</svg>`;
-export const mark = '<svg class="poros-mark" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="9" fill="currentColor"/><path d="M10 22 22 10M11 10h11v11" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+export const mark = '<img class="poros-mark" src="/images/poros-stag.png" width="34" height="34" alt="" aria-hidden="true">';
 export const garden = `<svg class="garden" viewBox="0 0 520 350" fill="none" aria-label="A strategy idea passes through a risk guard before an action" role="img">
 <defs><pattern id="dots" width="20" height="20" patternUnits="userSpaceOnUse"><circle cx="1" cy="1" r="1" fill="var(--line)"/></pattern></defs>
 <rect x="2" y="2" width="516" height="346" rx="12" fill="var(--pale)"/><rect x="2" y="2" width="516" height="346" rx="12" fill="url(#dots)"/>

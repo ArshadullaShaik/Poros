@@ -1,22 +1,28 @@
 // Trusted static builder markup. User content is rendered by validated controllers.
+import {icon} from '../src/icons';
 export const tradeMarkup = `
 <main>
     <section class="page-heading trade-intro">
-      <div><p class="eyebrow"><span class="intro-dot" aria-hidden="true"></span> THE POROS WORKSHOP</p><h1>Your idea. <span>Your next move.</span></h1><p class="subheading">Build, test, and run your strategy in one workspace.</p></div>
-      <div class="heading-actions"><button id="ai-open" class="api-key-button" type="button" aria-label="Add 0G API key" aria-haspopup="dialog" aria-controls="ai-dialog" title="API key and AI tools"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8" cy="8" r="4.5"/><path d="m11.3 11.3 9.2 9.2m-3-3 2.5-2.5m-5 0 2.5-2.5"/></svg></button><button id="load-example" class="button secondary">Load example</button><button id="new-strategy" class="button primary"><span aria-hidden="true">＋</span> New strategy</button></div>
+      <h1>Strategy builder</h1>
+      <div class="heading-actions"><button id="ai-open" class="api-key-button" type="button" aria-label="Add 0G API key" aria-haspopup="dialog" aria-controls="ai-dialog" title="API key and AI tools"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8" cy="8" r="4.5"/><path d="m11.3 11.3 9.2 9.2m-3-3 2.5-2.5m-5 0 2.5-2.5"/></svg></button><button id="load-example" class="button secondary">Load example</button><button id="new-strategy" class="button primary">${icon("plus")} New strategy</button></div>
     </section>
+    <fieldset class="workspace-picker"><legend>Workspace panel</legend>
+      <label><input type="radio" name="trade-panel" checked>Builder</label>
+      <label><input type="radio" name="trade-panel" id="show-library">Library</label>
+    </fieldset>
     <section class="workspace" aria-label="Strategy builder">
       <aside id="canvas-blocks-panel" class="palette panel" aria-label="Block palette">
-        <div class="panel-title"><h2>Building blocks</h2><span class="small-tag">3 TYPES</span></div>
-        <p class="muted small">Drag onto the canvas, or click to add.</p>
-        <button class="palette-block indicator" data-kind="signal.price" draggable="true"><span class="block-icon">∿</span><span><strong>Price range</strong><small>When the market meets a rule</small></span><span class="grip" aria-hidden="true">⠿</span></button>
-        <button class="palette-block guard" data-kind="guard.risk" draggable="true"><span class="block-icon">◇</span><span><strong>Risk limit</strong><small>Keep each order within limits</small></span><span class="grip" aria-hidden="true">⠿</span></button>
-        <button class="palette-block action" data-kind="action.intent" draggable="true"><span class="block-icon">⇄</span><span><strong>Buy / sell</strong><small>Describe the intended action</small></span><span class="grip" aria-hidden="true">⠿</span></button>
-        <button id="backtest-open" class="backtest-launcher" type="button" aria-haspopup="dialog" aria-controls="backtest-setup-dialog"><span class="backtest-launcher-icon" aria-hidden="true">↗</span><span><strong>Test your strategy</strong><small>Backtest with virtual funds</small></span><span aria-hidden="true">＋</span></button>
+        <div class="panel-title"><h2>Building blocks</h2></div>
+        <p class="muted small">Drag or click to add a block.</p>
+        <button class="palette-block indicator" data-kind="signal.price" draggable="true"><span class="block-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M2 13h4l3-7 5 12 3-7h5"/></svg></span><span><strong>Price range</strong><small>Set the price trigger</small></span><span class="grip" aria-hidden="true">⠿</span></button>
+        <button class="palette-block guard" data-kind="guard.risk" draggable="true"><span class="block-icon">${icon("shield")}</span><span><strong>Risk limit</strong><small>Cap each order</small></span><span class="grip" aria-hidden="true">⠿</span></button>
+        <button class="palette-block action" data-kind="action.intent" draggable="true"><span class="block-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M3 8h17m-4-4 4 4-4 4M21 16H4m4-4-4 4 4 4"/></svg></span><span><strong>Buy / sell</strong><small>Choose the order</small></span><span class="grip" aria-hidden="true">⠿</span></button>
+        <button id="backtest-open" class="backtest-launcher" type="button" aria-haspopup="dialog" aria-controls="backtest-setup-dialog"><span class="backtest-launcher-icon">${icon("arrow")}</span><span><strong>Backtest</strong><small>Test with historical prices</small></span></button>
+        <details class="block-guide"><summary>Connecting blocks</summary><p>Connect a price range to a risk limit, then to a buy or sell action. Select the output on one block and the input on the next.</p></details>
       </aside>
       <div class="editor-column">
-        <div class="canvas-toolbar"><div><span class="canvas-symbol" aria-hidden="true">⌘</span><strong>Strategy canvas</strong></div><div class="canvas-layout-tools" role="group" aria-label="Canvas space"><button id="clear-canvas" type="button">Clear canvas</button></div></div>
-        <div class="canvas-runbar"><span id="execution-selected" class="tiny muted">Current draft · live monitoring / paper funds</span><span id="strategy-loading" class="strategy-loading" role="status" hidden><span class="strategy-spinner" aria-hidden="true"></span>Loading strategy…</span><div class="heading-actions"><button id="open-run-settings" class="button secondary compact" type="button" aria-haspopup="dialog" aria-controls="run-settings-dialog">Run settings</button><button id="execution-start" class="button primary compact" type="button" aria-describedby="execution-help">Run strategy</button><button id="execution-stop" class="button secondary compact" type="button" disabled>Stop</button></div></div>
+        <div class="canvas-toolbar"><div><span class="canvas-symbol">${icon("fork")}</span><strong>Strategy canvas</strong></div><div class="view-switch" role="group" aria-label="View"><button id="canvas-view" class="active" aria-pressed="true">Canvas</button><button id="json-view" aria-pressed="false">JSON</button><button id="clear-canvas" type="button">Clear</button></div></div>
+        <div class="canvas-runbar"><span id="execution-selected" class="tiny muted">Current draft</span><span id="strategy-loading" class="strategy-loading" role="status" hidden><span class="strategy-spinner" aria-hidden="true"></span>Loading strategy…</span><div class="heading-actions"><button id="open-run-settings" class="button secondary compact" type="button" aria-haspopup="dialog" aria-controls="run-settings-dialog">Run settings</button><button id="execution-start" class="button primary compact" type="button" aria-describedby="execution-help">Run strategy</button><button id="execution-stop" class="button secondary compact" type="button" disabled>Stop</button></div></div>
         <section class="price-ticker" aria-label="Live cryptocurrency prices in USD">
       <button id="live-prices-pause" class="ticker-pause" type="button" aria-pressed="false">Pause scrolling</button>
       <div class="ticker-viewport" tabindex="0" aria-label="Scrolling live crypto prices">
@@ -30,12 +36,21 @@ export const tradeMarkup = `
 
         <p id="execution-help" hidden></p>
         <div id="canvas-viewport" class="canvas-viewport">
-          <div id="canvas" class="canvas" aria-label="Strategy canvas drop area">
+          <div id="canvas" class="canvas" tabindex="0" role="region" aria-label="Strategy canvas. Scroll to zoom, drag the background or use arrow keys to pan.">
+            <div class="canvas-world">
             <svg id="connections" aria-hidden="true"><defs><marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0 0 L8 4 L0 8" fill="#9aa6b8"/></marker></defs><g id="edge-paths"></g></svg>
-            <div id="empty-state" class="empty-state" hidden><span>＋</span><h3>Your idea starts here</h3><p>Drop an unlocked strategy here, or add a price range,<br>risk limit, and buy/sell block and connect them.</p></div>
+            </div>
+            <div id="empty-state" class="empty-state" hidden><h3>Add your first block</h3><p>Choose a building block or drop a strategy here.</p></div>
+          </div>
+          <div class="canvas-zoom" role="group" aria-label="Canvas zoom">
+            <button type="button" id="zoom-out" aria-label="Zoom out" title="Zoom out">−</button>
+            <output id="zoom-level" aria-label="Zoom level" aria-live="off">100%</output>
+            <button type="button" id="zoom-in" aria-label="Zoom in" title="Zoom in">+</button>
+            <button type="button" id="zoom-fit" title="Fit all blocks in view">Fit</button>
           </div>
         </div>
-        <div class="canvas-footer"><span id="block-count">6 blocks · 4 connections</span><span>Move blocks with drag, or focus a block title and use arrow keys.</span></div>
+        <div id="json-panel" class="json-panel" hidden><p class="muted small">Strategy rules only. Canvas positions are kept separately.</p><pre id="json-preview" tabindex="0" aria-label="Strategy JSON preview"></pre></div>
+        <div class="canvas-footer"><span id="block-count"></span><span>Drag to pan · Scroll to zoom</span></div>
 
         <p id="execution-status" class="small" role="status" aria-live="polite"></p>
         <div id="execution-results" class="execution-results" aria-live="polite" hidden></div>
@@ -47,26 +62,26 @@ export const tradeMarkup = `
           <button id="tab-creators" type="button" role="tab" data-library-tab="creators" aria-controls="library-creators" aria-selected="false" tabindex="-1">Creators</button>
         </div>
         <section id="library-community" class="public-library" role="tabpanel" aria-labelledby="tab-community" tabindex="0">
-          <h2 id="community-library-title">Communities</h2><p class="small muted">Choose a community to see its public strategies.</p>
+          <h2 id="community-library-title">Communities</h2><p class="small muted">Browse public strategies by community.</p>
           <button id="back-to-communities" class="button secondary" type="button" hidden>← Communities</button>
           <button id="refresh-community-strategies" class="button secondary" type="button">Refresh</button>
-          <a id="community-page-link" class="small" href="/community#/communities">Open community page ↗</a>
+          <a id="community-page-link" class="small" href="/community#/communities">Browse communities ↗</a>
           <div id="community-strategies" class="unlocked-cards"></div><button id="more-community-strategies" class="button secondary" type="button" hidden>Load more</button><p id="community-strategies-status" class="small muted" role="status"></p>
         </section>
         <section id="library-unlocked" role="tabpanel" aria-labelledby="tab-unlocked" tabindex="0" hidden>
-        <div class="panel-title"><h2>Unlocked strategies</h2><span class="small-tag">YOUR LIBRARY</span></div>
-        <p class="small muted">Drag onto the canvas, or click to load.</p><a class="button secondary" href="/community#/creators">Find a creator to subscribe to</a>
+        <div class="panel-title"><h2>Unlocked strategies</h2></div>
+        <p class="small muted">Drag onto the canvas, or click to load.</p><a class="button secondary" href="/community#/creators">Find creators</a>
         <div id="execution-library" class="unlocked-cards"></div>
         <form id="unlock-library-form" autocomplete="off"><label class="field"><span>Community recovery code</span><input id="library-recovery" type="password" required autocomplete="off"></label><button class="button secondary" type="submit">Unlock strategies</button></form>
         <button id="refresh-member-library" class="button secondary" type="button">Refresh memberships</button><button id="lock-library" class="button secondary" type="button">Lock</button>
         <p id="unlocked-status" class="small muted" role="status">Connect your community wallet to load purchased strategies.</p>
         </section>
         <section id="library-creators" role="tabpanel" aria-labelledby="tab-creators" tabindex="0" hidden>
-        <div class="panel-title"><h2>Discover creators</h2><span class="small-tag">COMMUNITY</span></div>
+        <div class="panel-title"><h2>Discover creators</h2></div>
         <div id="trade-creator-directory"></div>
         <div class="section-divider"></div>
         <div class="panel-title"><h3>Your subscriptions</h3><a class="small" href="/community#/memberships">Manage ↗</a></div>
-        <p class="small muted">Creators whose paid memberships are active on the community page.</p>
+
         <button id="refresh-creator-library" class="button secondary compact" type="button">Refresh subscriptions</button>
         <p id="creators-status" class="small muted" role="status"></p>
         <div id="creator-library" class="creator-list"></div>
@@ -74,7 +89,7 @@ export const tradeMarkup = `
         </section>
       </aside>
     </section>
-    <footer class="page-footer"><p>Review your draft before publishing it publicly.</p><div><button id="publish-community" class="button primary">Publish to community</button><button id="import" class="button secondary">↑ Import JSON</button><button id="export" class="button secondary">↓ Export JSON</button></div></footer>
+    <footer class="page-footer"><div><button id="publish-community" class="button primary">Publish to community</button><button id="import" class="button secondary">Import JSON</button><button id="export" class="button secondary">Export JSON</button></div></footer>
     <p id="notice" class="notice" role="status" aria-live="polite"></p>
   </main>
     <dialog id="ai-dialog" class="ai-dialog" aria-labelledby="ai-title">
@@ -113,8 +128,8 @@ export const tradeMarkup = `
         </section>
   </dialog>
   <dialog id="backtest-setup-dialog" class="backtest-setup-dialog backtest-panel" aria-labelledby="backtest-setup-title">
-    <div class="dialog-heading"><div><p class="eyebrow">HISTORICAL BACKTEST</p><h2 id="backtest-setup-title">Test your strategy</h2></div><button id="backtest-close" class="icon-button" type="button" aria-label="Close backtest setup">×</button></div>
-          <p class="backtest-intro">A ready-made test. Your rules.</p>
+    <div class="dialog-heading"><div><h2 id="backtest-setup-title">Test your strategy</h2></div><button id="backtest-close" class="icon-button" type="button" aria-label="Close backtest setup">×</button></div>
+
           <div id="backtest-presets" class="backtest-presets" role="group" aria-label="Ready-made backtests"></div>
           <form id="backtest-form">
             <div id="backtest-drop" class="backtest-drop" aria-label="Drop a strategy or ready-made test here">
@@ -158,7 +173,7 @@ export const tradeMarkup = `
     </div>
   </dialog>
   <dialog id="import-dialog" aria-labelledby="import-title">
-    <form id="import-form"><div class="dialog-heading"><div><p class="eyebrow">BRING YOUR RULES</p><h2 id="import-title">Import a strategy</h2></div><button type="button" id="close-import" class="icon-button" aria-label="Close import">×</button></div>
+    <form id="import-form"><div class="dialog-heading"><div><h2 id="import-title">Import a strategy</h2></div><button type="button" id="close-import" class="icon-button" aria-label="Close import">×</button></div>
       <p class="muted small">Paste strategy JSON or choose a file. It must pass validation before replacing your draft.</p>
       <label class="field"><span>Choose JSON file <span class="unit">64 KiB MAX</span></span><input id="json-file" type="file" accept=".json,application/json"></label>
       <label class="field"><span>Strategy JSON</span><textarea id="import-text" rows="12" spellcheck="false" placeholder='{"schemaVersion": "1", ...}'></textarea></label>

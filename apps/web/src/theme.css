@@ -1,15 +1,15 @@
 /* Shared Poros identity, loaded after each workspace stylesheet. */
 :root {
   --blue: #0143eb;
-  --paper: #f3f3f3;
+  --paper: #f4f6f9;
   --white: #ffffff;
-  --ink: #17191e;
-  --muted: #65676b;
-  --line: #dcdde0;
+  --ink: #172033;
+  --muted: #556277;
+  --line: #d9dfe8;
   --orange: #0143eb;
-  --orange-hover: #284ac3;
+  --orange-hover: #123cbb;
   --green: #355ee8;
-  --pale: #eef2ff;
+  --pale: #edf2ff;
   --mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
   --sans: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --serif: var(--sans);
@@ -20,14 +20,7 @@
 }
 body { margin: 0; background: var(--paper); color: var(--ink); font-family: var(--sans); }
 h1, h2, h3 { font-family: var(--sans); }
-.poros-header { min-height: 76px; padding: 14px 42px; display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 30px; background: var(--white); border-bottom: 1px solid var(--line); }
-.poros-brand { display: inline-flex; align-items: center; gap: 11px; color: var(--ink); font: 750 21px/1 var(--sans); letter-spacing: -.8px; text-decoration: none; }
-.poros-mark { width: 34px; height: 34px; color: var(--blue); flex-shrink: 0; }
-.poros-nav { display: flex; gap: 24px; align-items: center; }
-.poros-nav a { color: var(--muted); font: 600 13px/1.5 var(--sans); text-decoration: none; padding: 8px 0; border-bottom: 2px solid transparent; }
-.poros-nav a:hover, .poros-nav a[aria-current="page"] { color: var(--blue); border-bottom-color: var(--blue); }
-.poros-wallet { justify-self: end; border: 1px solid var(--line); border-radius: var(--radius); padding: 10px 16px; background: var(--white); color: var(--ink); font: 600 12px/1.5 var(--sans); white-space: nowrap; cursor: pointer; }
-.poros-wallet:hover { border-color: var(--blue); color: var(--blue); }
+.poros-mark { width: 34px; height: 34px; object-fit: contain; color: var(--blue); flex-shrink: 0; }
 .poros-skip { position: absolute; z-index: 100; top: 8px; left: 8px; transform: translateY(-200%); background: white; color: var(--ink); padding: 12px; }
 .poros-skip:focus { transform: translateY(0); }
 :focus-visible { outline: 3px solid #91afff; outline-offset: 3px; }
@@ -35,12 +28,6 @@ h1, h2, h3 { font-family: var(--sans); }
 .button.primary:hover { background: var(--orange-hover); }
 .sidebar, .paper-panel, .community-card, .strategy-row { background-color: var(--white); }
 .sidebar-note, .preview-banner { background-color: var(--pale); color: var(--ink); }
-@media (max-width: 800px) {
-  .poros-header { display: flex; padding: 14px 20px; gap: 16px; flex-wrap: wrap; }
-  .poros-wallet { margin-left: auto; }
-  .poros-nav { order: 3; width: 100%; justify-content: safe center; overflow-x: auto; gap: 22px; }
-  .poros-nav a { white-space: nowrap; }
-}
 
 .hero h1 em { color: var(--blue); }
 .hero-art { background: var(--white); border-color: var(--line); }
@@ -57,14 +44,10 @@ h1, h2, h3 { font-family: var(--sans); }
 .pot-totals dd { color: var(--ink); }
 
 .hero-footnote .poros-mark { width: 14px; height: 14px; }
-.poros-brand > span:first-child { display: flex; }
 
 html { scroll-behavior: smooth; }
-#main > main, #main > .trade-page, #content > * { animation: poros-page-in 220ms ease-out; }
-@keyframes poros-page-in { from { opacity: 0; transform: translateY(6px); } }
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
-  #main > main, #main > .trade-page, #content > * { animation: none; }
 }
 
 .orders-page { width: 100%; max-width: 1320px; margin: 0 auto; padding: 36px 42px 60px; }
@@ -115,13 +98,6 @@ html { scroll-behavior: smooth; }
 }
 
 /* Spacious editorial surfaces; keep the shared Poros palette and existing controls. */
-.poros-header { min-height: 94px; padding: 20px clamp(22px, 4vw, 64px); border-bottom: 0; background: var(--paper); gap: 24px; }
-.poros-brand { font-size: 24px; letter-spacing: -1px; }
-.poros-nav { gap: 4px; padding: 5px; border: 1px solid var(--line); border-radius: 999px; background: var(--white); }
-.poros-nav a { padding: 10px 19px; border: 0; border-radius: 999px; font-size: 12px; transition: background .16s, color .16s; }
-.poros-nav a:hover { background: var(--paper); }
-.poros-nav a[aria-current="page"] { background: var(--blue); color: var(--white); }
-.poros-wallet { min-height: 44px; border-radius: 999px; padding: 11px 20px; background: var(--white); }
 .app-layout > main { padding: 48px clamp(24px, 3.5vw, 56px) 88px; }
 .app-layout.standalone-page > main { max-width: 1440px; padding-top: 34px; }
 .app-layout .eyebrow { font-family: var(--sans); font-size: 10px; font-weight: 650; letter-spacing: 1.8px; }
@@ -225,10 +201,6 @@ html { scroll-behavior: smooth; }
 .modal .field > input, .modal .field > textarea, .modal .field > select { background: var(--paper); border-color: var(--line); color: var(--ink); border-radius: 12px; }
 .app-layout + footer { padding: 30px clamp(24px, 4vw, 64px); font-size: 10px; border-color: var(--line); }
 @media (max-width: 1100px) {
-  .poros-header { display: flex; flex-wrap: wrap; }
-  .poros-wallet { margin-left: auto; }
-  .poros-nav { order: 3; width: max-content; max-width: 100%; margin-inline: auto; overflow-x: auto; }
-  .poros-nav a { white-space: nowrap; }
   .app-layout .hero { gap: 30px; min-height: 440px; }
   .app-layout .hero h1 { font-size: clamp(46px, 6vw, 68px); }
   .app-layout .discovery-columns { grid-template-columns: minmax(0, 1fr) 230px; gap: 24px; }
@@ -236,9 +208,6 @@ html { scroll-behavior: smooth; }
   .app-layout .compact { grid-template-columns: 1fr; }
 }
 @media (max-width: 800px) {
-  .poros-header { padding: 18px 22px; gap: 18px; }
-  .poros-nav { width: auto; margin-inline: auto; gap: 2px; justify-content: flex-start; max-width: 100%; }
-  .poros-nav a { padding: 10px 17px; }
   .app-layout > main, .app-layout.standalone-page > main { padding: 28px 22px 56px; }
   .app-layout .hero { grid-template-columns: 1fr; gap: 30px; padding: 24px 0 36px; }
   .app-layout .hero h1 { font-size: clamp(46px, 9vw, 68px); }
@@ -254,11 +223,6 @@ html { scroll-behavior: smooth; }
   .app-layout .page-heading { padding-bottom: 30px; }
 }
 @media (max-width: 560px) {
-  .poros-header { padding: 16px; gap: 16px; }
-  .poros-brand { font-size: 22px; }
-  .poros-wallet { padding: 10px 14px; font-size: 11px; }
-  .poros-nav { width: 100%; border-radius: 20px; }
-  .poros-nav a { flex: 1; text-align: center; padding: 10px 9px; font-size: 11px; }
   .app-layout > main, .app-layout.standalone-page > main { padding: 22px 16px 44px; }
   .app-layout .hero { padding-top: 14px; }
   .app-layout .hero h1 { font-size: clamp(40px, 10.8vw, 58px); }
@@ -284,14 +248,7 @@ html { scroll-behavior: smooth; }
 
 /* Level reference: pale paper, cobalt highlights, technical labels, squared surfaces. */
 html{color-scheme:light}
-body{background:var(--paper);color:var(--ink)}
-.poros-header{min-height:72px;padding:15px 32px;background:var(--paper);border-bottom:1px solid var(--line);gap:20px}
-.poros-brand{font-size:25px;letter-spacing:-1.3px}.poros-mark{width:31px;height:31px}
-.poros-nav{border:0;background:transparent;padding:0;gap:7px;border-radius:0}
-.poros-nav a{font-family:var(--mono);font-size:11px;font-weight:500;border-radius:2px;padding:10px 14px}
-.poros-nav a[aria-current=page]{background:var(--blue);color:#fff}
-.poros-wallet{border-radius:2px;background:var(--blue);color:#fff;border-color:var(--blue);font-family:var(--mono);font-size:11px;min-height:38px;padding:10px 16px}
-.poros-wallet:hover{background:var(--orange-hover);color:#fff}
+body{background:var(--paper);color:var(--ink)}.poros-mark{width:31px;height:31px}
 .poros-skip{background:#fff;color:var(--ink)}
 .button.primary,.button:not(.secondary):not(.ghost):not(.danger){background:var(--blue);color:#fff}
 .trade-page .button,.app-layout .button,.modal .button{border-radius:2px;box-shadow:none;font-family:var(--mono);font-weight:500;font-size:11px;min-height:38px}
@@ -372,8 +329,8 @@ body{background:var(--paper);color:var(--ink)}
 .app-layout .page-heading{padding:8px 0 26px}.app-layout .page-heading h1{font-size:clamp(34px,4vw,54px)}
 .app-layout .sidebar nav>a,.app-layout .room-dot{border-radius:2px}.app-layout .section-title h2{font-size:27px}
 .orders-history .profit{color:#16734d}.orders-history .loss{color:#b83f45}
-@media(max-width:1100px){.poros-header{padding:15px 22px}.trade-page .workspace{gap:12px}.app-layout .hero{min-height:0}.app-layout .hero h1{font-size:46px}}
-@media(max-width:760px){.poros-header{padding:14px 16px;gap:14px}.poros-nav{width:100%;margin:0;border-top:1px solid var(--line);padding-top:10px}.poros-nav a{font-size:10px;padding:9px 11px}.trade-intro h1{font-size:29px}.trade-page .workspace{gap:12px}.trade-page .palette,.trade-page .editor-column,.trade-page .library{border-radius:3px}.app-layout .hero{padding:20px 0 26px}.app-layout .hero h1{font-size:42px}.app-layout .hero-art{border-radius:3px}.app-layout .paper-panel,.app-layout .profile-panel,.app-layout .chat-panel,.app-layout .community-card{padding:20px;border-radius:3px}.trade-page dialog.backtest-setup-dialog{border-radius:4px}.trade-page .palette-block strong{font-size:10px}.trade-page .backtest-launcher{flex-basis:100%}}
+@media(max-width:1100px){.trade-page .workspace{gap:12px}.app-layout .hero{min-height:0}.app-layout .hero h1{font-size:46px}}
+@media(max-width:760px){.trade-intro h1{font-size:29px}.trade-page .workspace{gap:12px}.trade-page .palette,.trade-page .editor-column,.trade-page .library{border-radius:3px}.app-layout .hero{padding:20px 0 26px}.app-layout .hero h1{font-size:42px}.app-layout .hero-art{border-radius:3px}.app-layout .paper-panel,.app-layout .profile-panel,.app-layout .chat-panel,.app-layout .community-card{padding:20px;border-radius:3px}.trade-page dialog.backtest-setup-dialog{border-radius:4px}.trade-page .palette-block strong{font-size:10px}.trade-page .backtest-launcher{flex-basis:100%}}
 @media(prefers-reduced-motion:reduce){.app-layout .community-card,.trade-page .palette-block{transition:none}}
 
 /* 0G AI Dialog enhancements */
@@ -488,3 +445,116 @@ body{font-size:15px;line-height:1.6}
 .strategy-spinner{width:14px;height:14px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:strategy-spin .8s linear infinite;flex-shrink:0}
 @keyframes strategy-spin{to{transform:rotate(360deg)}}
 @media(prefers-reduced-motion:reduce){.strategy-spinner{animation:none}}
+@font-face {
+  font-family: Inter;
+  src: url('/fonts/inter-latin.woff2') format('woff2');
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+}
+
+:root {
+  --ease-out: cubic-bezier(.2, .75, .25, 1);
+  scrollbar-color: #a9b6c9 transparent;
+}
+::selection { background: #c8d8ff; color: #112349; }
+:where(input, textarea) { caret-color: var(--blue); }
+:where(input, select, textarea, button) { font-family: inherit; }
+:where(h1, h2, h3) { text-wrap: balance; }
+.app-layout h1[tabindex="-1"]:focus { outline: none; }
+:where(p) { text-wrap: pretty; }
+:where(table, output, time) { font-variant-numeric: tabular-nums; }
+
+.poros-header {
+  display: grid;
+  grid-template-columns: minmax(max-content, 1fr) auto minmax(max-content, 1fr);
+  align-items: center;
+  gap: 16px;
+  min-height: 64px;
+  box-sizing: border-box;
+  padding: 0 clamp(18px, 3vw, 48px);
+  background: var(--white);
+  border-bottom: 1px solid var(--line);
+}
+.poros-brand {
+  justify-self: start;
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  color: var(--ink);
+  text-decoration: none;
+  font: 700 24px/1 var(--sans);
+  letter-spacing: -.04em;
+}
+.poros-brand > span:first-child, .wallet-symbol { display: flex; }
+.poros-brand .poros-mark { width: 30px; height: 30px; color: var(--blue); }
+.poros-nav { display: flex; align-self: stretch; align-items: stretch; gap: clamp(8px, 1.6vw, 28px); }
+.poros-nav a {
+  position: relative;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  min-width: 0;
+  padding: 0 4px;
+  color: var(--muted);
+  font: 550 13px/1.4 var(--sans);
+  white-space: nowrap;
+  text-decoration: none;
+  transition: color 140ms var(--ease-out);
+}
+.poros-nav a::after {
+  content: '';
+  position: absolute;
+  inset: auto 0 0;
+  height: 2px;
+  background: var(--blue);
+  transform: scaleX(0);
+  transition: transform 180ms var(--ease-out);
+}
+.poros-nav a:hover, .poros-nav a[aria-current="page"] { color: var(--blue); }
+.poros-nav a[aria-current="page"]::after { transform: scaleX(1); }
+.poros-wallet {
+  justify-self: end;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+  padding: 7px 13px;
+  border: 1px solid #cad4e3;
+  border-radius: 7px;
+  background: white;
+  color: var(--ink);
+  font: 580 12px/1.4 var(--sans);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: border-color 160ms var(--ease-out), background-color 160ms var(--ease-out);
+}
+.poros-wallet:hover { background: var(--pale); border-color: #94abe3; }
+.poros-wallet[hidden] { display: none; }
+.wallet-symbol svg { width: 16px; height: 16px; }
+@media (max-width: 760px) {
+  .poros-header {
+    grid-template-columns: 1fr auto;
+    grid-template-rows: auto auto;
+    gap: 0;
+    min-height: 0;
+    padding: 9px 16px 0;
+  }
+  .poros-brand { font-size: 22px; min-height: 36px; }
+  .poros-brand .poros-mark { width: 27px; height: 27px; }
+  .poros-wallet { grid-column: 2; grid-row: 1; max-width: 56vw; overflow: hidden; text-overflow: ellipsis; }
+  .poros-nav { grid-column: 1 / -1; grid-row: 2; justify-content: space-between; gap: 8px; overflow-x: auto; }
+  .poros-nav a { min-height: 41px; padding: 0 2px; font-size: 12px; }
+}
+@media (max-width: 360px) {
+  .poros-header-actions { gap: 5px; }
+  .poros-header-actions .poros-wallet { width: 40px; min-width: 40px; max-width: 40px; min-height: 40px; padding: 8px; justify-content: center; }
+  .poros-header-actions #wallet-label { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  @view-transition { navigation: auto; }
+  ::view-transition-old(root), ::view-transition-new(root) { animation-duration: 160ms; animation-timing-function: var(--ease-out); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .poros-nav a, .poros-nav a::after, .poros-wallet { transition: none; }
+}
