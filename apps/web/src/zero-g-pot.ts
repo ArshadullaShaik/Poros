@@ -56,6 +56,7 @@ export function zeroGPotPage() {
       <header class="pot-heading"><span class="pot-label">0G COMMUNITY COMPUTE <span class="pot-preview">MOCK DEMO</span></span><h1 id="pot-title">A little goes a long way.</h1><p>Share your spare iAI credits. Keep someone&rsquo;s ideas running.</p></header>
       <div class="pot-layout">
         <section class="pot-bank" aria-label="0G Pot simulated balance">
+          <div class="pot-art" role="img" aria-label="ASCII piggy bank suspended by strings and filled with decorative iAI coins"><pre aria-hidden="true">${pig}</pre></div>
           <span class="pot-total-label">Available credits</span>
           <strong class="pot-total">${credits(demo.available)}</strong>
           <dl class="pot-totals">
