@@ -53,16 +53,20 @@ const pig = String.raw`     |      |                         |      |
 export function zeroGPotPage() {
     if (demo.day !== new Date().toISOString().slice(0,10)) demo = freshPotDemo();
     return `<section class="pot-page" aria-labelledby="pot-title">
-      <header class="pot-heading"><span class="pot-label">COMMUNITY COMPUTE <span class="pot-preview">MOCK DEMO</span></span><h1 id="pot-title">A little goes a long way.</h1><p>Give your spare credits. Keep someone’s ideas going.</p></header>
+      <header class="pot-heading"><span class="pot-label">0G COMMUNITY COMPUTE <span class="pot-preview">MOCK DEMO</span></span><h1 id="pot-title">A little goes a long way.</h1><p>Share your spare iAI credits. Keep someone&rsquo;s ideas running.</p></header>
       <div class="pot-layout">
         <section class="pot-bank" aria-label="0G Pot simulated balance">
-          <div class="pot-art" role="img" aria-label="ASCII piggy bank suspended by strings and filled with decorative iAI coins"><pre aria-hidden="true">${pig}</pre></div>
-          <span class="pot-total-label">0G Pot · available credits</span><strong class="pot-total">${credits(demo.available)}</strong>
-          <dl class="pot-totals"><div><dt>Donated today</dt><dd>${credits(demo.donated)}</dd></div><div><dt>Claimed today</dt><dd>${credits(demo.claimed)}</dd></div></dl>
+          <span class="pot-total-label">Available credits</span>
+          <strong class="pot-total">${credits(demo.available)}</strong>
+          <dl class="pot-totals">
+            <div><dt>Donated today</dt><dd>${credits(demo.donated)}</dd></div>
+            <div><dt>Claimed today</dt><dd>${credits(demo.claimed)}</dd></div>
+          </dl>
+          <span class="pot-bank-caption">Credits reset at 00:00 UTC daily</span>
         </section>
         <div class="pot-actions">
           <div class="pot-balance"><span>Your demo allowance</span><strong>${credits(demo.own)} <small>credits</small></strong></div>
-          <section class="pot-action"><h2>Give a little.</h2><p>Donate unused iAI credits before the daily reset.</p>
+          <section class="pot-action"><h2>Give a little.</h2><p>Donate unused iAI credits before the daily reset. Every credit helps another builder run their strategy.</p>
             <form id="pot-donate"><label class="sr-only" for="pot-amount">Credits to donate</label><div class="pot-donate-row"><input id="pot-amount" name="amount" type="number" min="0.0001" max="${credits(demo.own)}" step="0.0001" placeholder="0.0000" required ${demo.own === 0 ? 'disabled' : ''}><button type="submit" class="button primary" ${demo.own === 0 ? 'disabled' : ''}>Donate</button></div></form>
           </section>
           <section class="pot-action"><h2>Get a little help.</h2><p>Up to <strong>${POT_CLAIM_LIMIT} credits</strong>, once per UTC day, after your own allowance runs out.</p>
