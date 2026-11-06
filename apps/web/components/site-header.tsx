@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import {mark} from '../src/icons';
 import {FundsToggle} from './funds-toggle';
-const links = [['/home', 'Home'], ['/', 'Trade'], ['/orders', 'Orders'], ['/community', 'Communities'], ['/profile', 'Profile'], ['/0g-pot', '0G Pot']] as const;
+const links = [['/home', 'Home'], ['/community', 'Communities'], ['/', 'Trade'], ['/orders', 'Orders'], ['/0g-pot', '0G Pot'], ['/profile', 'Profile']] as const;
 export function SiteHeader({section}: {section: string}) {
   return <header className="poros-header">
     <a className="poros-brand" href="/home" aria-label="Poros Home"><span dangerouslySetInnerHTML={{__html: mark}}/><span>Poros</span></a>
