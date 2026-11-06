@@ -390,30 +390,16 @@ body{background:var(--paper);color:var(--ink)}
   color: #3b506d;
 }
 
-/* Community Expiration Timer and Extension */
-.community-timer {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  background: #f0f4fa;
-  border: 1px solid #d2deed;
-  border-radius: 6px;
-  padding: 3px 9px;
-  font-size: 11px;
-  font-weight: 600;
-  color: #2c4a70;
-  font-variant-numeric: tabular-nums;
-}
-.community-card-timer {
-  font-size: 10px;
-  color: var(--muted);
-  font-weight: 500;
-  margin-left: auto;
-  margin-right: 8px;
-  font-variant-numeric: tabular-nums;
-  background: #f4f6fa;
-  padding: 2px 7px;
-  border-radius: 4px;
-}
 
-
+/* Shared text hierarchy across community and trading workspaces. */
+body { font-size: 15px; line-height: 1.55; }
+button, input, select, textarea { font-family: var(--sans); font-size: 14px; line-height: 1.5; }
+.poros-nav a, .poros-wallet { font: 600 13px/1.5 var(--sans); }
+.app-layout h1, .app-layout h2, .app-layout h3 { font-weight: 650; line-height: 1.2; letter-spacing: -.025em; }
+.app-layout .page-heading h1 { font-size: clamp(1.8rem, 3.5vw, 2.8rem); }
+.app-layout .thread-title, .app-layout .community-card h3 { font-size: 1.15rem; line-height: 1.35; }
+.app-layout .thread-row p, .app-layout .chat-message p, .app-layout .community-card p, .app-layout .field { font: 14px/1.6 var(--sans); }
+.app-layout .community-meta, .community-lifetime, .app-layout .message-meta, .app-layout .thread-heading small, .app-layout .field small,
+.app-layout .chat-disclosure, .app-layout .message-meta small, .app-layout .profile-table th, .app-layout .history-row small { font-size: 12px; line-height: 1.5; }
+.community-lifetime { display: block; font-variant-numeric: tabular-nums; min-height: 1.5em; color: var(--muted); }
+.transaction-link { font: 12px/1.5 var(--mono); overflow-wrap: anywhere; text-decoration: underline; }

@@ -234,3 +234,17 @@ test('feed reads reuse authorization evidence within a view and observe a ban on
   assert.equal((await hub.listThreads({communityKey})).length,0);
   assert.equal(reads,1);
 });
+
+test('automatic moderation blocks writes and filters direct Arkiv content on every read view',async()=>{
+ const {store,events,communityKey,hub:direct}=await communitySetup();
+ let unavailable=false;
+ const hub=createCommunityHub({events,strategies:store,moderate:async text=>{if(unavailable)throw new Error('offline');return !text.includes('blocked');}});
+ await assert.rejects(hub.createThread({requestId:crypto.randomUUID(),communityKey,title:'blocked',body:'text'}),{code:'MODERATION_REJECTED'});
+ assert.equal(events.rows.length,0);
+ await direct.createThread({requestId:crypto.randomUUID(),communityKey,title:'blocked',body:'bypassed browser'});
+ await hub.createThread({requestId:crypto.randomUUID(),communityKey,title:'safe',body:'public strategy'});
+ assert.deepEqual((await hub.listThreads({communityKey})).map(row=>row.data.title),['safe']);
+ unavailable=true;await assert.rejects(hub.listThreads({communityKey}),/offline/);
+ await assert.rejects(hub.sendMessage({requestId:crypto.randomUUID(),communityKey,body:'safe'}),/offline/);
+ assert.equal(events.rows.length,2);
+});

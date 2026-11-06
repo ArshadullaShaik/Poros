@@ -1,3 +1,4 @@
+import {createCommunityModeration} from './moderation.ts';
 import type { Hex } from 'viem';
 import { createArkivStore, type StoreOptions, type Json, type WalletContext } from '../../../src/integrations/arkiv/index.ts';
 import { createArkivEventRepository, createCommunityHub, type Currency } from '../../../src/integrations/arkiv/community/index.ts';
@@ -37,5 +38,5 @@ export function compose(integration: AppIntegration) {
         ...(integration.wallet ? { getWalletContext: () => integration.wallet!.getContext() } : {}) };
     const strategies = createArkivStore(options);
     const events = createArkivEventRepository(options);
-    return { strategies, events, community: createCommunityHub({ events, strategies }) };
+    return { strategies, events, community: createCommunityHub({ events, strategies, moderate:createCommunityModeration() }) };
 }

@@ -9,6 +9,11 @@ function input(value: unknown, required: string[], optional: string[]=[]): void 
   if(!value || typeof value!=='object' || Array.isArray(value)) fail('INVALID_INPUT');
   exactKeys(value as Record<string,unknown>,required,optional);
 }
+function duration(value:unknown):number|undefined {
+  if(value===undefined)return undefined;
+  if(typeof value!=='number'||!Number.isSafeInteger(value)||value<1||value>180)fail('INVALID_INPUT','Lifetime must be a whole number from 1 to 180 days');
+  return value;
+}
 function page(value: PageInput={}): {offset:number;limit:number} {
   input(value,[],['offset','limit']);const offset=value.offset??0,limit=value.limit??20;
   if(!Number.isSafeInteger(offset)||offset<0||!Number.isSafeInteger(limit)||limit<1||limit>100) fail('INVALID_INPUT','Invalid page');
@@ -190,7 +195,7 @@ export function createStorageService(backend: Backend, validator?: ValidateStrat
     async listCommunities(args={}){input(args,[],['creator','page']);return listing('communities',args.creator!==undefined?[{field:'$creator',value:address(args.creator)}]:[],args.page,communityDTO);},
     async getCommunity(args){input(args,['communityKey']);return communityDTO(await backend.get(entityKey(args.communityKey)));},
     async createCommunity(args){input(args,['requestId','name','description'],['durationDays']);const request=requestId(args.requestId),title=name(args.name),description=text(args.description,0,4096);
-      const durationDays = typeof args.durationDays === 'number' && args.durationDays > 0 ? args.durationDays : undefined;
+      const durationDays = duration(args.durationDays);
       return write(writer=>createMetadata(writer,'communities',communityValues(buildCommunity(writer.account,request,title,description)),communityDTO,durationDays));},
     async updateCommunity(args){input(args,['communityKey','name','description']);const key=entityKey(args.communityKey),title=name(args.name),description=text(args.description,0,4096);
       return write(async writer=>{const e=await backend.get(key);const r=decodeCommunity(e);if(address(e.owner)!==writer.account)fail('NOT_OWNER');
@@ -203,9 +208,9 @@ export function createStorageService(backend: Backend, validator?: ValidateStrat
         if(!found.length){await store.getCommunity({communityKey});if(versionKey)await store.getVersion({versionKey});}
         return createMetadata(writer,'posts',values,postDTO);});},
     async extendOwnedEntity(args){input(args,['entityKey'],['durationDays']);const key=entityKey(args.entityKey);
-      return write(async writer=>{const e=await backend.get(key);if(e.kind !== 'communities' && address(e.owner)!==writer.account)fail('NOT_OWNER');assertNative(e,e.kind!=='communities',e.kind==='communities');
-        const durationDays = typeof args.durationDays === 'number' && args.durationDays > 0 ? args.durationDays : undefined;
-        const current=await backend.currentBlock();if(!durationDays && e.expiresAt-current>=302_400n)return {state:'unchanged' as const,entityKey:key,expiresAtBlock:String(e.expiresAt),source:backend.source};
+      return write(async writer=>{const e=await backend.get(key);if(address(e.owner)!==writer.account)fail('NOT_OWNER');assertNative(e,e.kind!=='communities',e.kind==='communities'?e.permissionlessExtension:false);
+        const durationDays = duration(args.durationDays);
+        const current=await backend.currentBlock();if(e.expiresAt<=current)fail('NOT_FOUND_OR_EXPIRED');if(!durationDays && e.expiresAt-current>=302_400n)return {state:'unchanged' as const,entityKey:key,expiresAtBlock:String(e.expiresAt),source:backend.source};
         await writer.assertCurrent();const included=await writer.extend(key,durationDays);
         const extended=await receipt(included,e.values,async current=>{
           if(included.expiresAt===undefined||current.expiresAt<included.expiresAt)fail('INTEGRITY_FAILED','Renewal expiration read-back is stale');
@@ -213,7 +218,7 @@ export function createStorageService(backend: Backend, validator?: ValidateStrat
         });
         return {state:'extended' as const,receipt:extended};});},
     async deleteOwnedEntity(args){input(args,['entityKey']);const key=entityKey(args.entityKey);
-      return write(async writer=>{const e=await backend.get(key);if(address(e.owner)!==writer.account)fail('NOT_OWNER');assertNative(e,e.kind!=='communities',e.kind==='communities');
+      return write(async writer=>{const e=await backend.get(key);if(address(e.owner)!==writer.account)fail('NOT_OWNER');assertNative(e,e.kind!=='communities',e.kind==='communities'?e.permissionlessExtension:false);
         await writer.assertCurrent();const included=await writer.delete(key);
         try{await backend.get(key);}catch(error){if(error instanceof StorageError&&error.code==='NOT_FOUND_OR_EXPIRED')return {entityKey:key,txHash:included.txHash,source:backend.source,readBackMissing:true as const};}
         throw new StorageError('WRITE_CONFIRMED_READ_PENDING','Deletion included; absence not verified',{included:true,entityKey:key,txHash:included.txHash,retryable:true});});},

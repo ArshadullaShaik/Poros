@@ -26,7 +26,8 @@ export function postValues(r:PostRecord):Values {
   return {schemaVersion:1,requestId:r.requestId,community:r.communityKey,...(r.strategyVersionKey?{strategyVersion:r.strategyVersionKey}:{}),record:recordBytes(r)};
 }
 function metadataRecord(e:StoredEntity,kind:'communities'|'posts'):Record<string,unknown> {
-  assertNative(e,kind==='posts',kind==='communities');
+  // Existing communities may have either extension flag; new writes disable permissionless extension.
+  assertNative(e,kind==='posts',kind==='communities'?e.permissionlessExtension:false);
   if(e.kind!==kind)fail('UNTRUSTED_RECORD');
   if(e.values.schemaVersion!==1)fail('UNSUPPORTED_SCHEMA');
   if(!(e.values.record instanceof Uint8Array))fail('INTEGRITY_FAILED');

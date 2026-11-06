@@ -1,3 +1,4 @@
+import {moderateCommunityText} from '../ai/moderation.ts';
 import {createFlashPerformance,validHistoryWallet} from "../execution/performance.ts";
 import { Readable } from "node:stream";
 import { AgentError, readBoundedJson, runStrategyAgent, validateInferenceKey } from "../ai/zero-g.ts";
@@ -22,7 +23,7 @@ export function createApiHandler({fetcher = fetch, market = createLiveMarkets({f
     if(aiBusy)throw new AgentError("RATE_LIMITED");
     aiBusy=true;try{return await invokePriceExecution(options,fetcher);}finally{aiBusy=false;}
   }});
-  async function handleAi(request, response, execution = false) {
+  async function handleAi(request, response, execution = false, moderation = false) {
     const json = (status, payload) => {
       response.setHeader("Content-Type", "application/json; charset=utf-8");
       response.writeHead(status).end(JSON.stringify(payload));
@@ -70,7 +71,8 @@ export function createApiHandler({fetcher = fetch, market = createLiveMarkets({f
         }
         data.marketData = {...marketData,firstOpenTimeMs:input.candles[0].openTimeMs,lastCloseTimeMs:input.candles.at(-1).closeTimeMs};
         data.execution.assumptions.unshift("Coinbase ETH/USD minute candles are a proxy for Base WETH/USDC, not historical Flash fills. Chainlink and Flash check current prices only. Fills, fees and balances are simulated.");
-      } else data = await runStrategyAgent({apiKey, input: body, defaults: marketStrategy, context: marketContext, signal: abort.signal}, fetcher);
+      } else if (moderation) data = {allowed:await moderateCommunityText(apiKey, body?.text, abort.signal, fetcher)};
+      else data = await runStrategyAgent({apiKey, input: body, defaults: marketStrategy, context: marketContext, signal: abort.signal}, fetcher);
       json(200, {ok: true, data});
     } catch (error) {
       const safe = error instanceof AgentError || error instanceof PaperError || error instanceof FlashError ? error : new AgentError("UNAVAILABLE");
@@ -123,6 +125,10 @@ export function createApiHandler({fetcher = fetch, market = createLiveMarkets({f
     let pathname;
     try { pathname = new URL(request.url ?? "/", "http://127.0.0.1").pathname; }
     catch { response.writeHead(400).end("Malformed request target."); return; }
+    if (pathname === "/api/community-moderation") {
+      if(request.method!=="POST"){response.writeHead(405).end();return;}
+      await handleAi(request,response,false,true);return;
+    }
     if (pathname === "/api/performance") {
       if(request.method!=="GET"){response.setHeader("Allow","GET");response.writeHead(405).end();return;}
       if((request.headers.origin && request.headers.origin!==`http://${request.headers.host}`)||

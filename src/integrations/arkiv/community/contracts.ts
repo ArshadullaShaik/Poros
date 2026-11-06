@@ -23,4 +23,4 @@ export interface ListingInput {
 }
 export interface Listing { key: Hex; seller: Hex; packageId: string; contentHash: Hex; title: string; description: string;
   terms: string; currency: Currency; amount: string; active: boolean; expiresAtBlock: string; source: Source }
-export interface HubOptions { events: EventRepository; strategies: ArkivStore }
+export interface HubOptions { events: EventRepository; strategies: ArkivStore; moderate?: (text:string)=>Promise<boolean> }

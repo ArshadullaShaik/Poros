@@ -8,7 +8,7 @@ import { latestEvent as latest } from './state.ts';
 function invalidAuthorState(error:unknown){return !!error&&typeof error==='object'&&'code'in error&&
   ['CONCURRENT_UPDATE','HISTORY_INCOMPLETE','INTEGRITY_FAILED','UNTRUSTED_RECORD','INVALID_INPUT','PAYLOAD_TOO_LARGE','UNSUPPORTED_SCHEMA'].includes(String(error.code));}
 
-function communityHub({events,strategies}:HubOptions) {
+function communityHub({events,strategies,moderate}:HubOptions) {
   async function state(type:EventType,subject:string,scope:string,actor:Hex,atBlock?:bigint) {
     const rows=(await events.scan({type,subject,scope,actor})).filter(row=>atBlock===undefined||BigInt(row.createdAtBlock)<=atBlock);
     return latest(rows);
@@ -85,7 +85,7 @@ function communityHub({events,strategies}:HubOptions) {
     const result:EventDTO[]=[];
     for(let offset=0;offset<rows.length;offset+=4) {
       await Promise.all(rows.slice(offset,offset+4).map(async row => {
-        try { if(await permitted(row,communityKey))result.push(row); }
+        try { if(await permitted(row,communityKey) && (!moderate || await moderate([row.data.title,row.data.body].filter(Boolean).join("\n"))))result.push(row); }
         catch(e) { if(!e||typeof e!=='object'||!('code'in e)||!['NOT_OWNER','UNTRUSTED_RECORD'].includes(String(e.code)))throw e; }
       }));
     }
@@ -96,6 +96,7 @@ function communityHub({events,strategies}:HubOptions) {
     if(type==='reply') {const thread=await events.read(entityKey(args.threadKey));
       if(thread.type!=='thread'||thread.scope!==communityKey||!(await permitted(thread,communityKey)))fail('INVALID_INPUT','Thread unavailable');}
     if(args.strategyVersionKey) await strategies.getVersion({versionKey:entityKey(args.strategyVersionKey)});
+    if(moderate && !await moderate([args.title,args.body].filter(Boolean).join('\n')))fail('MODERATION_REJECTED','AI moderation rejected this public content. Revise your draft.');
     return append(type,communityKey,communityKey,args.requestId,{body:args.body,...(args.title!==undefined?{title:args.title}:{}),...(args.strategyVersionKey?{strategyVersionKey:args.strategyVersionKey}:{}),
       ...(args.threadKey?{threadKey:args.threadKey}:{}),...(joined?{membershipKey:joined.key}:{})},actor);
   }
@@ -178,6 +179,7 @@ export function createCommunityHub(options: HubOptions): CommunityHub {
     const scans = new Map<string,Promise<EventDTO[]>>();
     const communities = new Map<Hex,ReturnType<HubOptions['strategies']['getCommunity']>>();
     return communityHub({
+      moderate:options.moderate,
       events:{source:options.events.source,actor:()=>options.events.actor(),read:key=>options.events.read(key),append:input=>options.events.append(input),scan(filter) {
         const key = canonical(filter);
         let result = scans.get(key);

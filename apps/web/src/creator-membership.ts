@@ -1,3 +1,4 @@
+import {transactionLink} from './arkiv-display.ts';
 import type { Hex } from 'viem';
 import type { WalletBridge } from './integration.ts';
 import type { EventDTO, EventRepository } from '../../../src/integrations/arkiv/community/contracts.ts';
@@ -67,6 +68,7 @@ export class CreatorMembershipPanel {
   detach() { this.generation++; clearTimeout(this.expiryTimer); this.signals.clear(); this.accessDeadline = 0; this.root = undefined; }
   async mount(root: HTMLElement, creator: Hex, account: Hex | undefined, preview: boolean) {
     if (this.account !== account) this.lock();
+    if(this.account!==account)this.lastTransaction=undefined;
     this.root = root; this.creator = creator; this.account = account;
     root.addEventListener('click', event => {
       const button = (event.target as Element).closest<HTMLElement>('[data-member-action]');
@@ -91,9 +93,10 @@ export class CreatorMembershipPanel {
     if (preview) { root.innerHTML = notice('Creator memberships are available in the live Rabdi view.'); return; }
     await this.load();
   }
+  private lastTransaction?:Hex;
   private status(message: string) {
     const slot = this.root?.querySelector('[data-member-status]');
-    if (slot) slot.textContent = message;
+    if (slot) {slot.textContent = message;slot.insertAdjacentHTML('beforeend',' '+transactionLink(this.lastTransaction));}
   }
   private async checkAccount(expected = this.account): Promise<Hex> {
     if (!expected || !this.wallet) failure('WALLET_REQUIRED');
@@ -139,6 +142,7 @@ export class CreatorMembershipPanel {
       localStorage.setItem(journalKey(action.actor), JSON.stringify(action));
       try {
         const result = await this.dispatch(action);
+        this.lastTransaction=result.txHash;
         await this.checkAccount(action.actor);
         localStorage.removeItem(journalKey(action.actor));
         if (action.kind === 'claim') clearMembershipPayment(localStorage, action.actor);
@@ -179,7 +183,7 @@ export class CreatorMembershipPanel {
       else if (!unlocked) html += `<form data-member-form="unlock"><h3>Unlock private access</h3>${field('recovery','Recovery code',{required:true,type:'password'})}<button class="button secondary">Unlock in this browser</button></form>`;
       else html += '<p>Private access unlocked in this tab.</p>' + actionButton('lock','Lock private access');
       if (owner && key) html += `<form data-member-form="plan"><h3>Membership price</h3>${field('price','Sepolia ETH for 30 days',{required:true,value:plan?formatAmount(String(plan.data.priceWei),18):'0.0001'})}<button class="button primary">${plan?'Update':'Publish'} membership price</button></form>`;
-      if (payment) html += `<section><h3>Recover your payment</h3><p>Creator <code>${e(payment.creator)}</code> · ${e(formatAmount(payment.priceWei,18))} Sepolia ETH</p><form data-member-form="claim">${field('hash','Original Sepolia transaction hash',{required:true,value:payment.hash,placeholder:'0x…'})}<button class="button primary">Verify payment and activate</button></form>${actionButton('failed-payment','Check and clear a failed transaction')}<p>An uncertain payment uses this original transaction for recovery.</p></section>`;
+      if (payment) html += `<section><h3>Recover your payment</h3><p>Creator <code>${e(payment.creator)}</code> · ${e(formatAmount(payment.priceWei,18))} Sepolia ETH</p>${transactionLink(payment.hash,'sepolia')}<form data-member-form="claim">${field('hash','Original Sepolia transaction hash',{required:true,value:payment.hash,placeholder:'0x…'})}<button class="button primary">Verify payment and activate</button></form>${actionButton('failed-payment','Check and clear a failed transaction')}<p>An uncertain payment uses this original transaction for recovery.</p></section>`;
       else if (!owner && plan) html += `<form data-member-form="subscribe" data-plan="${plan.key}"><p>Pay <code>${e(creator)}</code> directly on Sepolia, chain 11155111. Access starts after the verified Arkiv claim.</p><label class="check-field"><input type="checkbox" name="reviewed" required> I reviewed the creator, price, network, and 30-day term.</label><button class="button primary" ${unlocked && !pending ? '' : 'disabled'}>${access?'Renew':'Subscribe'} · ${e(formatAmount(String(plan.data.priceWei),18))} Sepolia ETH</button></form>`;
       if (access) html += `<p>Membership expires ${e(new Date(access.expiresAt).toLocaleString())}.</p>`;
       if (owner && unlocked) html += `<form data-member-form="signal"><h3>Publish to your members</h3>${field('title','Title',{required:true})}${field('body','Reviewed signal or strategy instructions',{required:true,area:true})}<details><summary>Attach editable strategy rules</summary><p>Paste exported strategy JSON configured for virtual funds.</p>${field('strategy','Strategy JSON (optional)',{area:true})}${this.options.getDraft?actionButton('attach-draft','Attach current canvas'):''}</details><label class="field"><span>Source</span><select name="source"><option value="manual">Creator</option><option value="ai-proposal">AI proposal reviewed by creator</option><option value="rule-engine">Rule engine reviewed by creator</option></select></label><label class="check-field"><input name="approved" type="checkbox" required> I reviewed and approve this signal for my current members.</label><button class="button primary">Encrypt and publish</button></form>`;

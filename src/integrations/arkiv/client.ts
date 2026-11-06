@@ -90,7 +90,7 @@ export function createSDKBackend(options:StoreOptions={}):Backend {
             ? (durationDays >= 182 ? ExpirationTime.max() : ExpirationTime.fromDays(durationDays))
             : ExpirationTime.fromDays(DURABLE_LIFETIME_DAYS);
           return client.createEntity(Schemas[kind] as Schema,encodeValues(values),{
-            expiration,flags:{readonly,permissionlessExtension:kind === 'communities'},
+            expiration,flags:{readonly,permissionlessExtension:false},
           });
         }),
         patch:(entity,values)=>write(async()=>{return client.patchEntity(Schemas.communities,entity,{set:encodeValues(values)});}),

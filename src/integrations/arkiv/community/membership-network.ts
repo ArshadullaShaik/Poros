@@ -10,6 +10,13 @@ export function createMembershipReaders(accessKey?: string) {
   const arkiv = arkivClient({ chain: rabdi({ accessKey: accessKey ?? '' }), transport: http(typeof window === 'undefined' ? undefined : '/api/arkiv-rpc', { timeout: 10000, retryCount: 0 }) });
   return {
     payments: createPublicClient({ chain: sepolia, transport: http('/api/sepolia-rpc', { timeout: 15000, retryCount: 0 }) }),
+    async clock() {
+      if(await arkiv.getChainId()!==CHAIN_ID)fail('WRONG_CHAIN');
+      const timing=await arkiv.getBlockTiming();
+      if(!Number.isFinite(timing.blockDuration)||timing.blockDuration<=0)fail('NETWORK_UNAVAILABLE');
+      const block=await arkiv.getBlock({blockNumber:timing.currentBlock});
+      return {block:timing.currentBlock,timestamp:Number(block.timestamp)*1000,duration:timing.blockDuration,observed:Date.now()};
+    },
     async now() { return Number((await arkiv.getBlock()).timestamp) * 1000; },
     async assertRetention(records: EventDTO[], until: number) {
       if (await arkiv.getChainId() !== CHAIN_ID) fail('WRONG_CHAIN');

@@ -30,7 +30,7 @@ export class MemoryBackend implements Backend {
     const guard = async (key?: Key) => {
       this.checks++;
       if (this.changedAccount || account !== this.account) throw new StorageError('ACCOUNT_CHANGED');
-      if (key && (await this.get(key)).kind !== 'communities' && (await this.get(key)).owner !== account) throw new StorageError('NOT_OWNER');
+      if (key && (await this.get(key)).owner !== account) throw new StorageError('NOT_OWNER');
     };
     const receipt = (entityKey: Key) => ({ entityKey, txHash: `0x${(++this.signed).toString(16).padStart(64,'0')}` as Key });
     return {
@@ -41,7 +41,7 @@ export class MemoryBackend implements Backend {
         const result = receipt(key);
         const addedBlocks = BigInt(durationDays ? durationDays * 7200 : 1_296_000);
         this.entities.set(key, { kind, key, creator: account, owner: account, createdAt: this.block,
-          expiresAt: this.block+addedBlocks, readonly, permissionlessExtension: kind === 'communities', values:structuredClone(values) });
+          expiresAt: this.block+addedBlocks, readonly, permissionlessExtension: false, values:structuredClone(values) });
         if (this.timeoutAfterCreate) { this.timeoutAfterCreate=false; throw new StorageError('WRITE_STATUS_UNKNOWN', undefined, {txHash:result.txHash}); }
         if (this.failReadAfterCreate) this.unavailable=true;
         return { ...result, expiresAt:this.block+addedBlocks };

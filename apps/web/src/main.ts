@@ -1,3 +1,5 @@
+import {transactionLink,lifetime,remainingLifetime,type ChainClock} from './arkiv-display.ts';
+import {createMembershipReaders} from '../../../src/integrations/arkiv/community/membership-network.ts';
 import {readCreatorDirectory,mountCreatorDirectory} from './creator-directory.ts';
 import {strategyQuestions,mountStrategyQuestions,strategyPostBody} from './strategy-post.ts';
 import {zeroGPotPage,mountZeroGPot} from './zero-g-pot.ts';
@@ -187,7 +189,7 @@ class Application {
                 item.removeAttribute('aria-current');
         });
         document.querySelector('#rooms')!.innerHTML = this.rooms.length ? this.rooms.slice(0, 5).map((room, i) => `<a href="#/community/${room.communityKey}"><span class="room-dot dot-${i % 3}"></span>${e(room.name)}</a>`).join('') : '<a href="#/communities">' + icon('plus') + ' Find a community</a>';
-        document.querySelector('#pending')!.innerHTML = this.pending ? `<div class="pending-bar">${icon('info')}<span role="status">${e(this.pending.account !== this.account ? 'Connect the original wallet to verify this write.' : this.pendingCheckMessage || 'Transaction verification starts automatically.')} ${e(short(this.pending.requestId))}</span>${button('reconcile', 'Check status', 'secondary', this.pendingChecking ? 'disabled' : '')}${!this.pending.txHash && !this.pending.entityKey ? button('recover-write', 'No transaction?', 'secondary') : ''}</div>` : '';
+        document.querySelector('#pending')!.innerHTML = this.pending ? `<div class="pending-bar">${icon('info')}<span role="status">${e(this.pending.account !== this.account ? 'Connect the original wallet to verify this write.' : this.pendingCheckMessage || 'Transaction verification starts automatically.')} ${e(short(this.pending.requestId))} ${transactionLink(this.pending.txHash)}</span>${button('reconcile', 'Check status', 'secondary', this.pendingChecking ? 'disabled' : '')}${!this.pending.txHash && !this.pending.entityKey ? button('recover-write', 'No transaction?', 'secondary') : ''}</div>` : '';
         if (this.lastHidden && this.lastHidden.owner === this.account)
             document.querySelector('#pending')!.insertAdjacentHTML('beforeend', `<div class="pending-bar">${icon('shield')}<span>Content hidden from the community view.</span>${button('unhide', 'Undo hide', 'secondary', `data-key="${this.lastHidden.key}" data-room="${this.lastHidden.room}"`)}</div>`);
     }
@@ -244,10 +246,12 @@ class Application {
     async getListing(key: Hex) { return this.preview ? this.preview.listings.find(row => row.key === key) ?? failure('NOT_FOUND') : this.api.community.getListing({ listingKey: key }); }
     async getCommunity(key: Hex) { return this.preview ? this.preview.communities.find(row => row.communityKey === key) ?? failure('NOT_FOUND') : this.api.strategies.getCommunity({ communityKey: key }); }
     async getVersion(key: Hex) { return this.preview ? this.preview.versions.find(row => row.versionKey === key) ?? failure('NOT_FOUND') : this.api.strategies.getVersion({ versionKey: key }); }
+    moderationUnavailable=false;
     async getEvents(type: 'thread' | 'message' | 'reply', key: Hex, threadKey?: Hex) {
         if (this.preview)
             return this.preview.events.filter(row => row.type === type && row.scope === key && (!threadKey || row.data.threadKey === threadKey));
-        return type === 'thread' ? this.api.community.listThreads({ communityKey: key }) : type === 'message' ? this.api.community.listMessages({ communityKey: key }) : this.api.community.listReplies({ communityKey: key, threadKey: threadKey! });
+        try{return await (type === 'thread' ? this.api.community.listThreads({ communityKey: key }) : type === 'message' ? this.api.community.listMessages({ communityKey: key }) : this.api.community.listReplies({ communityKey: key, threadKey: threadKey! }));}
+        catch(error){if(errorCode(error)!=='MODERATION_UNAVAILABLE')throw error;this.moderationUnavailable=true;return [];}
     }
     async votesFor(room:Hex,rows:EventDTO[]) {
         if (this.preview) return Object.fromEntries(rows.map(row=>[row.key,{score:0,up:0,down:0,viewerVote:0}])) as Record<Hex,VoteSummary>;
@@ -414,6 +418,7 @@ class Application {
         if (!id || !keyPattern.test(id))
             failure('INVALID_INPUT');
         const room = await this.getCommunity(id as Hex);
+        this.moderationUnavailable=false;
         const [threads,messages,membership] = await Promise.all([
             chatOnly ? [] : this.getEvents('thread', room.communityKey),
             thread ? [] : this.getEvents('message', room.communityKey),
@@ -425,14 +430,14 @@ class Application {
         const owner = !!this.account && room.owner === this.account;
         const joined = owner || this.membership?.event?.data.state === 'joined';
         const canPost = joined && !this.membership?.banned && !this.preview;
-        const canModerate = !this.preview && !!this.account && (owner || await this.api.community.isModerator({communityKey:room.communityKey,wallet:this.account}));
+        const canModerate = false;
         this.votes = chatOnly ? {} : await this.votesFor(room.communityKey,threads);
         await this.profilesFor([...threads, ...messages].map(row => row.actor));
         if (serial !== this.pageSerial)
             failure('STALE_VIEW');
         this.activeCommunity = room;
         const membershipButton = this.preview ? '' : owner ? tag('Community owner', 'green') : button('membership', this.membership?.banned ? 'Posting restricted' : joined ? 'Leave community' : 'Join community', joined ? 'secondary' : 'primary', this.membership?.banned ? 'disabled' : '');
-        const top = `<a href="#/communities" class="back-link">← All communities</a>` + heading('THE OPEN ROOMS', room.name, room.description, membershipButton) + `<div class="community-meta">${tag('Public community', 'green')}<span class="community-timer" title="Expires at Arkiv block ${room.expiresAtBlock}">⏱ Expires block #${e(room.expiresAtBlock)}</span><span>Owned by <a href="#/profile/${room.owner}">${e(this.label(room.owner))}</a></span><code>${e(short(room.communityKey))}</code>${button('extend-community', '⏱ Extend expiration', 'secondary compact')}${owner ? button('edit-community', 'Edit details', 'text-button') + button('moderate', 'Moderation', 'text-button') : ''}${canModerate&&!owner?tag('Moderator','green'):''}</div>${this.preview?'':notice('Votes, moderation, and expiration extensions are public Arkiv transactions. Each action uses tGLM gas.')}`;
+        const top = `<a href="#/communities" class="back-link">← All communities</a>` + heading('THE OPEN ROOMS', room.name, room.description, membershipButton) + `<div class="community-meta">${tag('Public community', 'green')}${lifetime(room.expiresAtBlock,!!this.preview)}<span>Owned by <a href="#/profile/${room.owner}">${e(this.label(room.owner))}</a></span><code>${e(short(room.communityKey))}</code>${owner ? button('edit-community', 'Edit details', 'text-button') + button('extend-community','Extend lifetime','text-button') : ''}${tag('Automatic AI moderation')} <a href="/">Set 0G key in Trade</a></div><div id="moderation-status">${this.moderationUnavailable?notice(errors.MODERATION_UNAVAILABLE!):''}</div>${this.preview?'':notice('Public posts are checked with your browser-configured 0G key. Inference uses your 0G balance; posting and voting use Rabdi gas.')}`;
         if (thread) {
             if (!keyPattern.test(thread))
                 failure('INVALID_INPUT');
@@ -446,9 +451,9 @@ class Application {
                 failure('STALE_VIEW');
             return top + `<div class="thread-detail">${threadRows([parent], w => this.label(w), canModerate,this.votes,canPost)}<h2>Keep the conversation going.</h2>${replies.length ? messageRows(replies, w => this.label(w), canModerate,this.votes,canPost) : '<p class="muted">No replies yet. Add another perspective.</p>'}<form data-form="reply" class="composer">${field('body', 'Your reply', { area: true, required: true, placeholder: 'Build on the idea…', hint: 'Public text · up to 2,000 UTF-8 bytes' })}<button class="button primary" ${canPost ? '' : 'disabled'}>Post reply ${icon('right')}</button>${!canPost ? '<p class="muted">' + (this.preview ? 'Preview conversations are read-only.' : 'Join with a connected wallet to reply.') + '</p>' : ''}</form></div>`;
         }
-        const chat = `<aside class="chat-panel"><div class="chat-heading"><h2>${icon('message')} The common room</h2><span class="status-dot"></span></div><p class="chat-disclosure">Public, on-chain messages. Each send uses tGLM gas.</p><div id="chat-error"></div><div id="messages" class="chat-messages">${messages.length ? messageRows(messages, w => this.label(w), canModerate) : '<p class="muted">The room is quiet. Say hello.</p>'}</div><form data-form="message" class="chat-compose"><label class="sr-only" for="chat-body">Your public message</label><textarea id="chat-body" name="body" rows="2" required placeholder="Add to the conversation…" ${canPost ? '' : 'disabled'}></textarea><button class="button primary" ${canPost ? '' : 'disabled'}>Send ${icon('right')}</button></form><small>${this.preview ? 'Read-only illustrative messages.' : canPost ? 'Messages are public. Never share private code.' : 'Join this community to send a message.'}</small></aside>`;
+        const chat = `<aside class="chat-panel"><div class="chat-heading"><h2>${icon('message')} The common room</h2><span class="status-dot"></span></div><p class="chat-disclosure">Public, on-chain messages. Each send uses tGLM gas.</p><div id="chat-error"></div><div id="messages" class="chat-messages">${messages.length ? messageRows(messages, w => this.label(w), canModerate) : '<p class="muted">'+(this.moderationUnavailable?'Messages are unavailable until AI moderation succeeds.':'The room is quiet. Say hello.')+'</p>'}</div><form data-form="message" class="chat-compose"><label class="sr-only" for="chat-body">Your public message</label><textarea id="chat-body" name="body" rows="2" required placeholder="Add to the conversation…" ${canPost ? '' : 'disabled'}></textarea><button class="button primary" ${canPost ? '' : 'disabled'}>Send ${icon('right')}</button></form><small>${this.preview ? 'Read-only illustrative messages.' : canPost ? 'Messages are public. Never share private code.' : 'Join this community to send a message.'}</small></aside>`;
         if (chatOnly) return `<div class="section-title"><h3>${e(room.name)}</h3>${membershipButton}</div><p><a href="#/community/${room.communityKey}">Open community discussion →</a></p>` + chat;
-        return top + `<div class="community-columns"><section><div class="section-title"><h2>The discussion.</h2>${button('new-thread', icon('plus') + ' Start a thread', 'secondary', canPost ? '' : 'disabled')}</div><div class="feed-tabs" role="group" aria-label="Discussion order">${button('sort-new','New','secondary',`aria-pressed="${this.sortOrder==='new'}"`)}${button('sort-top','Top','secondary',`aria-pressed="${this.sortOrder==='top'}"`)}</div><div id="threads">${threads.length ? threadRows(sortThreads(threads,this.votes,this.sortOrder), w => this.label(w), canModerate,this.votes,canPost) : empty('Start with a question', 'Good discussion starts with a clear idea or an honest uncertainty.')}</div></section>${chat}</div>`;
+        return top + `<div class="community-columns"><section><div class="section-title"><h2>The discussion.</h2>${button('new-thread', icon('plus') + ' Start a thread', 'secondary', canPost ? '' : 'disabled')}</div><div class="feed-tabs" role="group" aria-label="Discussion order">${button('sort-new','New','secondary',`aria-pressed="${this.sortOrder==='new'}"`)}${button('sort-top','Top','secondary',`aria-pressed="${this.sortOrder==='top'}"`)}</div><div id="threads">${threads.length ? threadRows(sortThreads(threads,this.votes,this.sortOrder), w => this.label(w), canModerate,this.votes,canPost) : this.moderationUnavailable ? empty('Discussion temporarily unavailable','Set a working 0G key in Trade, then refresh this community.') : empty('Start with a question', 'Good discussion starts with a clear idea or an honest uncertainty.')}</div></section>${chat}</div>`;
     }
     async strategyView(id?: string) {
         const serial = this.pageSerial;
@@ -681,7 +686,20 @@ class Application {
             failure('INVALID_INPUT');
         return html + (orders.length ? `<div class="purchase-list">${orders.map(order => `<article class="purchase-row"><div>${icon(order.transactionHash ? 'lock' : 'book')}</div><span><strong>${e(order.listing.title)}</strong><small>${e(short(order.orderId))} · ${e(formatAmount(order.listing.amount, order.listing.currency.decimals))} token units</small></span>${tag(order.transactionHash ? 'Previously settled' : 'Awaiting payment', order.transactionHash ? 'green' : '')}${order.transactionHash ? button('download', 'Open package', 'secondary', `data-package="${e(order.listing.packageId)}" data-hash="${e(order.listing.contentHash)}"`) : button('resume', 'Recover order', 'secondary', `data-order="${e(order.orderId)}"`)}</article>`).join('')}</div>` : empty('Room for your first discovery.', 'No orders are associated with this wallet yet.', link('/marketplace', 'Browse private strategies', 'secondary'))) + notice('Previously settled orders are checked again at download. A reorg or unavailable RPC can temporarily block delivery.');
     }
+    chainClock:ChainClock|undefined;
+    clockChecking=false;
+    clockNext=0;
+    async updateLifetimes(){
+        const nodes=document.querySelectorAll<HTMLElement>('[data-expiry]');
+        if(!nodes.length||document.hidden)return;
+        if(!this.clockChecking&&Date.now()>=this.clockNext){
+            this.clockChecking=true;this.clockNext=Date.now()+30000;
+            try{this.chainClock=await createMembershipReaders(this.host.accessKey).clock();}catch{}finally{this.clockChecking=false;}
+        }
+        for(const node of nodes)node.textContent=remainingLifetime(node.dataset.expiry!,this.chainClock);
+    }
     async poll() {
+        void this.updateLifetimes();
         if (!document.hidden && navigator.onLine && !this.busy && !this.preview && this.pending && this.pending.account === this.account) {
             void this.verifyPendingWrite(this.pending.account + ':' + this.pending.requestId);
         }
@@ -691,7 +709,8 @@ class Application {
         const serial = this.pageSerial;
         this.polling = true;
         try {
-            const [messages, threads, membership, canModerate] = await Promise.all([this.getEvents('message', room.communityKey), this.getEvents('thread', room.communityKey), !this.preview && this.account ? this.api.community.getMembership({ communityKey: room.communityKey, wallet: this.account }) : undefined, !this.preview && this.account ? this.api.community.isModerator({communityKey:room.communityKey,wallet:this.account}) : false]);
+            this.moderationUnavailable=false;
+            const [messages, threads, membership, canModerate] = await Promise.all([this.getEvents('message', room.communityKey), this.getEvents('thread', room.communityKey), !this.preview && this.account ? this.api.community.getMembership({ communityKey: room.communityKey, wallet: this.account }) : undefined, false]);
             const votes = await this.votesFor(room.communityKey,threads);
             await this.profilesFor([...messages, ...threads].map(row => row.actor));
             if (serial !== this.pageSerial)
@@ -706,9 +725,11 @@ class Application {
                 memberButton.disabled = !!membership?.banned;
                 memberButton.textContent = membership?.banned ? 'Posting restricted' : membership?.event?.data.state === 'joined' ? 'Leave community' : 'Join community';
             }
-            document.querySelector('#messages')!.innerHTML = messageRows(messages, w => this.label(w), canModerate) || '<p class="muted">The room is quiet. Say hello.</p>';
+            document.querySelector('#messages')!.innerHTML = messageRows(messages, w => this.label(w), canModerate) || '<p class="muted">'+(this.moderationUnavailable?'Messages are unavailable until AI moderation succeeds.':'The room is quiet. Say hello.')+'</p>';
             const threadContainer = document.querySelector('#threads');
-            if (threadContainer) threadContainer.innerHTML = threadRows(sortThreads(threads,votes,this.sortOrder), w => this.label(w), canModerate,votes,!!canPost) || empty('Start with a question', 'Add a perspective to this public community.');
+            if (threadContainer) threadContainer.innerHTML = threadRows(sortThreads(threads,votes,this.sortOrder), w => this.label(w), canModerate,votes,!!canPost) || (this.moderationUnavailable?empty('Discussion temporarily unavailable','Set a working 0G key in Trade, then refresh this community.'):empty('Start with a question', 'Add a perspective to this public community.'));
+            const moderationStatus=document.querySelector('#moderation-status');
+            if(moderationStatus)moderationStatus.innerHTML=this.moderationUnavailable?notice(errors.MODERATION_UNAVAILABLE!):'';
             document.querySelector('#chat-error')!.innerHTML = '';
             this.pollFailures = 0;
         }
@@ -810,6 +831,8 @@ class Application {
                 this.ensureGeneration(generation);
                 this.closeDialog();
                 this.toast('Saved and verified on Rabdi.');
+                const receipt=result as {txHash?:Hex;receipt?:{txHash?:Hex}};
+                document.querySelector('#notifications')?.insertAdjacentHTML('beforeend',' '+transactionLink(receipt?.receipt?.txHash??receipt?.txHash));
                 await this.render();
                 return result;
             }
@@ -855,7 +878,11 @@ class Application {
                 this.updateChrome();
                 failure('INTENT_CONFLICT');
             }
-            if (pending.kind === 'community-update') {
+            if(pending.kind==='community-extension'){
+                const item=await this.api.strategies.getCommunity({communityKey:pending.scope!});
+                if(item.owner!==pending.account||BigInt(item.expiresAtBlock)<=BigInt(String(pending.expected.expiresAtBlock)))failure('WRITE_STATUS_UNKNOWN');
+            }
+            else if (pending.kind === 'community-update') {
                 const item = await this.api.strategies.getCommunity({ communityKey: pending.scope! });
                 if (item.owner !== pending.account || item.name !== pending.expected.name || item.description !== pending.expected.description)
                     failure('WRITE_STATUS_UNKNOWN');
@@ -1087,11 +1114,6 @@ class Application {
             location.hash = '/create-community';
             return;
         }
-        if (action === 'extend-community' && this.activeCommunity) {
-            const room = this.activeCommunity;
-            this.openDialog('Extend community expiration', `<form data-form="extend-community"><p>Any member or visitor can permissionlessly extend this community's active lifetime on Arkiv DB by paying tGLM gas.</p><p class="small muted">Current Arkiv expiration: <strong>Block #${e(room.expiresAtBlock)}</strong></p><label class="field"><span>Additional duration</span><select name="duration"><option value="7">Extend by 7 days (1 week)</option><option value="30">Extend by 30 days (1 month)</option><option value="60">Extend by 60 days (2 months)</option><option value="90">Extend by 90 days (1 quarter)</option><option value="180" selected>Extend to Arkiv maximum (~182 days / 180 days)</option></select><small>Arkiv enforces a hard consensus limit of ~182 days (7,884,000 blocks). Extensions can be repeated any time.</small></label>${notice('Approving the transaction in MetaMask will extend this community on Arkiv. Creation and extensions are permissionless.')}<button class="button primary">Confirm extension & pay gas</button></form>`);
-            return;
-        }
         if (action === 'edit-community' && this.activeCommunity) {
             const room = this.activeCommunity;
             this.openDialog('A clearer introduction.', `<form data-form="edit-community">${field('name', 'Community name', { required: true, value: room.name })}${field('description', 'Description', { area: true, value: room.description })}<button class="button primary">Update public details</button></form>`);
@@ -1114,14 +1136,15 @@ class Application {
             this.openDialog('Give the room something to think about.', `<form data-form="thread">${field('title', 'Start with a clear title', { required: true, placeholder: 'What is the idea, question or assumption?' })}${field('body', 'Share the reasoning', { area: true, required: true, placeholder: 'Show your work. Invite another perspective.' })}${field('strategyVersionKey','Public strategy version (optional)',{placeholder:'0x…',hint:'Paste an Arkiv version key to attach a strategy others can open or drag into the builder.'})}${notice('Threads are public. Each publication uses Rabdi gas.')}<button class="button primary">Publish thread ${icon('right')}</button></form>`);
             return;
         }
+        if(action==='extend-community' && this.activeCommunity){
+            const room=this.activeCommunity;
+            if(this.preview || await this.requireAccount()!==room.owner)failure('NOT_OWNER');
+            this.openDialog('Extend community expiration', `<form data-form="extend-community"><p>Only the verified owner can extend this community. This sets the remaining lifetime from confirmation, up to 180 days; it does not add days to the old expiry.</p><p>Current expiration: block ${e(room.expiresAtBlock)}</p><label class="field"><span>Remaining lifetime</span><select name="duration"><option value="7">7 days</option><option value="30">30 days</option><option value="60">60 days</option><option value="90">90 days</option><option value="180" selected>180 days</option></select></label>${notice('An extension must move expiry forward. Expired communities cannot be restored. Review the Rabdi gas transaction in your wallet.')}<p class="form-error" role="alert"></p><button class="button primary">Review extension in wallet</button></form>`);return;
+        }
         if (action === 'share-strategy' && this.activeVersion) {
             const version = this.activeVersion;
             const rooms = await this.getCommunities();
             this.openDialog('Share this strategy in a community', `<form data-form="share-strategy" data-version="${version.versionKey}"><label class="field"><span>Community</span><select name="communityKey" required>${rooms.map(room=>`<option value="${room.communityKey}">${e(room.name)}</option>`).join('')}</select></label>${field('title','Post title',{required:true,value:version.document.name})}${field('body','Explain your strategy',{area:true,required:true,value:version.document.description})}${notice('Join the selected community before posting. Readers can open this exact strategy version in the builder.')}<button class="button primary">Publish strategy post</button></form>`);
-            return;
-        }
-        if (action === 'moderate') {
-            this.openDialog('Keep the conversation thoughtful.', `<form data-form="ban">${field('wallet', 'Wallet to restrict', { required: true, placeholder: '0x…' })}<label class="field"><span>Action</span><select name="banned"><option value="true">Restrict posting</option><option value="false">Restore posting</option></select></label><button class="button primary">Apply ban</button></form><form data-form="moderator">${field('wallet','Moderator wallet',{required:true,placeholder:'0x…'})}<label class="field"><span>Action</span><select name="enabled"><option value="true">Appoint moderator</option><option value="false">Remove moderator</option></select></label><button class="button secondary">Update moderator</button></form>${notice('Moderators can hide content. Only the owner can ban or appoint. Records remain public on Arkiv; each action uses Rabdi gas.')}`);
             return;
         }
         if (action === 'hide' && target.dataset.key && this.activeCommunity) {
@@ -1279,14 +1302,10 @@ class Application {
                 location.hash = '/community/' + communityKey;
             }
             else if (kind === 'extend-community') {
-                const room = this.activeCommunity!;
-                const durationDays = Number(value('duration')) || 180;
-                await this.write('community-extend', { durationDays }, () => this.api.strategies.extendOwnedEntity({ entityKey: room.communityKey, durationDays }), room.communityKey);
-                this.toast('Community expiration successfully extended on Arkiv!');
-                this.closeDialog();
-                const updated = await this.getCommunity(room.communityKey);
-                this.activeCommunity = updated;
-                await this.render();
+                const room=this.activeCommunity!;
+                if(await this.requireAccount()!==room.owner)failure('NOT_OWNER');
+                const durationDays=Number(value('duration'));
+                await this.write('community-extension',{expiresAtBlock:room.expiresAtBlock,durationDays},()=>this.api.strategies.extendOwnedEntity({entityKey:room.communityKey,durationDays}),room.communityKey);
             }
             else if (kind === 'edit-community') {
                 const account = await this.requireAccount();
