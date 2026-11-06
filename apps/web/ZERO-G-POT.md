@@ -1,6 +1,8 @@
 # 0G Pot integration status
 
-The `/0g-pot` page is a preview. Donations and claims are disabled; totals are unknown. No credits are moved or recorded as donated.
+The `/0g-pot` page is an interactive mock demo. It starts with 30 donated credits, 10 claimed, 20 available, and a 1.271-credit demo allowance. Donate moves simulated allowance into the pool; “Simulate used-up allowance” enables testing claims. The demo allows one claim of at most 1.2771 credits per UTC day after allowance exhaustion. All amounts use integer ten-thousandths of a credit.
+
+State is in memory for one demo user, resets on page reload, and refreshes for a new UTC day on the next render or action. No real balance reads, signatures, transfers, or inference calls occur. The UI explicitly labels the mock data and reset behavior. The live-integration notes below remain future requirements, not implemented capabilities.
 
 ## Product rules
 

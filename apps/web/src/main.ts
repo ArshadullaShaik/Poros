@@ -1,4 +1,4 @@
-import {zeroGPotPage} from './zero-g-pot.ts';
+import {zeroGPotPage,mountZeroGPot} from './zero-g-pot.ts';
 import {readPaperRuns} from './performance.ts';
 import serialize from 'canonicalize';
 import {archiveUnsubmittedWrite} from './pending-write.ts';
@@ -294,6 +294,7 @@ class Application {
             if (serial !== this.pageSerial || generation !== this.generation)
                 return;
             content.innerHTML = html;
+            if (route === 'pot') mountZeroGPot(content);
             content.removeAttribute('aria-busy');
             this.updateChrome();
             document.title = (content.querySelector('h1')?.textContent ?? 'Discover') + ' — Poros Community';

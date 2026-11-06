@@ -45,18 +45,27 @@ footer{min-height:64px;border-top:1px solid var(--line);padding:20px 35px;displa
 .topbar .header-actions{margin-left:auto}
 @media(max-width:850px){.profile-metrics{grid-template-columns:1fr}.primary-nav{gap:12px}.topbar{flex-wrap:wrap;height:auto;min-height:85px;padding-block:12px}.app-layout.standalone-page>main{padding-bottom:30px}}
 
-.pot-page{max-width:1120px;margin:0 auto;padding:20px 0}
-.pot-heading{text-align:center;max-width:620px;margin:0 auto 38px}
-.pot-heading h1{font-size:clamp(42px,6vw,68px);letter-spacing:-2px;margin:14px 0}
-.pot-heading>p{color:#64748b;line-height:1.75;font-size:17px}
-.pot-layout{display:grid;grid-template-columns:1.05fr 1fr;gap:26px;align-items:stretch}
-.pot-bank{background:#fbf5fc;border:1px solid #eadceb;border-radius:24px;padding:28px;text-align:center;display:flex;flex-direction:column;align-items:center}
-.pot-label,.pot-step{font-size:11px;letter-spacing:1.5px;font-weight:700;color:#93607c}
-.pot-pig{display:block;width:min(100%,350px);height:auto;margin:0 auto}
-.pot-total-label{font-size:15px;color:#795b72}.pot-total{font-size:48px;line-height:1.1;color:#49364f;margin:8px 0}
-.pot-bank-caption{font-size:13px;color:#795b72}.pot-totals{display:flex;width:100%;justify-content:space-around;gap:12px;border-top:1px solid #eadceb;padding-top:20px;margin:18px 0 0}
-.pot-totals dt{font-size:12px;color:#795b72}.pot-totals dd{font-size:22px;font-weight:600;margin:8px 0 0}
-.pot-actions{display:grid;gap:20px}.pot-action{border-radius:20px;margin:0;padding:30px}.pot-action h2{font-size:25px;margin:14px 0}
-.pot-action>p{line-height:1.75}.pot-action .button{width:100%;margin-top:12px;white-space:normal}
-.pot-action .pot-status{font-size:12px;line-height:1.6;color:#64748b;margin-bottom:0}.pot-setup{text-align:center;color:#64748b;font-size:13px;margin-top:24px}
-@media(max-width:740px){.pot-layout{grid-template-columns:1fr}.pot-heading{margin-bottom:24px}.pot-bank,.pot-action{padding:24px}.primary-nav{flex-wrap:wrap}.pot-heading>p{font-size:15px}}
+/* Keep the wallpaper palette scoped to the Pot route. */
+body:has(.pot-page){background:#0c0b0a;color:#eeece7;background-image:radial-gradient(ellipse at 78% 0%,#815a2929,transparent 48%),radial-gradient(ellipse at 15% 85%,#8b572015,transparent 40%);background-attachment:fixed}
+body:has(.pot-page) .topbar{background:transparent;border-color:#ffffff14}
+body:has(.pot-page) .brand,body:has(.pot-page) .primary-nav a{color:#aaa8a2}
+body:has(.pot-page) .primary-nav a[aria-current=page]{color:#edcf9e;border-color:#edcf9e}
+body:has(.pot-page) .wallet-button{background:#ffffff0a;color:#e7e2d8;border:1px solid #ffffff26}
+.pot-page{max-width:1080px;margin:0 auto;padding:24px 0}
+.pot-heading{max-width:650px;margin:0 0 32px}
+.pot-label{font:10px/1.6 var(--mono);letter-spacing:1.6px;color:#c4b08c;display:flex;align-items:center;gap:14px}
+.pot-preview{border:1px solid #a58c5c55;padding:3px 7px;border-radius:4px;font-size:9px;letter-spacing:1px}
+.pot-heading h1{font:500 clamp(32px,4.6vw,52px)/1.15 var(--sans);letter-spacing:-1.7px;margin:20px 0 12px;color:#eeece7}
+.pot-heading>p{color:#aaa8a2;line-height:1.6;font-size:15px}
+.pot-layout{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);gap:72px;align-items:center}
+.pot-bank{container-type:inline-size;min-width:0;text-align:center;padding:0 0 24px}
+.pot-art{width:100%;padding:0 0 24px;background:radial-gradient(ellipse at 50% 55%,#d8e3ed0b,transparent 68%)}
+.pot-art pre{font:400 clamp(5px,3.1cqi,14px)/1.18 Consolas,'Liberation Mono',Menlo,monospace;letter-spacing:0;white-space:pre;overflow-wrap:normal;word-break:normal;font-variant-ligatures:none;width:max-content;margin:0 auto;text-align:left;color:#ccc8be;text-shadow:0 0 16px #f3e6c523}
+.pot-total-label{display:block;font-size:12px;color:#aaa8a2}.pot-total{display:block;font:400 clamp(36px,5vw,52px)/1.3 var(--mono);letter-spacing:-2px;margin:6px 0 20px;color:#edcf9e}
+.pot-totals{display:flex;justify-content:center;gap:48px;margin:0;padding-top:20px;border-top:1px solid #ffffff14}.pot-totals dt{font-size:11px;color:#aaa8a2}.pot-totals dd{font:15px/1.5 var(--mono);margin:6px 0 0;color:#e8e4db}
+.pot-actions{min-width:0}.pot-balance{display:flex;justify-content:space-between;align-items:center;gap:16px;padding-bottom:24px;border-bottom:1px solid #ffffff18;font-size:12px;color:#aaa8a2}.pot-balance strong{font:15px/1.5 var(--mono);color:#eeece7}.pot-balance small{font-size:10px;color:#aaa8a2}
+.pot-action{padding:26px 0;border-bottom:1px solid #ffffff18}.pot-action h2{font:500 23px/1.3 var(--sans);letter-spacing:-.6px;margin:0 0 10px;color:#eeece7}.pot-action>p{font-size:13px;line-height:1.8;color:#aaa8a2;margin-bottom:18px}.pot-action strong{color:#e8e4db}
+.pot-donate-row{display:flex;gap:10px}.pot-donate-row input{width:100%;min-width:0;border:1px solid #ffffff26;background:#ffffff05;color:#eeece7;border-radius:6px;padding:12px;font:14px var(--mono)}.pot-donate-row input::placeholder{color:#939189}
+.pot-page .primary{background:#e4c99c;color:#211b12;border-color:#e4c99c}.pot-page .primary:hover:enabled{background:#f1d8af;transform:none}.pot-page .secondary{background:transparent;border-color:#d9c5a366;color:#e4c99c;width:100%}.pot-page .secondary:hover:enabled{background:#e4c99c0a}.pot-page .button{min-height:44px;padding-inline:22px}.pot-page button:disabled{opacity:.45}.pot-page :focus-visible{outline-color:#e4c99c}
+.pot-action .pot-status{font-size:11px;margin:10px 0 0;color:#aaa8a2}.pot-demo-tools{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-top:20px;font-size:11px;color:#aaa8a2}.pot-demo-tools button{border:0;background:none;color:#dcc397;padding:6px 0;font-size:11px;text-decoration:underline;text-underline-offset:4px}.pot-feedback{min-height:32px;font-size:12px;line-height:1.6;color:#e4c99c;margin:16px 0 0}.pot-setup{border-top:1px solid #ffffff14;text-align:center;font:10px/1.8 var(--mono);color:#aaa8a2;margin-top:32px;padding-top:20px}
+@media(max-width:740px){.pot-layout{grid-template-columns:1fr;gap:24px}.pot-page{padding-top:8px}.pot-heading{margin-bottom:24px}.pot-bank{max-width:440px;width:100%;margin:auto}.pot-demo-tools{flex-wrap:wrap}.primary-nav{flex-wrap:wrap}}
