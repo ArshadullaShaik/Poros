@@ -18,7 +18,7 @@ async function setup(request?:Function, mayReplace=()=>true, marketData:any={sou
   const controls=new Map<string,Control>();
   for(const id of ["market-price","market-status","execution-library","creator-library","creators-empty","canvas","execution-selected","execution-mode","execution-capital","execution-turnover","execution-fee","execution-slippage","execution-start","execution-stop","execution-help","execution-status","execution-results"])controls.set(`#${id}`,new Control());
   controls.get("#execution-mode")!.value="RULES_ONLY";controls.get("#execution-capital")!.value="1000";controls.get("#execution-turnover")!.value="2000";controls.get("#execution-fee")!.value="10";controls.get("#execution-slippage")!.value="25";
-  let draft=structuredClone(rsiStrategy),applied=0;
+  let draft=structuredClone(rsiStrategy),applied=0,textEntry;
   const sent:any[]=[];
   const fetcher=async(url:string,init:RequestInit)=>{
     if(url.startsWith("/api/market"))return Response.json({ok:true,data:marketData});
@@ -27,10 +27,10 @@ async function setup(request?:Function, mayReplace=()=>true, marketData:any={sou
     const body=JSON.parse(init.body as string);
     return Response.json({ok:true,data:{id:"ui-session",status:body.action==="check"?"COMPLETED":"WAITING",message:"Paper action complete",mode:"PAPER",orders:[],cashUsd:"1000.000000",baseQuantity:"0.00000000",turnoverUsd:"0.000000",inference:[]}});
   };
-  const module=mountExecution({root:{querySelector:selector=>controls.get(selector),createElement:()=>new Control()},getDraft:()=>draft,applyDraft:next=>{draft=next;applied++;},validateDraft:next=>validateStrategy(next,fixtureContext),getApiKey:()=>"sk-ui-execution-test-key",onActivity,mayReplace,request:fetcher,...(getPair?{getPair}:{} )});
+  const module=mountExecution({root:{querySelector:selector=>controls.get(selector),createElement:()=>new Control()},getDraft:()=>draft,applyDraft:next=>{draft=next;applied++;},validateDraft:next=>validateStrategy(next,fixtureContext),getApiKey:()=>"sk-ui-execution-test-key",onText:entry=>{textEntry=entry;},onActivity,mayReplace,request:fetcher,...(getPair?{getPair}:{} )});
   await module.refreshMarket();
   const event=(id:string,name="click",extra={})=>controls.get(`#${id}`)!.handlers[name]?.({preventDefault(){},stopImmediatePropagation(){},...extra});
-  return {module,controls,sent,event,get applied(){return applied;},get draft(){return draft;},edit(){draft={...draft,name:"Edited later"};module.draftChanged();}};
+  return {module,controls,sent,event,get textEntry(){return textEntry;},get applied(){return applied;},get draft(){return draft;},edit(){draft={...draft,name:"Edited later"};module.draftChanged();}};
 }
 
 test("unlocked host strategies become whole draggable cards with a click equivalent",async()=>{
@@ -163,20 +163,17 @@ test("paid AI mode uses the tab key; provider errors leave controls usable",asyn
   assert.equal(ui.controls.get("#execution-status")!.textContent,previousStatus);
 });
 
-test("creator text is interpreted on load and never starts monitoring automatically",async()=>{
-  const ui=await setup(async(url,init)=>{
-    assert.equal(url,"/api/interpret");assert.equal(JSON.parse(init.body).text,"Buy $20 once in the target range.");
-    return Response.json({ok:true,data:{status:"READY",strategy:rsiStrategy,questions:[]}});
-  });
+test("creator text opens the shared interpreter without spending or replacing the canvas on drop",async()=>{
+  const ui=await setup();
   ui.module.addUnlockedStrategy({id:"text-1",name:"Creator text",text:"Buy $20 once in the target range.",versionId:"v1"});
   await ui.controls.get("#execution-library")!.children[0].handlers.click();
-  assert.equal(ui.applied,1);assert.equal(ui.sent.length,1);assert.equal(ui.sent[0].url,"/api/interpret");
+  assert.equal(ui.applied,0);assert.equal(ui.sent.length,0);assert.equal(ui.textEntry.text,"Buy $20 once in the target range.");
 });
-test("ambiguous creator instructions keep the canvas unchanged",async()=>{
-  const ui=await setup(async()=>Response.json({ok:true,data:{status:"NEEDS_CLARIFICATION",questions:["Which amount?"]}}));
+test("ambiguous creator instructions stay available for editing in the shared interpreter",async()=>{
+  const ui=await setup();
   ui.module.addUnlockedStrategy({id:"text-1",name:"Ambiguous",text:"Buy when cheap",versionId:"v1"});
   await ui.controls.get("#execution-library")!.children[0].handlers.click();
-  assert.equal(ui.applied,0);assert.match(ui.controls.get("#execution-status")!.textContent,/Which amount/);
+  assert.equal(ui.applied,0);assert.equal(ui.textEntry.text,"Buy when cheap");assert.equal(ui.sent.length,0);
 });
 
 test("an ETH feed cannot enable Run for a selected BTC pair",async()=>{

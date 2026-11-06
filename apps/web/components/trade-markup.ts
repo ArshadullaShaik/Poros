@@ -58,14 +58,16 @@ export const tradeMarkup = `
         </section>
         <section id="library-unlocked" role="tabpanel" aria-labelledby="tab-unlocked" tabindex="0" hidden>
         <div class="panel-title"><h2>Unlocked strategies</h2><span class="small-tag">YOUR LIBRARY</span></div>
-        <p class="small muted">Drag onto the canvas, or click to load.</p>
+        <p class="small muted">Drag onto the canvas, or click to load.</p><a class="button secondary" href="/community#/creators">Find a creator to subscribe to</a>
         <div id="execution-library" class="unlocked-cards"></div>
         <form id="unlock-library-form" autocomplete="off"><label class="field"><span>Community recovery code</span><input id="library-recovery" type="password" required autocomplete="off"></label><button class="button secondary" type="submit">Unlock strategies</button></form>
         <button id="refresh-member-library" class="button secondary" type="button">Refresh memberships</button><button id="lock-library" class="button secondary" type="button">Lock</button>
         <p id="unlocked-status" class="small muted" role="status">Connect your community wallet to load purchased strategies.</p>
         </section>
         <section id="library-creators" role="tabpanel" aria-labelledby="tab-creators" tabindex="0" hidden>
-        <h2>Your creators</h2>
+        <h2>Discover creators</h2>
+        <div id="trade-creator-directory"></div>
+        <h3>Your subscriptions</h3>
         <p class="small muted">Creators whose paid memberships are active on the community page.</p>
         <button id="refresh-creator-library" class="button secondary" type="button">Refresh</button>
         <p id="creators-status" class="small muted" role="status"></p>
@@ -87,7 +89,7 @@ export const tradeMarkup = `
       </form>
       <p id="ai-key-status" class="muted small" role="status">Saved in this browser across restarts until you choose Forget key. Scripts running on this site can read browser storage.</p>
       <p class="muted small">Get a dedicated inference key from <a href="https://pc.0g.ai" target="_blank" rel="noopener noreferrer">0G Private Computer</a>. Requests are billed to your account and may use deposited funds. Set a key budget in 0G where available. The interpreter translates text; the separate execution agent follows the validated rules. Live mode uses real funds only after your wallet approval and signature.</p>
-      <details class="ai-tools"><summary>Strategy interpreter</summary>
+      <details id="ai-interpreter" class="ai-tools"><summary>Strategy interpreter</summary>
       <form id="ai-form">
         <label class="field"><span>AI action</span><select id="ai-operation"><option value="generate">Interpret creator text</option></select></label>
         <label class="field"><span>Creator’s strategy text</span><textarea id="ai-prompt" rows="3" maxlength="4000" required placeholder="On Base, buy $20 of WETH using USDC once when ETH/USD is between $2000 and $2100 inclusive."></textarea></label>

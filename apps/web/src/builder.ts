@@ -1,3 +1,4 @@
+import {readCreatorDirectory,mountCreatorDirectory} from './creator-directory.ts';
 import {savePaperRun} from './performance.ts';
 import {saveExecutionRun} from './order-history.ts';
 import {paperPosition} from '../../../src/features/builder/demo/chart.js';
@@ -12,6 +13,9 @@ const integration=typeof window==='undefined'?{}:window.__COMMON_GROUND__;
 const wallet=typeof window==='undefined'?undefined:integration?.wallet??createInjectedWallet();
 const api=compose({...integration,...(wallet?{wallet}:{}),validateStrategyDocument:validateBuilderDocument});
 export const publicStrategies=api.strategies;
+export function mountTradeCreators(root:HTMLElement){
+  return mountCreatorDirectory(root,()=>readCreatorDirectory(api.strategies,createCreatorMemberships(api.events,createMembershipReaders(integration?.accessKey)),api.community,api.events),true);
+}
 export const listCommunityStrategies=(input:Parameters<typeof readCommunityStrategies>[2])=>readCommunityStrategies(api.strategies,api.community,input);
 export const readPublicPost=(communityKey:`0x${string}`,postKey:`0x${string}`)=>readCommunityPost(api.community,communityKey,postKey);
 export const publicLists=cachedPublicLists(api.strategies,createPublicReadCache({storage:browserStorage(),onRefresh:(_key,changed)=>{if(changed&&typeof window!=='undefined')window.dispatchEvent(new Event('poros:public-data-updated'));}}));
@@ -26,12 +30,17 @@ export async function readPersonalLibrary(recoveryCode?:string){
 }
 export function subscribeLibraryWallet(listener:()=>void){return wallet?.subscribe(listener)??(()=>{});}
 
-export function strategyReference(text: string, origin: string): `0x${string}` {
+export function strategyReference(text: string, origin: string) {
   if (text.length > 2048) throw new Error('Drop a public strategy card.');
-  const url = new URL(text, origin);
-  const key = url.searchParams.get('strategy');
-  if (url.origin !== origin || url.pathname !== '/' || !key || !/^0x[0-9a-f]{64}$/.test(key)) throw new Error('Drop a public strategy card.');
-  return key as `0x${string}`;
+  const references=text.split(/\r?\n/).map(line=>line.trim()).filter(line=>line&&!line.startsWith('#'));
+  if(references.length!==1)throw new Error('Drop one public strategy card.');
+  const url = new URL(references[0]!, origin);
+  const key = url.searchParams.get('strategy'),communityKey=url.searchParams.get('community'),postKey=url.searchParams.get('post');
+  const valid=(value:string|null):value is `0x${string}`=>!!value&&/^0x[0-9a-f]{64}$/i.test(value);
+  if(url.origin!==origin||url.pathname!=='/'||url.username||url.password)throw new Error('Drop a public strategy card from this application.');
+  if(valid(key)&&!communityKey&&!postKey)return {kind:'public-strategy' as const,versionKey:key};
+  if(!key&&valid(communityKey)&&valid(postKey))return {kind:'public-post' as const,communityKey,postKey};
+  throw new Error('Drop a public strategy card.');
 }
 
 // A run stays associated with the wallet connected at its first snapshot.

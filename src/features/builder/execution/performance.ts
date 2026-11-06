@@ -55,7 +55,7 @@ export function summarizeFlashFills(details:any[],wallet:string,complete:boolean
       else{const cost=market.basis*fill.quantity/market.quantity;fill.pnl=fill.value-cost;market.pnl+=fill.pnl;market.quantity-=fill.quantity;market.basis-=cost;}
     }
   }
-  return {complete,fills:fills.length,feesUsd:decimal(fees),markets:[...markets.values()].map(row=>({market:row.market,chain:row.chain,currency:row.currency,realizedPnl:row.unknown?null:decimal(row.pnl),openQuantity:decimal(row.quantity),sells:row.sells})),
+  return {complete,fills:fills.length,feesUsd:decimal(fees),markets:[...markets.entries()].map(([marketId,row])=>({marketId,market:row.market,chain:row.chain,currency:row.currency,realizedPnl:row.unknown?null:decimal(row.pnl),openQuantity:decimal(row.quantity),sells:row.sells})),
     transactions:fills.map(fill=>{
       const market=markets.get(fill.key)!;
       return {orderId:fill.orderId,transactionId:fill.transactionId,market:market.market,chain:market.chain,currency:market.currency,side:fill.side.toUpperCase(),quantity:decimal(fill.quantity),value:decimal(fill.value),feeUsd:decimal(fill.fee),filledAt:fill.time,realizedPnl:market.unknown||fill.pnl===null?null:decimal(fill.pnl)};

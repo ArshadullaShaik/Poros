@@ -7,19 +7,19 @@ function setup(request = async () => Response.json({ok: true, data: {
   explanation: "Paper rules", changeSummary: ["Renamed"], warnings: [],
   proposedDraft: {...rsiStrategy, name: "AI version"},
   inferenceMetadata: {mode: "REAL_0G", model: "cheap", totalCostNeuron: "100"},
-}}), storage: Storage = new Map() as any) {
+}}), storage: Storage = new Map() as any, interpreterOnly = false) {
   if (storage instanceof Map) Object.assign(storage, {getItem(key) {return this.get(key) ?? null;}, setItem(key, value) {this.set(key, value);}, removeItem(key) {this.delete(key);}});
   const controls = new Map<string, any>();
-  const ids = ["ai-open", "ai-close", "ai-dialog", "ai-key-form", "ai-key", "ai-key-status", "ai-use-key", "ai-forget", "ai-form", "ai-operation", "ai-prompt", "ai-run", "ai-status", "ai-result", "ai-explanation", "ai-metadata", "ai-draft", "ai-accept", "ai-discard"];
+  const ids = ["ai-open", "ai-close", "ai-dialog", "ai-interpreter", "ai-key-form", "ai-key", "ai-key-status", "ai-use-key", "ai-forget", "ai-form", "ai-operation", "ai-prompt", "ai-run", "ai-status", "ai-result", "ai-explanation", "ai-metadata", "ai-draft", "ai-accept", "ai-discard"];
   for (const id of ids) controls.set(`#${id}`, {value: "", textContent: "", hidden: false, disabled: false, handlers: {}, addEventListener(event: string, handler: Function) {this.handlers[event] = handler;}});
   controls.get("#ai-operation").value = "modify";
   controls.get("#ai-prompt").value = "Rename";
   Object.assign(controls.get("#ai-dialog"), {open: false, showModal() {this.open = true;}, close() {this.open = false; this.handlers.close?.();}});
   let draft = structuredClone(rsiStrategy), applied = 0;
-  const ai = mountStrategyAi({root: {defaultView: {localStorage: storage}, querySelector: selector => controls.get(selector)}, getDraft: () => draft, applyDraft: next => {draft = next; applied++;}, request});
+  const ai = mountStrategyAi({root: {defaultView: {localStorage: storage}, querySelector: selector => controls.get(selector)}, getDraft: () => draft, applyDraft: next => {draft = next; applied++;}, request, interpreterOnly});
   const event = async (id: string, name = "click") => controls.get(`#${id}`).handlers[name]({preventDefault() {}});
   const enterKey = async () => {controls.get("#ai-key").value = "sk-tab-only-test-key"; await event("ai-key-form", "submit");};
-  return {controls, event, enterKey, getKey: ai.getKey, get draft() {return draft;}, get applied() {return applied;}, edit() {draft = {...draft, name: "Newer manual draft"};}};
+  return {api: ai, controls, event, enterKey, getKey: ai.getKey, get draft() {return draft;}, get applied() {return applied;}, edit() {draft = {...draft, name: "Newer manual draft"};}};
 }
 
 test("saved keys survive remounts and Forget removes them from future sessions", async () => {
@@ -133,4 +133,22 @@ test("provider errors recover controls and explanation never changes the canvas"
   await ui.event("ai-form", "submit");
   assert.equal(ui.controls.get("#ai-accept").hidden, true);
   assert.equal(ui.applied, 0);
+});
+
+test('dropped text opens the interpreter with a visible key requirement and only applies reviewed rules',async()=>{
+ let requests=0;
+ const ui=setup(async(url,init)=>{requests++;assert.equal(url,'/api/interpret');assert.equal(JSON.parse(init.body).name,'Community idea');return Response.json({ok:true,data:{status:'READY',strategy:rsiStrategy,questions:[],inferenceMetadata:{model:'test'}}});},undefined,true);
+ ui.api.openText({name:'Community idea',text:'Buy ETH at 2109 and sell at 3000'});
+ assert.equal(ui.controls.get('#ai-dialog').open,true);assert.match(ui.controls.get('#ai-status').textContent,/key/i);
+  assert.equal(ui.controls.get('#ai-interpreter').open,true);
+ assert.equal(ui.controls.get('#ai-prompt').value,'Buy ETH at 2109 and sell at 3000');assert.equal(requests,0);assert.equal(ui.applied,0);
+ await ui.enterKey();await ui.event('ai-form','submit');assert.equal(ui.applied,0);
+ await ui.event('ai-accept');assert.equal(ui.applied,1);
+});
+
+test('ambiguous dropped text stays editable with clarification visible and no canvas replacement',async()=>{
+ const ui=setup(async()=>Response.json({ok:true,data:{status:'NEEDS_CLARIFICATION',questions:['Which amount?'],inferenceMetadata:{model:'test'}}}),undefined,true);
+ ui.api.openText({name:'Incomplete idea',text:'Buy when cheap'});await ui.enterKey();await ui.event('ai-form','submit');
+ assert.equal(ui.applied,0);assert.match(ui.controls.get('#ai-explanation').textContent,/Which amount/);assert.equal(ui.controls.get('#ai-accept').hidden,true);
+ assert.equal(ui.controls.get('#ai-prompt').disabled,false);
 });

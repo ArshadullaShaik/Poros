@@ -16,8 +16,9 @@ test('builder publications use the real validator and bind their envelope to the
 });
 test('drag references accept only exact version keys on this application origin',()=>{
   const key = '0x'+'a'.repeat(64);
-  assert.equal(strategyReference('http://localhost:4323/?strategy='+key,'http://localhost:4323'),key);
-  for (const url of ['https://evil.test/?strategy='+key,'http://localhost:4323/?strategy=bad','http://localhost:4323/other?strategy='+key]) {
+  assert.deepEqual(strategyReference('http://localhost:4323/?strategy='+key,'http://localhost:4323'),{kind:'public-strategy',versionKey:key});
+  assert.deepEqual(strategyReference('# Dragged link\r\nhttp://localhost:4323/?post='+key+'&community='+key+'\r\n','http://localhost:4323'),{kind:'public-post',communityKey:key,postKey:key});
+  for (const url of ['https://evil.test/?strategy='+key,'http://localhost:4323/?strategy=bad','http://localhost:4323/other?strategy='+key,'/?post='+key,'/?post='+key+'&community='+key+'&strategy='+key,'/?strategy='+key+'\n/?strategy='+key]) {
     assert.throws(()=>strategyReference(url,'http://localhost:4323'));
   }
 });

@@ -1,9 +1,26 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {threadRows,field,sortThreads,communityCreation} from '../src/ui.ts';
+import {threadRows,strategyRows,field,sortThreads,communityCreation} from '../src/ui.ts';
+import {publicStrategyDrag} from '../src/strategy-drag.ts';
+import {strategyReference} from '../src/builder.ts';
 import {preview} from '../src/preview.ts';
 import type {VoteSummary} from '../../../src/integrations/arkiv/community/index.ts';
 import type {Hex} from 'viem';
+
+test('whole public cards and nested links produce references the canvas can load',()=>{
+ const row=preview.events.find(row=>row.type==='thread')!;
+ const html=threadRows([row],()=> 'Trader');
+ assert.match(html,/<article class="thread-row" draggable="true" data-strategy-href=/);
+ assert.match(html,/Prepare in builder/);
+ const versionKey='0x'+'a'.repeat(64),origin='http://localhost:4325';
+ assert.match(strategyRows([{rootVersionKey:versionKey,name:'Rules',creator:versionKey,category:'signal',executionChainId:8453} as any],()=> 'Trader'),/data-strategy-href="\/\?strategy=/);
+ for(const [href,expected] of [[`/?strategy=${versionKey}`,{kind:'public-strategy',versionKey}],[`/?community=${row.scope}&post=${row.key}`,{kind:'public-post',communityKey:row.scope,postKey:row.key}]] as const){
+   const data=new Map<string,string>();
+   publicStrategyDrag({target:{closest:()=>({dataset:{strategyHref:href}})},dataTransfer:{setData:(type:string,value:string)=>data.set(type,value)}} as any,origin);
+   assert.equal(data.get('text/plain'),data.get('text/uri-list'));
+   assert.deepEqual(strategyReference(data.get('text/uri-list')!,origin),expected);
+ }
+});
 test('community text and imported JSON cannot inject markup into templates',()=>{
   const row=structuredClone(preview.events.find(row=>row.type==='thread')!);
   row.data.title='<img src=x onerror=alert(1)>';row.data.body='</p><script>steal()</script>';

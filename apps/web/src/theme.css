@@ -84,3 +84,21 @@ html { scroll-behavior: smooth; }
   .orders-history { padding: 18px 14px; }
   .orders-toolbar > .heading-actions { flex-wrap: wrap; }
 }
+.strategy-row[draggable],.thread-row[draggable],.unlocked-card[draggable]{cursor:grab}
+.strategy-row[draggable]:active,.thread-row[draggable]:active,.unlocked-card[draggable]:active{cursor:grabbing}
+
+.strategy-questions, .strategy-questions fieldset { border: 1px solid var(--line); border-radius: var(--radius); padding: 20px; margin: 20px 0; min-width: 0; }
+.strategy-questions legend { font-weight: 600; padding: 0 8px; }
+.strategy-questions p { color: var(--muted); font-size: 13px; line-height: 1.7; }
+[data-strategy-error] { color: #b83f45; }
+
+.creator-directory { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)); gap: 16px; margin: 20px 0; }
+.creator-discovery-card { border: 1px solid var(--line); border-radius: var(--radius); padding: 18px; background: var(--white); overflow-wrap: anywhere; }
+.creator-discovery-card strong, .creator-discovery-card small { display: block; }
+.creator-discovery-card small { margin-top: 6px; color: var(--muted); }
+.creator-discovery-card .button { margin-top: 6px; }
+.membership-toolbar { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+#trade-creator-directory { font-size: 12px; line-height: 1.6; }
+#trade-creator-directory .creator-directory { display: block; }
+#trade-creator-directory .creator-discovery-card { margin-bottom: 12px; padding: 12px; }
+#trade-creator-directory .button { font-size: 11px; }

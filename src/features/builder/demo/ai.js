@@ -1,6 +1,6 @@
 export function mountStrategyAi({root = document, getDraft, applyDraft, request = fetch, onKeyChange, interpreterOnly = false}) {
   const $ = id => root.querySelector(`#${id}`);
-  let apiKey = "", busy = false, pending, snapshot, controller, sequence = 0;
+  let apiKey = "", busy = false, pending, snapshot, controller, sequence = 0, textName = "Interpreted creator strategy";
   const storageKey = "poros.0g-inference-key";
   const validKey = key => typeof key === "string" && /^sk-[A-Za-z0-9_-]{8,240}$/.test(key);
   try {
@@ -10,6 +10,7 @@ export function mountStrategyAi({root = document, getDraft, applyDraft, request 
       $("ai-key-status").textContent = "Saved key restored from this browser. 0G checks it when you ask AI.";
     }
   } catch { /* The key can still be used in memory when browser storage is blocked. */ }
+
   const status = message => { $("ai-status").textContent = message; };
   $("ai-open").addEventListener("click", () => $("ai-dialog").showModal());
   $("ai-close").addEventListener("click", () => $("ai-dialog").close());
@@ -95,7 +96,7 @@ export function mountStrategyAi({root = document, getDraft, applyDraft, request 
     busy = true; discard(); refresh();
     status("Asking the lowest estimated-cost compatible Qwen model. Your current draft stays editable.");
     try {
-      const response = await request(interpreterOnly ? "/api/interpret" : "/api/ai", {method: "POST", signal, headers: {"Content-Type": "application/json", Authorization: `Bearer ${apiKey}`}, body: JSON.stringify(interpreterOnly ? {name:"Interpreted creator strategy",text:prompt} : input)});
+      const response = await request(interpreterOnly ? "/api/interpret" : "/api/ai", {method: "POST", signal, headers: {"Content-Type": "application/json", Authorization: `Bearer ${apiKey}`}, body: JSON.stringify(interpreterOnly ? {name:textName,text:prompt} : input)});
       const result = await response.json();
       if (current !== sequence) return;
       if (!response.ok || !result.ok) { status(result.error?.message ?? "AI is unavailable. Your draft is unchanged."); return; }
@@ -109,7 +110,7 @@ export function mountStrategyAi({root = document, getDraft, applyDraft, request 
       $("ai-draft").hidden = !pending;
       $("ai-accept").hidden = !pending;
       $("ai-result").hidden = false;
-      status(pending ? "Review the proposal below. Accept it to replace your current draft." : "Explanation ready. Your draft is unchanged.");
+      status(pending ? "Review the proposal below. Accept it to replace your current draft." : interpreterOnly ? "Complete the missing details in the instructions above, then interpret again." : "Explanation ready. Your draft is unchanged.");
     } catch {
       if (current === sequence) status("The AI request could not finish. Check 0G usage before trying again; it may have been charged.");
     } finally {
@@ -117,5 +118,12 @@ export function mountStrategyAi({root = document, getDraft, applyDraft, request 
     }
   });
   discard(); refresh();
-  return {getKey: () => apiKey};
+  return {getKey: () => apiKey,openText(entry) {
+    if(busy)throw new Error('An interpretation is already running. Finish it before loading another post.');
+    if(typeof entry?.name!=='string'||!entry.name.trim()||entry.name.length>100||typeof entry.text!=='string'||!entry.text.trim()||entry.text.length>4000)throw new Error('Load a named strategy with at most 4,000 characters of instructions.');
+    discard();textName=entry.name;$("ai-operation").value="generate";$("ai-prompt").value=entry.text;
+    $("ai-interpreter").open=true;
+    status(apiKey?'Review the instructions, including trade size and network, then interpret. Each request uses your 0G balance.':'Add your 0G inference key below, then review and interpret these instructions. Your canvas stays unchanged until you accept the proposed rules.');
+    refresh();$("ai-dialog").showModal();
+  }};
 }

@@ -27,7 +27,7 @@ export function mountMembershipWorkspace(root: HTMLElement, options: WorkspaceOp
   const panel = new CreatorMembershipPanel(options.wallet,options.events,options.accessKey,{
     openStrategy:options.openStrategy,getDraft:options.getDraft,saved:() => { void refreshLists(); },
   });
-  root.innerHTML = `<div class="membership-toolbar"><button type="button" class="button secondary" data-workspace-action="connect">Connect wallet</button><button type="button" class="button secondary" data-workspace-action="refresh">Refresh memberships</button><button type="button" class="button primary" data-workspace-action="mine">My creator membership</button></div><p data-workspace-status role="status"></p><section><h3>Your subscriptions</h3><div data-subscriptions-list>Connect your wallet to load saved memberships.</div></section><section><h3>Creator memberships</h3><div data-plan-list>Reading creator plans…</div></section><form data-creator-search><label class="field"><span>Find a creator by handle</span><input name="creator" required placeholder="creator_handle"></label><button class="button secondary">Find creator</button></form><div data-creator-results></div><p class="muted">Names identify profiles. The connected wallet verifies ownership and receives membership payments. You can also search with a full wallet address.</p><div data-creator-panel></div>`;
+  root.innerHTML = `<div class="membership-toolbar"><a class="button secondary" href="/community#/creator">Creator dashboard</a><a class="button secondary" href="/community#/creators">Discover creators & profits</a><button type="button" class="button secondary" data-workspace-action="connect">Connect wallet</button><button type="button" class="button secondary" data-workspace-action="refresh">Refresh memberships</button><button type="button" class="button primary" data-workspace-action="mine">Become a creator / My plan</button></div><p data-workspace-status role="status"></p><section><h3>Your subscriptions</h3><div data-subscriptions-list>Connect your wallet to load saved memberships.</div></section><section><h3>Creator memberships</h3><div data-plan-list>Reading creator plans…</div></section><form data-creator-search><label class="field"><span>Find a creator by handle</span><input name="creator" required placeholder="creator_handle"></label><button class="button secondary">Find creator</button></form><div data-creator-results></div><p class="muted">Names identify profiles. The connected wallet verifies ownership and receives membership payments. You can also search with a full wallet address.</p><div data-creator-panel></div>`;
   const status = (message: string) => { root.querySelector('[data-workspace-status]')!.textContent = message; };
   const card = (creator: string, detail: string) => `<button type="button" class="button secondary membership-card" data-creator="${e(creator)}"><strong data-creator-name="${e(creator)}">${e(names.get(creator) ?? short(creator))}</strong><span>${e(detail)}</span></button>`;
 
@@ -51,7 +51,8 @@ export function mountMembershipWorkspace(root: HTMLElement, options: WorkspaceOp
     selected = creator.toLowerCase();
     panel.detach();
     const slot = root.querySelector('[data-creator-panel]')!;
-    slot.innerHTML = `<h3>Creator <code>${e(short(selected))}</code></h3><a href="/community#/profile/${selected}">View creator profile</a><section class="paper-panel"></section>`;
+    slot.innerHTML = `<h3 tabindex="-1" data-creator-name="${e(selected)}">${e(names.get(selected) ?? short(selected))}</h3><a href="/community#/profile/${selected}">View creator profile</a><section class="paper-panel"></section>`;
+    slot.querySelector<HTMLElement>('h3')!.focus();
     void panel.mount(slot.querySelector('section')!,selected as Hex,account,false);
   }
 
@@ -69,7 +70,7 @@ export function mountMembershipWorkspace(root: HTMLElement, options: WorkspaceOp
         if (disposed || current !== generation) return;
         root.querySelector('[data-plan-list]')!.innerHTML = rows.length
           ? rows.map(plan => card(plan.actor,formatAmount(String(plan.data.priceWei),18)+' Sepolia ETH / 30 days')).join('')
-          : '<p>No creator has published a membership price yet. Choose My creator membership to set yours.</p>';
+          : '<p>No creator has published a membership price yet. Choose Become a creator / My plan to set yours.</p>';
         void loadNames(rows.map(row=>row.actor));
       } catch {
         if (!disposed && current === generation) root.querySelector('[data-plan-list]')!.textContent = 'Creator plans could not be loaded. Refresh to try again.';

@@ -2,6 +2,7 @@ import { recordExecutionSnapshot } from "../../../../apps/web/src/builder.ts";
 import { editStrategy, importStrategyJson, exportStrategyJson } from "../adapters/editor.ts";
 import { tradingPairs, pairForStrategy, contextForPair, priceStrategy as defaultStrategy, validatePriceStrategy as validateMarketStrategy } from "../market/config.ts";
 import { keepFocus } from "./focus.js";
+import { mountCanvasDragTarget } from "./drag-target.js";
 import { mountStrategyAi } from "./ai.js";
 import { mountExecution } from "./execution.js";
 import { mountLivePrices } from "./prices.js";
@@ -99,11 +100,12 @@ function port(node, direction) {
   } else {
     button.addEventListener("dragover", event => { event.preventDefault(); event.stopPropagation(); });
     button.addEventListener("drop", event => {
-      event.preventDefault(); event.stopPropagation();
       try {
         const data = JSON.parse(event.dataTransfer.getData("text/plain"));
-        if (data.kind === "connection" && draft.nodes.some(item => item.id === data.id)) { connectFrom = data.id; connect(node.id); }
-      } catch { announce("Drag a block's output dot to an input dot."); }
+        if(data.kind!=="connection")return;
+        event.preventDefault(); event.stopPropagation();
+        if (draft.nodes.some(item => item.id === data.id)) { connectFrom = data.id; connect(node.id); }
+      } catch { return; }
       canvas.classList.remove("drag-over");
     });
   }
@@ -298,14 +300,13 @@ document.querySelectorAll(".palette-block").forEach(button => {
     event.dataTransfer.effectAllowed = "copy";
   });
 });
-canvas.addEventListener("dragover", event => { event.preventDefault(); canvas.classList.add("drag-over"); });
-canvas.addEventListener("dragleave", event => { if (!canvas.contains(event.relatedTarget)) canvas.classList.remove("drag-over"); });
+mountCanvasDragTarget(canvas);
 canvas.addEventListener("drop", event => {
   event.preventDefault(); canvas.classList.remove("drag-over");
   const member = event.dataTransfer.getData('application/x-poros-member-strategy');
   if (member) { void loadMemberTransfer(member); return; }
   const reference = event.dataTransfer.getData('text/uri-list') || event.dataTransfer.getData('text/plain');
-  if (reference.startsWith(location.origin + '/?strategy=')) { void loadPublicReference(reference); return; }
+  if (reference && !reference.trimStart().startsWith('{')) { void loadPublicReference(reference); return; }
   try {
     const data = JSON.parse(event.dataTransfer.getData("text/plain")), rect = canvas.getBoundingClientRect();
     if(data.kind === "public-strategy"){void communityUI.load(data.versionKey);return;}
@@ -361,6 +362,7 @@ const ai = mountStrategyAi({
   applyDraft(next) {
     if (!validateMarketStrategy(next).valid || !next.riskPolicy.paperTradingOnly) throw new Error("Invalid AI proposal.");
     replaceDraft(next);
+    forkSource=undefined;
     dirty = true;
     announce("AI proposal accepted. Export JSON to keep this draft.");
   },
@@ -372,13 +374,14 @@ executionUI = mountExecution({
   applyDraft(next) {replaceDraft(next); dirty = true;forkSource=undefined;},
   validateDraft: next => validateMarketStrategy(next),
   getApiKey: ai.getKey,
+  onText:ai.openText,
   onActivity:event=>{
     if(event.kind==='snapshot')void recordExecutionSnapshot(event.data,event.time).catch(()=>{
       announce('Order history could not be saved in this browser. Trading can continue.');
     });
   },
 });
-communityUI=mountCommunityLibrary({onText:entry=>executionUI.openUnlockedStrategy(entry),onLoad(next,versionKey){
+communityUI=mountCommunityLibrary({onText:ai.openText,onLoad(next,versionKey){
   if(!validateMarketStrategy(next).valid)throw new Error("This public strategy uses unsupported rules or a market outside this live-price builder.");
   if(!mayReplace())throw new Error("Your draft was kept.");
   replaceDraft(next);dirty=true;forkSource=versionKey;
@@ -389,7 +392,14 @@ const memberUI=mountMemberLibrary({
   onCreators:creators=>executionUI.setFollowedCreators(creators),
   onReset:()=>executionUI.invalidate("Private library locked. Review your draft before starting a new run."),
 });
-mountLibraryTabs({onCommunity:()=>communityUI.refresh(),onSelect:tab=>{if(tab!=="community")void memberUI.refresh();}});
+let creatorDirectory;
+mountLibraryTabs({onCommunity:()=>communityUI.refresh(),onSelect:tab=>{
+  if(tab!=="community")void memberUI.refresh();
+  if(tab==="creators"&&!creatorDirectory){
+    creatorDirectory=import('../../../../apps/web/src/builder.ts').then(({mountTradeCreators})=>mountTradeCreators($('#trade-creator-directory'))).catch(()=>{creatorDirectory=undefined;$('#trade-creator-directory').textContent='Creators could not load. Select the tab again to retry.';});
+  }
+}});
+window.addEventListener("pagehide",()=>void creatorDirectory?.then(directory=>directory?.dispose()));
 window.addEventListener("pagehide",()=>memberUI.stop());
 pricesUI=mountLivePrices({
   getPairs:()=>tradingPairs.filter(pair=>pair.network.key===pairForStrategy(draft).network.key).sort((a,b)=>Number(b.id===pairForStrategy(draft).id)-Number(a.id===pairForStrategy(draft).id)),
@@ -422,7 +432,9 @@ async function loadMemberTransfer(raw) {
 async function loadPublicReference(reference) {
   try {
     const {strategyReference} = await import('../../../../apps/web/src/builder.ts');
-    await communityUI.load(strategyReference(reference,location.origin));
+    const transfer=strategyReference(reference,location.origin);
+    if(transfer.kind==='public-post')await communityUI.loadPost(transfer.communityKey,transfer.postKey);
+    else await communityUI.load(transfer.versionKey);
   } catch (error) { announce(error.message || 'Unable to read the strategy reference.'); }
 }
 
@@ -435,4 +447,4 @@ $('#publish-community').addEventListener('click',async()=>{
     location.href = '/community#/publish-draft';
   } catch(error) { announce(error.message || 'Unable to prepare the public draft.'); }
 });
-if (new URLSearchParams(location.search).has('strategy')) void loadPublicReference(location.href);
+if (['strategy','post'].some(key=>new URLSearchParams(location.search).has(key))) void loadPublicReference(location.href);

@@ -1,5 +1,8 @@
+import {readCreatorDirectory,mountCreatorDirectory} from './creator-directory.ts';
+import {strategyQuestions,mountStrategyQuestions,strategyPostBody} from './strategy-post.ts';
 import {zeroGPotPage,mountZeroGPot} from './zero-g-pot.ts';
 import {readPaperRuns} from './performance.ts';
+import {publicStrategyDrag} from './strategy-drag.ts';
 import serialize from 'canonicalize';
 import {archiveUnsubmittedWrite,createPendingWriteChecker} from './pending-write.ts';
 import {createPublicReadCache,browserStorage,cachedPublicLists,validProfile} from './public-cache.ts';
@@ -56,6 +59,7 @@ class Application {
     loadedStrategies: StrategySummaryDTO[] = [];
     strategyCursor: number | null = null;
     communityCursor: number | null = null;
+    creatorDirectory?: ReturnType<typeof mountCreatorDirectory>;
     historyCursor: number | null = null;
     skipped = 0;
     profiles = new Map<string, Profile>();
@@ -124,6 +128,7 @@ class Application {
                 this.profiles.set(p.wallet, p);
         }
         app.innerHTML = this.shell();
+        app.addEventListener('dragstart',event=>publicStrategyDrag(event,location.origin));
         window.addEventListener('pagehide', () => { this.generation++; this.market.session.clear(); this.sellerDraft = undefined; this.closeDialog(); });
         document.querySelector('#wallet-connect')?.addEventListener('click', event => { void this.action(event.currentTarget as HTMLElement).catch(error => this.report(error)); });
         app.addEventListener('click', event => {
@@ -157,7 +162,7 @@ class Application {
     shell() {
         return `
     ${this.preview ? `<div class="preview-banner">${icon('info')}<span>Read-only design preview. Every profile, strategy and price here is illustrative.</span><button data-action="live">Switch to real Rabdi ${icon('arrow')}</button></div>` : ''}
-    <div class="app-layout"><aside class="sidebar"><span class="nav-label">POROS COMMUNITY</span><nav aria-label="Main navigation">${[['/communities', 'people', 'Communities'], ['/compose', 'plus', 'Write a strategy'], ['/memberships', 'lock', 'Memberships']].map(([route, glyph, label]) => `<a href="#${route}" data-nav="${route}">${icon(glyph!)}<span>${label}</span></a>`).join('')}</nav><div class="sidebar-divider"></div><div class="nav-label nav-label-row">OPEN ROOMS <a href="#/communities" aria-label="Browse communities">${icon('plus')}</a></div><div id="rooms" class="room-links"></div><div class="sidebar-bottom"><div class="sidebar-note">${icon('leaf')}<p>Better ideas grow<br>in good company.</p></div><button class="settings-button" data-action="setup">${icon('settings')} Connection details</button><small>Built in public. Stored on Arkiv.</small></div></aside><main id="main" tabindex="-1"><div id="pending"></div><p id="public-cache-status" class="muted" role="status"></p><div id="content"></div></main></div><footer><span>POROS COMMUNITY</span><p>Ideas are public. Trading decisions are yours.</p><button data-action="${this.preview ? 'live' : 'preview'}">${this.preview ? 'Return to Rabdi' : 'Explore the design preview'} ${icon('arrow')}</button></footer>`;
+    <div class="app-layout"><aside class="sidebar"><span class="nav-label">POROS COMMUNITY</span><nav aria-label="Main navigation">${[['/communities', 'people', 'Communities'], ['/compose', 'plus', 'Write a strategy'], ['/creators', 'people', 'Creators & leaderboard'], ['/creator', 'user', 'Creator dashboard'], ['/memberships', 'lock', 'Memberships']].map(([route, glyph, label]) => `<a href="#${route}" data-nav="${route}">${icon(glyph!)}<span>${label}</span></a>`).join('')}</nav><div class="sidebar-divider"></div><div class="nav-label nav-label-row">OPEN ROOMS <a href="#/communities" aria-label="Browse communities">${icon('plus')}</a></div><div id="rooms" class="room-links"></div><div class="sidebar-bottom"><div class="sidebar-note">${icon('leaf')}<p>Better ideas grow<br>in good company.</p></div><button class="settings-button" data-action="setup">${icon('settings')} Connection details</button><small>Built in public. Stored on Arkiv.</small></div></aside><main id="main" tabindex="-1"><div id="pending"></div><p id="public-cache-status" class="muted" role="status"></p><div id="content"></div></main></div><footer><span>POROS COMMUNITY</span><p>Ideas are public. Trading decisions are yours.</p><button data-action="${this.preview ? 'live' : 'preview'}">${this.preview ? 'Return to Rabdi' : 'Explore the design preview'} ${icon('arrow')}</button></footer>`;
     }
     label(wallet: string) { return this.profiles.get(wallet)?.displayName ?? short(wallet); }
     updateChrome() {
@@ -249,6 +254,8 @@ class Application {
     }
     async render() {
         this.creatorMembership.detach();
+        this.creatorDirectory?.dispose();
+        this.creatorDirectory = undefined;
         this.membershipWorkspace?.dispose();
         this.membershipWorkspace = undefined;
         const serial = ++this.pageSerial;
@@ -272,8 +279,10 @@ class Application {
         try {
             if (route === 'pot')
                 html = zeroGPotPage();
-            else if (route === 'dashboard')
-                html = this.dashboardView();
+            else if (route === 'dashboard' || route === 'creator')
+                html = this.dashboardView(route === 'creator');
+            else if (route === 'creators')
+                html = heading('Community creators','Creators and profit leaderboard','Discover public strategies, review results, and subscribe to future exclusive signals.') + '<section id="creator-directory"></section>';
             else if (route === 'compose')
                 html = this.composerView();
             else if (route === 'memberships')
@@ -315,6 +324,11 @@ class Application {
             this.updateChrome();
             document.title = (content.querySelector('h1')?.textContent ?? 'Discover') + ' — Poros Community';
             if (route === 'dashboard') void this.mountDashboard(content,serial);
+            const directoryRoot=content.querySelector<HTMLElement>('#creator-directory');
+            if(directoryRoot){
+                if(this.preview)directoryRoot.innerHTML=notice('Switch to live Rabdi to discover creators and verified results.')+button('live','Open live community');
+                else this.creatorDirectory=mountCreatorDirectory(directoryRoot,()=>readCreatorDirectory(this.api.strategies,this.creatorMembership.service,this.api.community,this.api.events));
+            }
             if (route === 'compose') this.mountComposer(content,serial);
             const workspaceRoot = content.querySelector<HTMLElement>('#membership-workspace');
             if (workspaceRoot) {
@@ -323,7 +337,7 @@ class Application {
                     creator:new URLSearchParams(location.hash.split('?')[1] ?? '').get('creator') ?? undefined});
             }
             const membershipRoot = content.querySelector<HTMLElement>('#creator-membership');
-            const profileWallet = id === 'me' ? this.account : id;
+            const profileWallet = route === 'creator' || id === 'me' ? this.account : id;
             if (membershipRoot && profileWallet && walletPattern.test(profileWallet))
                 void this.creatorMembership.mount(membershipRoot,profileWallet as Hex,this.account,!!this.preview);
             if (changed)
@@ -345,10 +359,11 @@ class Application {
     }
     composerView() {
         return heading('Strategy post','Share your strategy','Explain your reasoning, choose a community, and select who can read it.') +
-          `<section class="paper-panel"><form data-form="strategy-post">${field('title','Title',{required:true})}${field('body','Strategy and reasoning',{required:true,area:true})}<div data-public-attachment>${field('version','Public strategy version (optional)',{placeholder:'0x…'})}<a href="/">Build an editable strategy</a></div><div data-exclusive-attachment hidden>${field('strategy','Editable strategy JSON (optional)',{area:true})}</div><label class="field"><span>Community</span><select name="communityKey" required><option value="">Loading communities…</option></select></label><p data-composer-rooms role="status"></p><label class="field"><span>Audience</span><select name="audience"><option value="public">Everyone · public post</option><option value="exclusive">My paid subscribers · encrypted post</option></select></label><label class="check-field"><input type="checkbox" name="approved" required>I reviewed this strategy and approve publication to the selected audience.</label><p data-composer-help>Join the community before posting. Public posts are visible to everyone.</p><button class="button primary" ${this.account && !this.preview?'':'disabled'}>Publish strategy post</button>${this.account?'':button('connect','Connect wallet','secondary')}</form></section><section id="composer-private" class="paper-panel" hidden></section>`;
+          `<section class="paper-panel"><form data-form="strategy-post">${field('title','Title',{required:true})}${strategyQuestions()}<div data-public-attachment>${field('version','Public strategy version (optional)',{placeholder:'0x…'})}<a href="/">Build an editable strategy</a></div><div data-exclusive-attachment hidden>${field('strategy','Editable strategy JSON (optional)',{area:true})}</div><label class="field"><span>Community</span><select name="communityKey" required><option value="">Loading communities…</option></select></label><p data-composer-rooms role="status"></p><label class="field"><span>Audience</span><select name="audience"><option value="public">Everyone · public post</option><option value="exclusive">My paid subscribers · encrypted post</option></select></label><label class="check-field"><input type="checkbox" name="approved" required>I reviewed this strategy and approve publication to the selected audience.</label><p data-composer-help>Join the community before posting. Public posts are visible to everyone.</p><button class="button primary" ${this.account && !this.preview?'':'disabled'}>Publish strategy post</button>${this.account?'':button('connect','Connect wallet','secondary')}</form></section><section id="composer-private" class="paper-panel" hidden></section>`;
     }
     mountComposer(content: HTMLElement, serial: number) {
         const form = content.querySelector<HTMLFormElement>('[data-form="strategy-post"]')!;
+        mountStrategyQuestions(form);
         const audience = form.elements.namedItem('audience') as HTMLSelectElement;
         const privateRoot = content.querySelector<HTMLElement>('#composer-private')!;
         let mounted = false;
@@ -441,9 +456,10 @@ class Application {
         const writable = !!this.host.validateStrategyDocument && !this.preview;
         return `<a href="#/discover" class="back-link">← All public strategies</a><p><a class="button secondary strategy-transfer" draggable="true" href="/?strategy=${version.versionKey}">Open in builder · drag to canvas</a> ${this.preview ? '' : button('share-strategy','Share in a community','secondary')}</p>` + heading('PUBLIC STRATEGY', version.document.name, version.document.description, button('fork', icon('fork') + ' Fork this version', 'primary', writable ? '' : 'disabled')) + `<div class="community-meta">${tag(version.document.category)}${tag(version.document.license)}<span>by <a href="#/profile/${version.creator}">${e(this.label(version.creator))}</a></span>${this.account === version.creator ? button('revise', 'Publish a revision', 'secondary', writable && history.complete && history.tipVersionKeys.length === 1 ? '' : 'disabled') : ''}</div>${version.lineageStatus !== 'verified' ? notice('Some ancestors are missing. This is not a fully verified version history.', 'warning') : ''}${!history.complete ? notice('The version history is incomplete. Revision is blocked.', 'warning') : ''}<div class="detail-columns"><section class="paper-panel"><div class="section-title"><h2>${icon('code')} The strategy document</h2>${tag(this.preview ? 'Illustrative' : 'Read-back verified', 'green')}</div><pre class="code-panel">${e(JSON.stringify(version.document, null, 2))}</pre>${notice('A stored strategy is public data. It is not permission to trade.')}</section><aside><div class="paper-panel"><span class="eyebrow">PINNED TO THIS VERSION</span><dl><dt>Version key</dt><dd><code>${e(version.versionKey)}</code></dd><dt>Content hash</dt><dd><code>${e(version.contentHash)}</code></dd><dt>Execution network</dt><dd>Chain ${version.document.executionChainId}</dd><dt>Expiry block</dt><dd>${e(version.expiresAtBlock)}</dd></dl></div><div class="paper-panel"><h2>Version history</h2>${history.versions.map((row, i) => `<a class="history-row ${row.versionKey === version.versionKey ? 'selected' : ''}" href="#/strategies/${row.versionKey}"><span class="version-dot"></span><span>${i === 0 ? 'Root publication' : 'Revision'}<small>${e(short(row.versionKey))}</small></span>${icon('arrow')}</a>`).join('')}${this.historyCursor !== null ? button('more-history', 'Load more versions', 'secondary') : ''}<p class="muted">Forks preserve the selected source, including older versions.</p></div></aside></div>`;
     }
-    dashboardView() {
-        if(!this.account || this.preview)return heading('YOUR PROFILE','Profile','Connect your wallet to see membership income and saved trading results.',button('connect','Connect wallet'));
-        return heading('YOUR PROFILE','Your activity','Membership income and trading results, in one place.',button('refresh','Refresh','secondary'))+
+    dashboardView(creator = false) {
+        if(!this.account || this.preview)return heading(creator?'CREATOR DASHBOARD':'YOUR PROFILE',creator?'Become a creator':'Profile',creator?'Anyone can become a creator. Connect your wallet, create a public profile, set up private access, and publish your 30-day membership price.':'Connect your wallet to see membership income and saved trading results.',button('connect','Connect wallet'));
+        return heading(creator?'CREATOR DASHBOARD':'YOUR PROFILE',creator?'Your creator dashboard':'Your activity','Membership income and trading results, in one place.',button('refresh','Refresh','secondary'))+
+            (creator?'<section class="paper-panel"><h2>Build your creator presence</h2><ol><li><a href="/community#/profile/me">Create or edit your public profile</a>.</li><li>Set up your encryption key below and keep its recovery code.</li><li>Publish your 30-day Sepolia ETH membership price below.</li><li><a href="/community#/compose">Post a strategy</a> for everyone or your paid subscribers.</li></ol><p>Memberships are open to everyone. Public strategy activity improves discovery; finalized Flash results determine your <a href="/community#/creators">profit leaderboard</a> position. Profit is never guaranteed.</p></section><section id="creator-membership" class="paper-panel"></section>':'<p><a class="button primary" href="/community#/creator">Become a creator / Dashboard</a></p>')+
             `<div class="profile-panel">${avatar(this.account)}<div><strong>Connected wallet</strong><p><code>${e(this.account)}</code></p></div><a class="button secondary" href="/community#/profile/me">Edit public profile</a></div>`+
             `<section class="profile-metrics" aria-label="Income and profit summary"><article class="paper-panel"><h2>Membership income</h2><strong class="metric-value" id="membership-income">Loading…</strong><p>Sepolia ETH · testnet</p><small>Verified payments in available Arkiv records. Not lifetime income; expired records may be missing.</small></article><article class="paper-panel"><h2>Paper trading profit</h2><strong class="metric-value" id="paper-profit">—</strong><p>Realized P/L · simulated USD</p><small>After simulated fees. Last 100 runs saved in this browser for this wallet. Open positions excluded.</small></article><article class="paper-panel"><h2>Real trading profit</h2><strong class="metric-value" id="real-profit">Loading…</strong><p>Realized fill P/L · by settlement currency</p><small>Finalized Flash fills only. Reported fees shown separately; excludes external trades, transfers and open-position gains.</small></article></section>`+
             `<section class="paper-panel"><div class="section-title"><h2>Membership payments</h2><a href="/community#/memberships">Manage memberships →</a></div><div id="income-payments" role="status">Checking payments…</div></section><section class="paper-panel"><h2>Real trading results</h2><div id="real-results" role="status">Reading finalized Flash fills…</div></section><section class="paper-panel"><div class="section-title"><h2>Recent paper runs</h2><a href="/">Open Trade →</a></div><div id="paper-runs"></div></section>`;
@@ -1086,6 +1102,13 @@ class Application {
             location.hash = '/discover?q=' + encodeURIComponent(value('q'));
             return;
         }
+        let strategyBody = '';
+        if(kind === 'strategy-post') {
+            const error = form.querySelector('[data-strategy-error]')!;
+            error.textContent = '';
+            try { strategyBody = strategyPostBody(data); }
+            catch(cause) { error.textContent = cause instanceof Error ? cause.message : 'Check your strategy answers.'; return; }
+        }
         await this.busyAction(async () => {
             if (kind === 'recover-write') {
                 const account=await this.requireAccount();
@@ -1105,7 +1128,7 @@ class Application {
                 if(!data.has('approved') || !['public','exclusive'].includes(value('audience')))failure('INVALID_INPUT');
                 const communityKey = value('communityKey') as Hex;
                 if(!keyPattern.test(communityKey))failure('INVALID_INPUT');
-                const title = checkedText(value('title'),1,80), body = checkedText(value('body'),1,4096);
+                const title = checkedText(value('title'),1,80), body = strategyBody;
                 if(value('audience') === 'exclusive') {
                     const [room,membership] = await Promise.all([this.getCommunity(communityKey),this.api.community.getMembership({communityKey,wallet:account})]);
                     if(membership.banned || (room.owner!==account && membership.event?.data.state!=='joined'))failure('NOT_OWNER');

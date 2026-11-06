@@ -5,12 +5,14 @@ export function mountCommunityLibrary({root=document,loadApi=()=>import('../../.
   const text=(tag,value)=>{const node=root.createElement(tag);node.textContent=value;return node;};
   async function load(versionKey){
     if(!key(versionKey))return;
+    $('community-strategies-status').textContent='Loading the published strategy…';
     try{const {publicStrategies}=await loadApi();const version=await publicStrategies.getVersion({versionKey});await onLoad(version.document.graph,version.versionKey);$('community-strategies-status').textContent='Community strategy loaded. Review its rules before Run.';}
     catch(error){$('community-strategies-status').textContent=error.message??'Could not load this community strategy.';}
   }
   async function loadPost(communityKey,postKey){
     if(!key(communityKey)||!key(postKey))return;
-    try{const api=await loadApi();const entry=await api.readPublicPost(communityKey,postKey);await onText(entry);}
+    $('community-strategies-status').textContent='Loading the written strategy…';
+    try{const api=await loadApi();const entry=await api.readPublicPost(communityKey,postKey);await onText(entry);$('community-strategies-status').textContent='Review the written strategy in the interpreter dialog.';}
     catch(error){$('community-strategies-status').textContent=error.message??'Could not load this community post.';}
   }
   async function refresh(append=false){

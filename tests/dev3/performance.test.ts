@@ -9,6 +9,7 @@ function detail(side='buy',id='buy',qty='2',amount='100',time='2026-11-01T00:00:
 test('real results use finalized fills, average cost and separate fees',()=>{
  const buy=detail(),sell=detail('sell','sell','1','70','2026-11-02T00:00:00Z');
  const result=summarizeFlashFills([sell,buy,buy],wallet,true);
+ assert.equal(result.markets[0]?.marketId,'eip155:8453:eth/eip155:8453:usdc');
  assert.equal(result.markets[0]?.realizedPnl,'20');assert.equal(result.markets[0]?.openQuantity,'1');
  assert.equal(result.feesUsd,'0.2');assert.equal(result.fills,2);
  buy.fills[0]!.status='CHAIN_STATUS_REORGED';
