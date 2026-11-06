@@ -1,6 +1,7 @@
 import { recordExecutionSnapshot } from "../../../../apps/web/src/builder.ts";
 import { editStrategy, importStrategyJson, exportStrategyJson } from "../adapters/editor.ts";
-import { tradingPairs, pairForStrategy, contextForPair, priceStrategy as defaultStrategy, validatePriceStrategy as validateMarketStrategy } from "../market/config.ts";
+import { tradingPairs, pairForStrategy, strategyForPair, contextForPair, priceStrategy as defaultStrategy, validatePriceStrategy as validateMarketStrategy } from "../market/config.ts";
+import {mountBacktest} from './backtest.js';
 import { keepFocus } from "./focus.js";
 import { mountStrategyAi } from "./ai.js";
 import { mountExecution } from "./execution.js";
@@ -22,7 +23,7 @@ let selected = draft.nodes[0]?.id;
 let positions = new Map();
 let connectFrom;
 let dirty = false;
-let executionUI,pricesUI,communityUI;
+let executionUI,pricesUI,communityUI,backtestUI;
 let pricesPairId=pairForStrategy(draft).id;
 let forkSource;
 let strategyLoad=0;
@@ -272,6 +273,7 @@ function render() {
     $("#json-preview").textContent = JSON.stringify(draft, null, 2);
   });
   executionUI?.draftChanged();
+  backtestUI?.sync();
   try{sessionStorage.setItem('poros.orders.market',pairForStrategy(draft).id);}catch{}
   publishChartContext();
   const pairId=pairForStrategy(draft).id;
@@ -410,6 +412,18 @@ window.addEventListener("creators:updated", event => {
   try {setFollowedCreators(event.detail);} catch (error) {announce(error.message);}
 });
 window.addEventListener("beforeunload", event => { if (dirty) { event.preventDefault(); event.returnValue = ""; } });
+backtestUI=mountBacktest({getDraft:()=>draft,getPair:()=>pairForStrategy(draft),getPairs:()=>tradingPairs,changeMarket(id){if(mayReplace()){replaceDraft(strategyForPair(id,draft),true);dirty=true;}},async loadStrategy(transfer){
+  const member=transfer.getData('application/x-poros-member-strategy');
+  if(member){const {readMemberStrategy}=await import('../../../../apps/web/src/builder.ts');return executionUI.openUnlockedStrategy(readMemberStrategy(member));}
+  const reference=transfer.getData('text/uri-list')||transfer.getData('text/plain');
+  if(reference.startsWith(location.origin+'/?strategy=')){const {strategyReference}=await import('../../../../apps/web/src/builder.ts');return communityUI.load(strategyReference(reference,location.origin));}
+  const data=JSON.parse(transfer.getData('text/plain'));
+  if(data.kind==='public-strategy')return communityUI.load(data.versionKey);
+  if(data.kind==='public-post')return communityUI.loadPost(data.communityKey,data.postKey);
+  if(data.kind==='unlocked-strategy')return executionUI.openUnlockedReference(data.id);
+  throw new Error('Drop a strategy card from Community or Unlocked.');
+}});
+window.addEventListener('pagehide',()=>backtestUI.stop());
 resetPositions(); render();
 
 async function loadMemberTransfer(raw) {

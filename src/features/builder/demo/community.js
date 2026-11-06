@@ -4,14 +4,14 @@ export function mountCommunityLibrary({root=document,loadApi=()=>import('../../.
   const key=value=>typeof value==='string'&&/^0x[0-9a-f]{64}$/i.test(value);
   const text=(tag,value)=>{const node=root.createElement(tag);node.textContent=value;return node;};
   async function load(versionKey){
-    if(!key(versionKey))return;
-    try{const {publicStrategies}=await loadApi();const version=await publicStrategies.getVersion({versionKey});await onLoad(version.document.graph,version.versionKey);$('community-strategies-status').textContent='Community strategy loaded. Review its rules before Run.';}
-    catch(error){$('community-strategies-status').textContent=error.message??'Could not load this community strategy.';}
+    if(!key(versionKey))return false;
+    try{const {publicStrategies}=await loadApi();const version=await publicStrategies.getVersion({versionKey});await onLoad(version.document.graph,version.versionKey);$('community-strategies-status').textContent='Community strategy loaded. Review its rules before Run.';return true;}
+    catch(error){$('community-strategies-status').textContent=error.message??'Could not load this community strategy.';return false;}
   }
   async function loadPost(communityKey,postKey){
-    if(!key(communityKey)||!key(postKey))return;
-    try{const api=await loadApi();const entry=await api.readPublicPost(communityKey,postKey);await onText(entry);}
-    catch(error){$('community-strategies-status').textContent=error.message??'Could not load this community post.';}
+    if(!key(communityKey)||!key(postKey))return false;
+    try{const api=await loadApi();const entry=await api.readPublicPost(communityKey,postKey);return await onText(entry);}
+    catch(error){$('community-strategies-status').textContent=error.message??'Could not load this community post.';return false;}
   }
   async function refresh(append=false){
     if(busy)return;busy=true;$('refresh-community-strategies').disabled=true;$('more-community-strategies').disabled=true;

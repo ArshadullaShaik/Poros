@@ -1,8 +1,8 @@
 // Trusted static builder markup. User content is rendered by validated controllers.
 export const tradeMarkup = `
 <main>
-    <section class="page-heading">
-      <div><p class="eyebrow">YOUR STRATEGY WORKSHOP</p><h1>Run your strategy.</h1><p class="subheading">Load an unlocked strategy, set your limits, and monitor its live price targets.</p></div>
+    <section class="page-heading trade-intro">
+      <div><p class="eyebrow"><span class="intro-dot" aria-hidden="true"></span> THE POROS WORKSHOP</p><h1>Your idea. <span>Your next move.</span></h1><p class="subheading">Build, test, and run your strategy in one workspace.</p></div>
       <div class="heading-actions"><button id="ai-open" class="api-key-button" type="button" aria-label="Add 0G API key" aria-haspopup="dialog" aria-controls="ai-dialog" title="API key and AI tools"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8" cy="8" r="4.5"/><path d="m11.3 11.3 9.2 9.2m-3-3 2.5-2.5m-5 0 2.5-2.5"/></svg></button><button id="load-example" class="button secondary">Load example</button><button id="new-strategy" class="button primary"><span aria-hidden="true">＋</span> New strategy</button></div>
     </section>
     <section class="workspace" aria-label="Strategy builder">
@@ -12,6 +12,7 @@ export const tradeMarkup = `
         <button class="palette-block indicator" data-kind="signal.price" draggable="true"><span class="block-icon">∿</span><span><strong>Price range</strong><small>When the market meets a rule</small></span><span class="grip" aria-hidden="true">⠿</span></button>
         <button class="palette-block guard" data-kind="guard.risk" draggable="true"><span class="block-icon">◇</span><span><strong>Risk limit</strong><small>Keep each order within limits</small></span><span class="grip" aria-hidden="true">⠿</span></button>
         <button class="palette-block action" data-kind="action.intent" draggable="true"><span class="block-icon">⇄</span><span><strong>Buy / sell</strong><small>Describe the intended action</small></span><span class="grip" aria-hidden="true">⠿</span></button>
+        <button id="backtest-open" class="backtest-launcher" type="button" aria-haspopup="dialog" aria-controls="backtest-setup-dialog"><span class="backtest-launcher-icon" aria-hidden="true">↗</span><span><strong>Test your strategy</strong><small>Backtest with virtual funds</small></span><span aria-hidden="true">＋</span></button>
         <div class="how-to"><p class="eyebrow">A SIMPLE RECIPE</p><ol><li><span>01</span>Start with a price range.</li><li><span>02</span>Add a risk limit and an action.</li><li><span>03</span>Connect the right dot to the next left dot.</li><li><span>04</span>Adjust settings and validate.</li></ol></div>
         <div class="fixture-note"><span aria-hidden="true">◌</span><div><strong>Real prices, virtual funds</strong><p>Live Chainlink reference and Flash quotes. No history or warm-up. Virtual funds only.</p></div></div>
       </aside>
@@ -113,6 +114,30 @@ export const tradeMarkup = `
           </div><p class="tiny muted">100 basis points = 1%. Slippage must fit the strategy limit. Uses current prices and virtual funds. Each action executes once per run. Fees and fills are simulated.</p>
         </section>
   </dialog>
+  <dialog id="backtest-setup-dialog" class="backtest-setup-dialog backtest-panel" aria-labelledby="backtest-setup-title">
+    <div class="dialog-heading"><div><p class="eyebrow">HISTORICAL BACKTEST</p><h2 id="backtest-setup-title">Test your strategy</h2></div><button id="backtest-close" class="icon-button" type="button" aria-label="Close backtest setup">×</button></div>
+          <p class="backtest-intro">A ready-made test. Your rules.</p>
+          <div id="backtest-presets" class="backtest-presets" role="group" aria-label="Ready-made backtests"></div>
+          <form id="backtest-form">
+            <div id="backtest-drop" class="backtest-drop" aria-label="Drop a strategy or ready-made test here">
+              <span class="backtest-drop-icon" aria-hidden="true">↘</span><span class="eyebrow">YOUR STRATEGY</span><strong id="backtest-strategy-name">Current canvas strategy</strong><p>Drop a library strategy here.<br>Or use the one on your canvas.</p>
+            </div>
+            <p id="backtest-setup-summary" class="backtest-setup-summary"></p>
+            <button id="backtest-run" class="button primary" type="submit">Run backtest <span aria-hidden="true">↗</span></button>
+            <details class="backtest-advanced"><summary>Advanced settings <span aria-hidden="true">＋</span></summary>
+            <label class="field"><span>Strategy market</span><select id="backtest-market" required></select></label>
+            <label class="field"><span>Start date · UTC</span><input id="backtest-start" type="date" required></label>
+            <label class="field"><span>End date · UTC, exclusive</span><input id="backtest-end" type="date" required></label>
+            <label class="field"><span>Candle interval</span><select id="backtest-interval"><option value="300">5 minutes</option><option value="900">15 minutes</option><option value="3600">1 hour</option><option value="21600">6 hours</option><option value="86400" selected>1 day</option></select></label>
+            <label class="field"><span>Starting balance · USD</span><input id="backtest-balance" type="number" value="1000" min="0.000001" max="1000000" step="0.000001" required></label>
+            <label class="field"><span>Turnover cap · USD</span><input id="backtest-turnover" type="number" value="10000" min="0.000001" max="1000000" step="0.000001" required></label>
+            <div class="backtest-costs"><label class="field"><span>Fee · bps</span><input id="backtest-fee" type="number" value="10" min="0" max="1000" step="1" required></label><label class="field"><span>Slippage · bps</span><input id="backtest-slippage" type="number" value="25" min="0" max="500" step="1" required></label></div>
+            <p class="tiny muted">Uses your loaded rules. Changing market updates the strategy. Up to 500 candles, including warm-up. 100 bps = 1%.</p>
+            </details>
+          </form>
+          <p id="backtest-status" class="tiny muted" role="status"></p><p class="backtest-disclosure">Historical prices. Simulated trades. Text-only strategies use 0G to interpret before testing.</p><button id="backtest-view-report" class="button secondary" type="button" hidden>View results</button>
+  </dialog>
+  <dialog id="backtest-report-dialog" class="backtest-report-dialog" aria-labelledby="backtest-report-title"><div class="dialog-heading"><h2 id="backtest-report-title">Historical backtest report</h2><button id="backtest-report-close" class="icon-button" type="button" aria-label="Close backtest report">×</button></div><div id="backtest-report"></div></dialog>
   <dialog id="strategy-settings" class="strategy-dialog" aria-labelledby="strategy-settings-title">
     <div class="dialog-heading"><h2 id="strategy-settings-title">Strategy settings</h2><button id="close-strategy-settings" class="icon-button" type="button" aria-label="Close strategy settings">×</button></div>
     <section id="validation" class="validation" aria-labelledby="validation-title" aria-live="polite" hidden>

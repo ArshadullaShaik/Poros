@@ -9,6 +9,7 @@ import { interpretCreatorStrategy } from "../ai/interpreter.ts";
 import { PaperError, runPaperStrategy } from "../execution/paper.ts";
 import { runExecutionAgent } from "../execution/agent.ts";
 import { createSepoliaProxy, createArkivProxy } from "./rpc.mjs";
+import {runHistoricalBacktest} from '../execution/backtest.ts';
 
 export function createApiHandler({fetcher = fetch, market = createLiveMarkets({fetcher})} = {}) {
   // shortcut: local demo concurrency gate, replace with authenticated per-user limits before hosting.
@@ -16,6 +17,7 @@ export function createApiHandler({fetcher = fetch, market = createLiveMarkets({f
   const handleArkiv = createArkivProxy(fetcher);
   const performance=createFlashPerformance({fetcher});
   let aiBusy = false;
+  let backtestBusy = false;
   const monitor = createPriceMonitor({market,fetcher,invoke:async(options)=>{
     if(aiBusy)throw new AgentError("RATE_LIMITED");
     aiBusy=true;try{return await invokePriceExecution(options,fetcher);}finally{aiBusy=false;}
@@ -130,6 +132,25 @@ export function createApiHandler({fetcher = fetch, market = createLiveMarkets({f
       if(!validHistoryWallet(wallet)){response.writeHead(400).end(JSON.stringify({ok:false,error:"Invalid wallet"}));return;}
       try{const data=await performance(wallet);response.writeHead(200).end(JSON.stringify({ok:true,data}));}
       catch{response.writeHead(503).end(JSON.stringify({ok:false,error:"Flash performance could not be verified. Try again shortly."}));}
+      return;
+    }
+    if(pathname==='/api/backtest'){
+      response.setHeader('Content-Type','application/json; charset=utf-8');
+      const json=(status,payload)=>response.writeHead(status).end(JSON.stringify(payload));
+      if(request.method!=='POST'){response.setHeader('Allow','POST');json(405,{ok:false,error:{message:'Send a POST request.'}});return;}
+      if((request.headers.origin&&request.headers.origin!==`http://${request.headers.host}`)||(request.headers['sec-fetch-site']&&!['same-origin','none'].includes(request.headers['sec-fetch-site']))){json(403,{ok:false,error:{message:'Open backtesting from this application.'}});return;}
+      if(!/^application\/json(?:\s*;.*)?$/i.test(request.headers['content-type']??'')){json(415,{ok:false,error:{message:'Send application/json.'}});return;}
+      if(Number(request.headers['content-length'])>65536){json(413,{ok:false,error:{message:'Backtest requests must be at most 64 KiB.'}});return;}
+      if(backtestBusy){json(429,{ok:false,error:{message:'A historical request is already running. Try again shortly.'}});return;}
+      backtestBusy=true;
+      const abort=new AbortController(),timer=setTimeout(()=>abort.abort(),45000);
+      const close=()=>{if(!response.writableEnded)abort.abort();};response.once('close',close);
+      try{
+        const input=await readBoundedJson(new Response(Readable.toWeb(request)),65536,'INVALID_INPUT',abort.signal);
+        const data=await runHistoricalBacktest(input,{fetcher,signal:abort.signal});
+        if(!response.destroyed)json(200,{ok:true,data});
+      }catch(error){const safe=error instanceof PaperError||error instanceof AgentError?error:new PaperError('Historical backtest could not complete. Check the market, dates and data availability.');if(!response.destroyed)json(safe.status,{ok:false,error:{message:safe.message}});}
+      finally{clearTimeout(timer);response.off('close',close);backtestBusy=false;}
       return;
     }
     if (pathname === "/api/arkiv-rpc") {await handleArkiv(request,response);return;}

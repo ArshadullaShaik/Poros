@@ -1,18 +1,19 @@
 /* Shared Poros identity, loaded after each workspace stylesheet. */
 :root {
-  --blue: #355ee8;
-  --paper: #f6f7f9;
+  --blue: #0143eb;
+  --paper: #f3f3f3;
   --white: #ffffff;
-  --ink: #233044;
-  --muted: #69768a;
-  --line: #e5e9ef;
-  --orange: #355ee8;
+  --ink: #17191e;
+  --muted: #65676b;
+  --line: #dcdde0;
+  --orange: #0143eb;
   --orange-hover: #284ac3;
   --green: #355ee8;
   --pale: #eef2ff;
+  --mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
   --sans: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --serif: var(--sans);
-  --radius: 9px;
+  --radius: 3px;
   font-family: var(--sans);
   color: var(--ink);
   background: var(--paper);
@@ -84,3 +85,244 @@ html { scroll-behavior: smooth; }
   .orders-history { padding: 18px 14px; }
   .orders-toolbar > .heading-actions { flex-wrap: wrap; }
 }
+
+/* Spacious editorial surfaces; keep the shared Poros palette and existing controls. */
+.poros-header { min-height: 94px; padding: 20px clamp(22px, 4vw, 64px); border-bottom: 0; background: var(--paper); gap: 24px; }
+.poros-brand { font-size: 24px; letter-spacing: -1px; }
+.poros-nav { gap: 4px; padding: 5px; border: 1px solid var(--line); border-radius: 999px; background: var(--white); }
+.poros-nav a { padding: 10px 19px; border: 0; border-radius: 999px; font-size: 12px; transition: background .16s, color .16s; }
+.poros-nav a:hover { background: var(--paper); }
+.poros-nav a[aria-current="page"] { background: var(--blue); color: var(--white); }
+.poros-wallet { min-height: 44px; border-radius: 999px; padding: 11px 20px; background: var(--white); }
+.app-layout > main { padding: 48px clamp(24px, 3.5vw, 56px) 88px; }
+.app-layout.standalone-page > main { max-width: 1440px; padding-top: 34px; }
+.app-layout .eyebrow { font-family: var(--sans); font-size: 10px; font-weight: 650; letter-spacing: 1.8px; }
+.app-layout h1 { font-weight: 500; letter-spacing: -.055em; }
+.app-layout h2, .app-layout h3 { font-weight: 500; letter-spacing: -.035em; }
+.app-layout .button, .modal .button { min-height: 44px; padding: 12px 20px; border-radius: 999px; font-size: 12px; }
+.app-layout .button.secondary, .modal .button.secondary { background: var(--white); border-color: var(--line); color: var(--ink); }
+.app-layout .button.secondary:hover:enabled, .app-layout a.button.secondary:hover { background: var(--paper); border-color: var(--blue); }
+.app-layout .text-link, .app-layout .back-link { color: var(--blue); font-size: 12px; }
+.app-layout .tag { border-color: var(--line); border-radius: 999px; background: var(--paper); color: var(--muted); padding: 5px 10px; }
+.app-layout .tag.green { background: var(--pale); color: var(--blue); border-color: var(--line); }
+.app-layout .hero { min-height: 520px; grid-template-columns: 1.05fr 1fr; gap: 64px; padding: 34px 0 64px; }
+.app-layout .hero h1 { margin: 26px 0; font-size: clamp(48px, 5.9vw, 84px); line-height: 1.04; letter-spacing: -.065em; }
+.app-layout .hero h1 em { font-style: normal; font-weight: 500; }
+.app-layout .hero p { font-size: 15px; line-height: 1.85; max-width: 420px; }
+.app-layout .hero-footnote { margin-top: 36px; font-size: 10px; letter-spacing: .3px; }
+.app-layout .hero-art { display: block; transform: none; isolation: isolate; padding: 38px 22px 24px; border-radius: 36px; margin: 0; max-width: none; box-shadow: none; }
+.app-layout .hero-art::before { content: ""; position: absolute; inset: 11% 12% 17%; border: 1px solid var(--line); border-radius: 50%; z-index: -1; }
+.app-layout .garden { transform: none; }
+.app-layout .art-caption { margin-top: 20px; font-size: 8px; letter-spacing: 1.3px; }
+.app-layout .principles { padding: 24px 0; margin-bottom: 64px; font: 11px/1.6 var(--sans); color: var(--muted); gap: 20px; }
+.app-layout .principles > span { gap: 10px; }
+.app-layout .principles .icon { color: var(--blue); width: 17px; height: 17px; }
+.app-layout .discovery-columns { grid-template-columns: minmax(0, 1fr) 270px; gap: 40px; }
+.app-layout .section-title { align-items: center; margin-bottom: 24px; }
+.app-layout .section-title h2 { font-size: clamp(24px, 2.5vw, 34px); line-height: 1.2; margin-top: 10px; }
+.app-layout .feed-tabs { gap: 22px; font-size: 12px; margin-bottom: 16px; }
+.app-layout .strategy-list { display: grid; gap: 10px; }
+.app-layout .strategy-row { border: 1px solid var(--line); border-radius: 18px; padding: 21px 20px; gap: 16px; transition: border-color .16s; }
+.app-layout .strategy-row:hover { border-color: var(--blue); }
+.app-layout .strategy-glyph, .app-layout .community-symbol, .app-layout .avatar { color: var(--blue); background: var(--pale); border-color: var(--line); }
+.app-layout .strategy-glyph { border-radius: 11px; }
+.app-layout .strategy-name strong { font-size: 14px; font-weight: 600; }
+.app-layout .strategy-name small { font-size: 10px; line-height: 1.7; color: var(--muted); }
+.app-layout .chain-label, .app-layout .row-arrow { color: var(--muted); }
+.app-layout .small-title { margin-top: 52px; }
+.app-layout .community-grid { gap: 20px; }
+.app-layout .community-card { border-color: var(--line); border-radius: 22px; padding: 28px; }
+.app-layout .community-card:hover { border-color: var(--blue); transform: translateY(-2px); }
+.app-layout .community-card-top { margin-bottom: 32px; color: var(--muted); }
+.app-layout .community-card h3 { font-size: 28px; line-height: 1.2; }
+.app-layout .community-card p { font-size: 13px; line-height: 1.8; }
+.app-layout .card-bottom { border-color: var(--line); font-size: 11px; color: var(--muted); }
+.app-layout .compact .community-card { padding: 22px; }
+.app-layout .compact .community-card h3 { font-size: 21px; }
+.app-layout .compact .community-card p { font-size: 12px; }
+.app-layout .compact .card-bottom { font-size: 10px; }
+.app-layout .field-note { border-radius: 24px; padding: 30px; min-height: 340px; background: var(--ink); color: var(--white); }
+.app-layout .field-note .eyebrow, .app-layout .field-note h3, .app-layout .field-note p, .app-layout .field-note a { color: var(--white); }
+.app-layout .field-note h3 { font-size: 32px; line-height: 1.2; }
+.app-layout .field-note p { font-size: 12px; max-width: none; }
+.app-layout .field-note a { font-size: 11px; }
+.app-layout .quote-mark, .app-layout .note-flower { color: var(--blue); }
+.app-layout .connection-card { padding: 30px 12px; }
+.app-layout .connection-card > div { font-size: 11px; line-height: 1.8; }
+.app-layout .connection-card .text-link { font-size: 11px; }
+.app-layout .page-heading { padding: 16px 0 40px; gap: 30px; }
+.app-layout .page-heading h1 { font-size: clamp(40px, 4.5vw, 66px); line-height: 1.1; margin: 18px 0 20px; }
+.app-layout .page-heading p { font-size: 14px; max-width: 660px; line-height: 1.8; }
+.app-layout .sidebar { padding: 34px 18px; border-color: var(--line); background: var(--paper); }
+.app-layout .sidebar nav > a { min-height: 46px; border-radius: 12px; }
+.app-layout .sidebar nav > a.active { background: var(--white); color: var(--blue); }
+.app-layout .sidebar nav > a:hover { background: var(--white); }
+.app-layout .room-links a { padding-block: 10px; }
+.app-layout .room-dot { border-color: var(--blue); background: var(--pale); }
+.app-layout .sidebar-note { background: transparent; }
+.app-layout .paper-panel, .app-layout .profile-panel, .app-layout .thread-row { border-radius: 24px; border-color: var(--line); padding: 30px; margin-bottom: 24px; }
+.app-layout .paper-panel h2 { font-size: 25px; }
+.app-layout .paper-panel p, .app-layout .thread-row p { font-size: 13px; line-height: 1.85; }
+.app-layout .profile-panel { gap: 24px; padding: 34px; }
+.app-layout .profile-panel > .avatar { width: 72px; height: 72px; font-size: 22px; }
+.app-layout .profile-panel code, .app-layout .profile-panel .muted { font-size: 12px; }
+.app-layout .profile-metrics { gap: 20px; }
+.app-layout .profile-metrics h2 { font-size: 17px; }
+.app-layout .metric-value { font-size: 34px; letter-spacing: -.04em; margin-top: 28px; }
+.app-layout .profile-table th, .app-layout .profile-table td { padding: 18px 12px; border-color: var(--line); font-size: 12px; }
+.app-layout .profile-table td small { display: block; margin-top: 4px; color: var(--muted); }
+.app-layout .history-row { padding: 20px 0; border-color: var(--line); color: var(--ink); font-size: 12px; }
+.app-layout .history-row small { color: var(--muted); font-size: 10px; line-height: 1.8; overflow-wrap: anywhere; }
+.app-layout .history-row > span:last-child { margin-left: auto; }
+.app-layout .version-dot, .app-layout .status-dot { background: var(--blue); border-color: var(--blue); }
+.app-layout .community-meta { gap: 16px; font-size: 12px; padding-bottom: 26px; }
+.app-layout .community-meta a, .app-layout .thread-heading > span > a, .app-layout .message-meta a { color: var(--blue); }
+.app-layout .thread-title { font-size: 27px; }
+.app-layout .chat-panel { border-radius: 24px; padding: 26px; }
+.app-layout .chat-disclosure, .app-layout .chat-panel > small { font-size: 11px; line-height: 1.8; color: var(--muted); }
+.app-layout .chat-message { padding: 20px 0; border-color: var(--line); }
+.app-layout .chat-message p { font-size: 13px; color: var(--ink); }
+.app-layout .message-meta a { font-size: 12px; }
+.app-layout .message-meta small { font-size: 10px; color: var(--muted); }
+.app-layout .field > span { font-size: 12px; color: var(--ink); }
+.app-layout .field > input, .app-layout .field > textarea, .app-layout .field > select, .app-layout .chat-compose textarea { border-color: var(--line); border-radius: 12px; padding: 13px 15px; background: var(--white); color: var(--ink); font-size: 13px; }
+.app-layout .field > small { font-size: 11px; }
+.app-layout .notice, .app-layout .empty-state, .app-layout .first-room { background: var(--white); border-color: var(--line); border-radius: 16px; color: var(--muted); }
+.app-layout .notice { padding: 17px 19px; font-size: 12px; }
+.app-layout .empty-state { padding: 48px 28px; }
+.app-layout .empty-state p { font-size: 13px; color: var(--muted); }
+.app-layout .first-room { padding: 28px; color: var(--blue); }
+.modal { border-color: var(--line); border-radius: 24px; }
+.modal .field > span { color: var(--ink); }
+.modal .field > input, .modal .field > textarea, .modal .field > select { background: var(--paper); border-color: var(--line); color: var(--ink); border-radius: 12px; }
+.app-layout + footer { padding: 30px clamp(24px, 4vw, 64px); font-size: 10px; border-color: var(--line); }
+@media (max-width: 1100px) {
+  .poros-header { display: flex; flex-wrap: wrap; }
+  .poros-wallet { margin-left: auto; }
+  .poros-nav { order: 3; width: max-content; max-width: 100%; margin-inline: auto; overflow-x: auto; }
+  .poros-nav a { white-space: nowrap; }
+  .app-layout .hero { gap: 30px; min-height: 440px; }
+  .app-layout .hero h1 { font-size: clamp(46px, 6vw, 68px); }
+  .app-layout .discovery-columns { grid-template-columns: minmax(0, 1fr) 230px; gap: 24px; }
+  .app-layout .field-note { padding: 24px; }
+  .app-layout .compact { grid-template-columns: 1fr; }
+}
+@media (max-width: 800px) {
+  .poros-header { padding: 18px 22px; gap: 18px; }
+  .poros-nav { width: auto; margin-inline: auto; gap: 2px; justify-content: flex-start; max-width: 100%; }
+  .poros-nav a { padding: 10px 17px; }
+  .app-layout > main, .app-layout.standalone-page > main { padding: 28px 22px 56px; }
+  .app-layout .hero { grid-template-columns: 1fr; gap: 30px; padding: 24px 0 36px; }
+  .app-layout .hero h1 { font-size: clamp(46px, 9vw, 68px); }
+  .app-layout .hero-art { max-width: 600px; width: 100%; margin: auto; padding: 26px 22px 20px; }
+  .app-layout .principles { flex-wrap: wrap; justify-content: flex-start; margin-bottom: 40px; padding-block: 22px; }
+  .app-layout .discovery-columns { grid-template-columns: 1fr; gap: 28px; }
+  .app-layout .field-notes { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+  .app-layout .field-note { min-height: 290px; }
+  .app-layout .community-grid:not(.compact) { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .app-layout .compact { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .app-layout .compact .community-card { padding: 20px; }
+  .app-layout .compact .community-card-top { position: static; margin-bottom: 20px; }
+  .app-layout .page-heading { padding-bottom: 30px; }
+}
+@media (max-width: 560px) {
+  .poros-header { padding: 16px; gap: 16px; }
+  .poros-brand { font-size: 22px; }
+  .poros-wallet { padding: 10px 14px; font-size: 11px; }
+  .poros-nav { width: 100%; border-radius: 20px; }
+  .poros-nav a { flex: 1; text-align: center; padding: 10px 9px; font-size: 11px; }
+  .app-layout > main, .app-layout.standalone-page > main { padding: 22px 16px 44px; }
+  .app-layout .hero { padding-top: 14px; }
+  .app-layout .hero h1 { font-size: clamp(40px, 10.8vw, 58px); }
+  .app-layout .hero p { font-size: 14px; }
+  .app-layout .hero-art { border-radius: 24px; }
+  .app-layout .principles { display: grid; gap: 14px; }
+  .app-layout .section-title { flex-wrap: wrap; gap: 12px; }
+  .app-layout .community-grid:not(.compact), .app-layout .compact, .app-layout .field-notes { grid-template-columns: 1fr; }
+  .app-layout .strategy-row { padding: 18px 14px; gap: 10px; }
+  .app-layout .strategy-name strong { font-size: 13px; }
+  .app-layout .strategy-name small { font-size: 10px; }
+  .app-layout .paper-panel, .app-layout .profile-panel, .app-layout .thread-row, .app-layout .chat-panel { padding: 22px; border-radius: 20px; }
+  .app-layout .profile-panel { gap: 16px; }
+  .app-layout .profile-panel > .avatar { width: 48px; height: 48px; font-size: 16px; }
+  .app-layout .profile-panel > div { width: calc(100% - 64px); }
+  .app-layout .profile-panel .tag { margin-left: 64px; }
+  .app-layout .page-heading h1 { font-size: clamp(36px, 9vw, 48px); }
+  .app-layout .community-meta { gap: 12px; }
+  .app-layout .history-row { flex-wrap: wrap; }
+  .app-layout .history-row > span:last-child { width: 100%; margin-left: 19px; color: var(--blue); }
+  .app-layout + footer { flex-wrap: wrap; gap: 12px; padding: 24px 16px; }
+}
+
+/* Level reference: pale paper, cobalt highlights, technical labels, squared surfaces. */
+html{color-scheme:light}
+body{background:var(--paper);color:var(--ink)}
+.poros-header{min-height:72px;padding:15px 32px;background:var(--paper);border-bottom:1px solid var(--line);gap:20px}
+.poros-brand{font-size:25px;letter-spacing:-1.3px}.poros-mark{width:31px;height:31px}
+.poros-nav{border:0;background:transparent;padding:0;gap:7px;border-radius:0}
+.poros-nav a{font-family:var(--mono);font-size:11px;font-weight:500;border-radius:2px;padding:10px 14px}
+.poros-nav a[aria-current=page]{background:var(--blue);color:#fff}
+.poros-wallet{border-radius:2px;background:var(--blue);color:#fff;border-color:var(--blue);font-family:var(--mono);font-size:11px;min-height:38px;padding:10px 16px}
+.poros-wallet:hover{background:var(--orange-hover);color:#fff}
+.poros-skip{background:#fff;color:var(--ink)}
+.button.primary,.button:not(.secondary):not(.ghost):not(.danger){background:var(--blue);color:#fff}
+.trade-page .button,.app-layout .button,.modal .button{border-radius:2px;box-shadow:none;font-family:var(--mono);font-weight:500;font-size:11px;min-height:38px}
+.trade-page .button.secondary,.app-layout .button.secondary,.modal .button.secondary{background:transparent;color:var(--ink);border-color:var(--line)}
+.trade-page .button.secondary:hover,.app-layout .button.secondary:hover{border-color:var(--blue);background:var(--pale)}
+.trade-page .eyebrow,.app-layout .eyebrow,.trade-page .small-tag,.app-layout .tag,.app-layout .nav-label,.trade-page .canvas-footer,.orders-history th{font-family:var(--mono);font-weight:500;letter-spacing:.06em}
+.trade-intro{padding:12px 0 22px;margin-bottom:20px}
+.trade-intro h1{font-size:clamp(28px,3vw,46px);font-weight:500;letter-spacing:-.05em;line-height:1.25}
+.trade-intro h1 span{display:inline-block;background:var(--blue);color:#fff;padding:0 10px 3px;border-radius:2px;font-family:Georgia,'Times New Roman',serif;font-style:italic;font-weight:400;letter-spacing:-.04em}
+.trade-intro .subheading{font-family:var(--mono);font-size:11px;line-height:1.8;max-width:560px}.trade-intro:after{content:none}
+.trade-page .workspace{gap:14px}
+.trade-page .palette,.trade-page .library,.trade-page .editor-column{border-radius:3px;border-color:var(--line);background:#fff;box-shadow:none}
+.trade-page .palette,.trade-page .library{padding:20px 16px}
+.trade-page .panel-title h2,.trade-page .canvas-toolbar strong{font-size:13px;font-weight:600;letter-spacing:-.02em}
+.trade-page .small-tag{background:var(--paper);color:var(--muted);border-radius:2px;font-size:7px}
+.trade-page .palette-block,.trade-page .unlocked-card,.trade-page .creator-card{border-radius:3px;background:var(--paper);border-color:var(--line);box-shadow:none}
+.trade-page .palette-block:hover,.trade-page .unlocked-card:hover{background:var(--pale);border-color:var(--blue);transform:none}
+.trade-page .block-icon,.trade-page .indicator .block-icon,.trade-page .guard .block-icon,.trade-page .action .block-icon{border-radius:2px;background:var(--pale);color:var(--blue)}
+.trade-page .palette-block small,.trade-page .node-meta,.trade-page .port-label{font-family:var(--mono);font-size:9px;color:var(--muted)}
+.trade-page .canvas-toolbar,.trade-page .canvas-runbar{border-color:var(--line)}
+.trade-page .view-switch,.trade-page .library-nav{border-radius:2px;background:var(--paper);border:1px solid var(--line)}
+.trade-page .view-switch button,.trade-page .library-nav button{border-radius:1px;font-family:var(--mono);font-size:10px}
+.trade-page .view-switch button.active,.trade-page .library-nav button[aria-selected=true]{background:var(--blue);color:#fff;box-shadow:none}
+.trade-page .canvas,.trade-page .canvas-viewport{background-color:var(--paper);background-image:linear-gradient(#dcdde050 1px,transparent 1px),linear-gradient(90deg,#dcdde050 1px,transparent 1px);background-size:24px 24px}
+.trade-page .node{border-radius:3px;border-color:var(--line);box-shadow:3px 3px 0 #17191e08;background:#fff}
+.trade-page .node.selected{border-color:var(--blue);box-shadow:3px 3px 0 #0143eb12}
+.trade-page .node-header{border-radius:2px 2px 0 0;color:var(--ink)}
+.trade-page .node-description{color:var(--ink)}.trade-page .canvas-footer{font-size:9px;color:var(--muted)}
+.trade-page .fixture-note,.trade-page .how-to li span{border-radius:2px;background:var(--paper);border-color:var(--line)}
+.trade-page .how-to{margin-top:18px;padding-top:16px}.trade-page .how-to li{font-family:var(--mono);font-size:9px;line-height:1.7}
+.trade-page .backtest-launcher{border-radius:3px;border-color:var(--blue);background:var(--blue);color:#fff;padding:15px 12px}
+.trade-page .backtest-launcher small{color:#ffffffd9;font-family:var(--mono);font-size:9px}.trade-page .backtest-launcher-icon{color:#fff}
+.trade-page .backtest-launcher:hover{background:var(--orange-hover)}
+.trade-page .api-key-button,.trade-page .icon-button{border-radius:2px;background:transparent;border-color:var(--line);color:var(--ink)}
+.trade-page dialog,.trade-page dialog.backtest-setup-dialog,.modal{border-radius:4px;background:var(--paper);color:var(--ink);border-color:var(--line)}
+.trade-page dialog::backdrop{background:#17191e66;backdrop-filter:blur(4px)}
+.trade-page .backtest-preset,.trade-page .backtest-drop,.trade-page .backtest-drop-icon,.trade-page .preset-period,.trade-page .backtest-metrics>div{border-radius:3px;background:#fff;border-color:var(--line);color:var(--ink)}
+.trade-page .backtest-preset[aria-pressed=true],.trade-page .backtest-preset:hover,.trade-page .backtest-drop[data-over=true]{background:var(--pale);border-color:var(--blue)}
+.trade-page .preset-period,.trade-page .backtest-drop-icon{color:var(--blue);font-family:var(--mono)}
+.trade-page .backtest-metrics dt,.trade-page .backtest-setup-summary,.trade-page .backtest-disclosure,.trade-page .backtest-preset small{font-family:var(--mono);font-size:10px;line-height:1.7;color:var(--muted)}
+.trade-page .backtest-report-dialog svg{background:#fff;border-radius:2px}
+.trade-page .field input,.trade-page .field select,.trade-page .field textarea,.app-layout .field>input,.app-layout .field>select,.app-layout .field>textarea,.app-layout .chat-compose textarea{border-radius:2px;background:#fff;color:var(--ink);border-color:var(--line)}
+.trade-page .price-ticker{background:#fff;border-radius:2px}.trade-page .ticker-prices .price-symbol{color:var(--muted)}
+.app-layout .hero{min-height:360px;padding:26px 0 38px;gap:32px}
+.app-layout .hero h1{font-size:clamp(42px,4.6vw,68px);letter-spacing:-.05em;line-height:1.13}
+.app-layout .hero h1 em{display:inline;padding:0 7px;background:var(--blue);color:#fff;font-family:Georgia,'Times New Roman',serif;font-style:italic;font-weight:400;border-radius:2px;box-decoration-break:clone;-webkit-box-decoration-break:clone}
+.app-layout .hero p{font-family:var(--mono);font-size:12px;line-height:1.9}
+.app-layout .hero-art{border-radius:3px;border:1px solid var(--line);padding:22px;background:#fff}.app-layout .hero-art:before{border-radius:0}
+.app-layout .garden{filter:grayscale(1);opacity:.85}.app-layout .principles{font-family:var(--mono);font-size:10px;margin-bottom:36px}
+.app-layout .strategy-row,.app-layout .community-card,.app-layout .paper-panel,.app-layout .profile-panel,.app-layout .thread-row,.app-layout .chat-panel,.app-layout .field-note,.app-layout .notice,.app-layout .empty-state,.app-layout .first-room,.orders-history{border-radius:3px;box-shadow:none}
+.app-layout .community-card,.app-layout .paper-panel,.app-layout .profile-panel,.app-layout .strategy-row{background:#fff;color:var(--ink);border-color:var(--line)}
+.app-layout .community-card:hover{transform:none;border-color:var(--blue)}
+.app-layout .tag,.app-layout .avatar,.app-layout .strategy-glyph,.app-layout .community-symbol{border-radius:2px;background:var(--pale);color:var(--blue)}
+.app-layout .tag.green,.app-layout .text-link,.app-layout .back-link,.app-layout .message-meta a,.app-layout .community-meta a{color:var(--blue)}
+.app-layout .field-note{background:var(--blue);color:#fff;min-height:280px}.app-layout .field-note .eyebrow,.app-layout .field-note h3,.app-layout .field-note p,.app-layout .field-note a,.app-layout .note-flower,.app-layout .quote-mark{color:#fff}
+.app-layout .profile-table th,.app-layout .history-row small,.app-layout .chat-disclosure,.app-layout .message-meta small{font-family:var(--mono);font-size:10px;color:var(--muted)}
+.app-layout .page-heading{padding:8px 0 26px}.app-layout .page-heading h1{font-size:clamp(34px,4vw,54px)}
+.app-layout .sidebar nav>a,.app-layout .room-dot{border-radius:2px}.app-layout .section-title h2{font-size:27px}
+.orders-history .profit{color:#16734d}.orders-history .loss{color:#b83f45}
+@media(max-width:1100px){.poros-header{padding:15px 22px}.trade-page .workspace{gap:12px}.app-layout .hero{min-height:0}.app-layout .hero h1{font-size:46px}}
+@media(max-width:760px){.poros-header{padding:14px 16px;gap:14px}.poros-nav{width:100%;margin:0;border-top:1px solid var(--line);padding-top:10px}.poros-nav a{font-size:10px;padding:9px 11px}.trade-intro h1{font-size:29px}.trade-page .workspace{gap:12px}.trade-page .palette,.trade-page .editor-column,.trade-page .library{border-radius:3px}.app-layout .hero{padding:20px 0 26px}.app-layout .hero h1{font-size:42px}.app-layout .hero-art{border-radius:3px}.app-layout .paper-panel,.app-layout .profile-panel,.app-layout .chat-panel,.app-layout .community-card{padding:20px;border-radius:3px}.trade-page dialog.backtest-setup-dialog{border-radius:4px}.trade-page .palette-block strong{font-size:10px}.trade-page .backtest-launcher{flex-basis:100%}}
+@media(prefers-reduced-motion:reduce){.app-layout .community-card,.trade-page .palette-block{transition:none}}
