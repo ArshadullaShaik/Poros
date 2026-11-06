@@ -14,9 +14,9 @@ class Control {
   replaceChildren(...children:any[]){this.children=children;}
   setAttribute(){}
 }
-async function setup(request?:Function, mayReplace=()=>true, marketData:any={source:"CHAINLINK_FLASH",priceUsd:"2000.000000",closedObservations:90,stale:false},getPair?:Function,onActivity=()=>{}) {
+async function setup(request?:Function, mayReplace=()=>true, marketData:any={source:"CHAINLINK_FLASH",priceUsd:"2000.000000",closedObservations:90,stale:false},getPair?:Function,onActivity=()=>{},onLoading=(_loading:boolean)=>{}) {
   const controls=new Map<string,Control>();
-  for(const id of ["market-price","market-status","execution-library","creator-library","creators-empty","canvas","execution-selected","execution-mode","execution-capital","execution-turnover","execution-fee","execution-slippage","execution-start","execution-stop","execution-help","execution-status","execution-results"])controls.set(`#${id}`,new Control());
+  for(const id of ["market-price","market-status","execution-library","creator-library","creators-empty","canvas","execution-selected","execution-mode","execution-capital","execution-turnover","execution-fee","execution-slippage","execution-start","execution-stop","execution-help","execution-status","execution-results","wallet-connect"])controls.set(`#${id}`,new Control());
   controls.get("#execution-mode")!.value="RULES_ONLY";controls.get("#execution-capital")!.value="1000";controls.get("#execution-turnover")!.value="2000";controls.get("#execution-fee")!.value="10";controls.get("#execution-slippage")!.value="25";
   let draft=structuredClone(rsiStrategy),applied=0,textEntry;
   const sent:any[]=[];
@@ -27,7 +27,7 @@ async function setup(request?:Function, mayReplace=()=>true, marketData:any={sou
     const body=JSON.parse(init.body as string);
     return Response.json({ok:true,data:{id:"ui-session",status:body.action==="check"?"COMPLETED":"WAITING",message:"Paper action complete",mode:"PAPER",orders:[],cashUsd:"1000.000000",baseQuantity:"0.00000000",turnoverUsd:"0.000000",inference:[]}});
   };
-  const module=mountExecution({root:{querySelector:selector=>controls.get(selector),createElement:()=>new Control()},getDraft:()=>draft,applyDraft:next=>{draft=next;applied++;},validateDraft:next=>validateStrategy(next,fixtureContext),getApiKey:()=>"sk-ui-execution-test-key",onText:entry=>{textEntry=entry;},onActivity,mayReplace,request:fetcher,...(getPair?{getPair}:{} )});
+  const module=mountExecution({root:{querySelector:selector=>controls.get(selector),createElement:()=>new Control()},getDraft:()=>draft,applyDraft:next=>{draft=next;applied++;},validateDraft:next=>validateStrategy(next,fixtureContext),getApiKey:()=>"sk-ui-execution-test-key",onText:entry=>{textEntry=entry;},onActivity,onLoading,mayReplace,request:fetcher,...(getPair?{getPair}:{} )});
   await module.refreshMarket();
   const event=(id:string,name="click",extra={})=>controls.get(`#${id}`)!.handlers[name]?.({preventDefault(){},stopImmediatePropagation(){},...extra});
   return {module,controls,sent,event,get textEntry(){return textEntry;},get applied(){return applied;},get draft(){return draft;},edit(){draft={...draft,name:"Edited later"};module.draftChanged();}};
@@ -201,4 +201,49 @@ test('changing funds mode stops the current monitor before another run can start
   assert.equal(ui.controls.get('#execution-results')!.hidden,true);
   assert.match(ui.controls.get('#execution-status')!.textContent,/Submitted live orders remain active/);
   assert.match(ui.controls.get('#execution-help')!.textContent,/Real funds/);
+});
+
+
+test('strategy loading state lasts through interpretation and clears after success or failure',async()=>{
+  for(const fail of [false,true]){
+    let finish!:(response:Response)=>void,loading=false;
+    const ui=await setup(async()=>new Promise<Response>(resolve=>{finish=resolve;}),undefined,undefined,undefined,undefined,value=>{loading=value;});
+    const pending=ui.module.openUnlockedStrategy({id:'loading-text',versionId:'v1',name:'Creator idea',text:'Buy $1 ETH at 2100'});
+    assert.equal(loading,true);assert.equal(ui.applied,0);
+    finish(Response.json(fail?{ok:false,error:{message:'Unavailable'}}:{ok:true,data:{status:'READY',strategy:rsiStrategy}}));
+    await pending;assert.equal(loading,false);assert.equal(ui.applied,fail?0:1);
+  }
+});
+
+
+test('live targets automatically request a wallet signature, and confirmation or Stop still controls submission',async()=>{
+  const wallet='0x1111111111111111111111111111111111111111';
+  const previous=(globalThis as any).ethereum;
+  try {
+    for(const outcome of ['confirm','decline','stop']){
+      let finish!:(signature:string)=>void,decline!:(error:unknown)=>void,signatures=0,submits=0;
+      (globalThis as any).ethereum={request:async({method}:any)=>{
+        if(method==='eth_requestAccounts'||method==='eth_accounts')return [wallet];
+        if(method==='eth_chainId')return '0x2105';
+        if(method==='eth_signTypedData_v4'){signatures++;return new Promise((resolve,reject)=>{finish=resolve;decline=reject;});}
+        throw new Error('Unexpected wallet method: '+method);
+      }};
+      const ui=await setup(async(_url:any,init:any)=>{
+        const body=JSON.parse(init.body);
+        if(body.action==='submit')submits++;
+        return Response.json({ok:true,data:{id:'auto-wallet-session',status:body.action==='check'?'AWAITING_WALLET':'WAITING',message:'Wallet approval required',mode:'LIVE',orders:[],liveOrders:[],cashUsd:'10.000000',turnoverUsd:'0.000000',walletRequest:body.action==='check'?{quoteId:'quote-auto',networkId:8453,funderAddress:wallet,deadlineMs:Date.now()+300000,typedData:'{}',side:'BUY',notionalUsd:'0.100000',effectivePriceUsd:'2500.000000',expectedReceive:'0.00004'}:null}});
+      });
+      ui.draft.riskPolicy.paperTradingOnly=false;
+      ui.controls.get('#execution-mode')!.value='LIVE';await ui.event('wallet-connect');
+      await ui.event('execution-start');await new Promise(resolve=>setImmediate(resolve));
+      assert.equal(signatures,1);assert.equal(submits,0);
+      const button=ui.controls.get('#execution-results')!.children.find(item=>item instanceof Control&&item.textContent.includes('wallet'));
+      await button.handlers.click();assert.equal(signatures,1);
+      if(outcome==='stop')ui.event('execution-stop');
+      if(outcome==='decline')decline(Object.assign(new Error('Declined'),{code:4001}));else finish('0x'+'a'.repeat(130));
+      await new Promise(resolve=>setImmediate(resolve));
+      assert.equal(submits,outcome==='confirm'?1:0);
+      ui.module.invalidate();
+    }
+  } finally {(globalThis as any).ethereum=previous;}
 });

@@ -7,7 +7,7 @@ import {priceStrategy} from "../../src/features/builder/market/config.ts";
 const wallet="0x1111111111111111111111111111111111111111",time=1800000000000;
 const order={side:"buy",qty:"20.000000",funderAddress:wallet};
 function quote(){
-  const typed={types:{EIP712Domain:[{name:"name",type:"string"},{name:"version",type:"string"},{name:"chainId",type:"uint256"},{name:"verifyingContract",type:"address"}],FlashOrder:[{name:"swapper",type:"address"},{name:"vault",type:"address"},{name:"recipient",type:"address"},{name:"fromToken",type:"address"},{name:"toToken",type:"address"},{name:"fromAmount",type:"uint256"},{name:"salt",type:"uint256"},{name:"deadline",type:"uint256"}]},primaryType:"FlashOrder",domain:{name:"DefinitiveFlashAllowance",version:"1",chainId:"8453",verifyingContract:FLASH_ALLOWANCE},message:{swapper:wallet,vault:"0x1074393effFCf1A15e306cD3931F48eDA9ABcd55",recipient:wallet,fromToken:priceStrategy.tokenIn,toToken:priceStrategy.tokenOut,fromAmount:"20000000",salt:"1",deadline:String(time/1000+300)}};
+  const typed={types:{EIP712Domain:[{name:"name",type:"string"},{name:"version",type:"string"},{name:"chainId",type:"uint256"},{name:"verifyingContract",type:"address"}],FlashOrder:[{name:"swapper",type:"address"},{name:"vault",type:"address"},{name:"recipient",type:"address"},{name:"fromToken",type:"address"},{name:"toToken",type:"address"},{name:"fromAmount",type:"uint256"},{name:"salt",type:"uint256"},{name:"deadline",type:"uint256"}]},primaryType:"FlashOrder",domain:{name:"DefinitiveFlashAllowance",version:"1",chainId:"8453",verifyingContract:FLASH_ALLOWANCE},message:{swapper:wallet,vault:"0xA181CAcfb2222eCc930dD05B43F07BA772d28034",recipient:wallet,fromToken:priceStrategy.tokenIn,toToken:priceStrategy.tokenOut,fromAmount:"20000000",salt:"1",deadline:String(time/1000+300)}};
   return {quoteId:"quote-wallet",side:"buy",orderType:"market",targetAsset:priceStrategy.tokenOut,contraAsset:priceStrategy.tokenIn,from:{asset:"contra",amount:"20"},to:{asset:"target",amount:"0.01"},evm:{permitTypedData:"",orderTypedData:JSON.stringify(typed),approveTx:{to:priceStrategy.tokenIn,data:"0x095ea7b3"+FLASH_ALLOWANCE.slice(2).toLowerCase().padStart(64,"0")+(20000000).toString(16).padStart(64,"0")}}};
 }
 test("wallet quote is bound to Base, recipient, amount, tokens and an exact allowance",()=>{
@@ -20,6 +20,14 @@ test("wallet quote is bound to Base, recipient, amount, tokens and an exact allo
     (q:any)=>{const typed=JSON.parse(q.evm.orderTypedData);typed.types.EIP712Domain=[];q.evm.orderTypedData=JSON.stringify(typed);},
     (q:any)=>q.evm.permitTypedData="unapproved permit",
   ]){const q=quote();change(q);assert.throws(()=>validateWalletQuote(q,order,time));}
+});
+test("current Flash vault is accepted and stale or unapproved vaults are rejected",()=>{
+  assert.equal(validateWalletQuote(quote(),order,time).quoteId,"quote-wallet");
+  for(const vault of ["0x1074393effFCf1A15e306cD3931F48eDA9ABcd55","0x2222222222222222222222222222222222222222"]){
+    const q=quote(),typed=JSON.parse(q.evm.orderTypedData);
+    typed.message.vault=vault;q.evm.orderTypedData=JSON.stringify(typed);
+    assert.throws(()=>validateWalletQuote(q,order,time),/Flash signing payload/);
+  }
 });
 test("Flash order submission echoes the server-owned quote and never retries an uncertain response",async()=>{
   let calls=0,body:any;
@@ -66,4 +74,20 @@ test("live submission rechecks Flash range and Stop survives an accepted in-flig
   while(!stopped.submits)await new Promise(resolve=>setImmediate(resolve));
   stopped.monitor.stop(stopped.id);stopped.finish();
   const result=await pending;assert.equal(result.status,"STOPPED");assert.equal(result.liveOrders[0].orderId,"ord-accepted");
+});
+
+test('a market-price rule prepares the exact small live order and still requires a wallet signature',async()=>{
+  const {marketPriceBounds}=await import('../../src/features/builder/market/config.ts');
+  let submissions=0;
+  const q=quote(),typed=JSON.parse(q.evm.orderTypedData);
+  q.from.amount='0.1';q.to.amount='0.00004';typed.message.fromAmount='100000';
+  q.evm.orderTypedData=JSON.stringify(typed);
+  q.evm.approveTx.data='0x095ea7b3'+FLASH_ALLOWANCE.slice(2).toLowerCase().padStart(64,'0')+(100000).toString(16).padStart(64,'0');
+  const orders=createFlashOrders({now:()=>time,fetcher:async(url:any)=>{
+    if(String(url).endsWith('/order'))submissions++;
+    return Response.json(String(url).includes('flash.definitive.fi')?q:{jsonrpc:'2.0',id:1,result:'0x5f5e100'});
+  }});
+  const prepared=await orders.prepare({action:{side:'BUY',notionalUsd:0.1},condition:marketPriceBounds,funderAddress:wallet,priceUsd:'2750.000000',maxSlippageBps:50});
+  assert.equal(prepared.order.qty,'0.100000');assert.equal(prepared.notionalUsd,'0.100000');assert.equal(prepared.effectivePriceUsd,'2500.000000');
+  assert.equal(JSON.parse(prepared.typedData).message.fromAmount,'100000');assert.equal(submissions,0);
 });

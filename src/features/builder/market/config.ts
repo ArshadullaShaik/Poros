@@ -1,5 +1,8 @@
 import {networks,extraPairs} from "./networks.ts";
 export {networks} from "./networks.ts";
+// shortcut: market rules span the supported $0.000001–$1,000,000 price domain; extend these bounds if that domain grows.
+export const marketPriceBounds={minPriceUsd:0.000001,maxPriceUsd:1000000};
+export const isMarketPrice=(rule:{minPriceUsd:number;maxPriceUsd:number})=>rule.minPriceUsd===marketPriceBounds.minPriceUsd&&rule.maxPriceUsd===marketPriceBounds.maxPriceUsd;
 import {rsiStrategy} from "../fixtures/rsi-strategy.ts";
 import {validateStrategy} from "../validation/strategy.ts";
 import type {ValidationContext, ValidationResult, StrategyDefinition} from "../validation/strategy.ts";

@@ -79,7 +79,7 @@ export function mountStrategyAi({root = document, getDraft, applyDraft, request 
   });
   $("ai-operation").addEventListener("change", refresh);
   $("ai-discard").addEventListener("click", () => { discard(); status("Proposal discarded. Your draft is unchanged."); });
-  $("ai-accept").addEventListener("click", () => {
+  function loadProposal() {
     if (!pending) return;
     if (JSON.stringify(getDraft()) !== snapshot) {
       discard(); status("Your draft changed. Ask AI again before applying a proposal."); return;
@@ -87,8 +87,10 @@ export function mountStrategyAi({root = document, getDraft, applyDraft, request 
     try {
       applyDraft(pending);
       discard(); status("Interpreted rules loaded. Review them before Run.");
+      return true;
     } catch { discard(); status("The proposal could not be applied. Your draft is unchanged."); }
-  });
+  }
+  $("ai-accept").addEventListener("click", loadProposal);
   $("ai-form").addEventListener("submit", async event => {
     event.preventDefault();
     if (!apiKey && $("ai-key")) {
@@ -124,7 +126,11 @@ export function mountStrategyAi({root = document, getDraft, applyDraft, request 
       if (!response.ok || !result.ok) { status(result.error?.message ?? "AI is unavailable. Your draft is unchanged."); return; }
       if (JSON.stringify(getDraft()) !== snapshot) { status("Your draft changed during the request. Ask AI again to get a current proposal."); return; }
       const data = interpreterOnly ? {...result.data,proposedDraft:result.data.strategy,explanation:result.data.status === "READY" ? "Creator text interpreted. Review the price ranges and amounts before Run." : "Creator instructions need clarification.",changeSummary:[],warnings:result.data.questions??[]} : result.data;
-      pending = data.proposedDraft;
+      pending = interpreterOnly && result.data.status !== "READY" ? undefined : data.proposedDraft;
+      if (interpreterOnly && pending) {
+        if (loadProposal()) $("ai-dialog").close();
+        return;
+      }
       $("ai-explanation").textContent = [data.explanation, ...data.changeSummary.map(item => `• ${item}`), ...data.warnings.map(item => `Warning: ${item}`)].join("\n");
       const metadata = data.inferenceMetadata;
       $("ai-metadata").textContent = `0G · ${metadata.model}${metadata.totalCostNeuron !== undefined ? ` · Charged: ${metadata.totalCostNeuron} neuron` : " · Cost not reported"}${metadata.requestId ? ` · Request: ${metadata.requestId}` : ""}`;
@@ -145,7 +151,7 @@ export function mountStrategyAi({root = document, getDraft, applyDraft, request 
     if(typeof entry?.name!=='string'||!entry.name.trim()||entry.name.length>100||typeof entry.text!=='string'||!entry.text.trim()||entry.text.length>4000)throw new Error('Load a named strategy with at most 4,000 characters of instructions.');
     discard();textName=entry.name;$("ai-operation").value="generate";$("ai-prompt").value=entry.text;
     $("ai-interpreter").open=true;
-    status(apiKey?'Review the instructions, including trade size and network, then interpret. Each request uses your 0G balance.':'Add your 0G inference key below, then review and interpret these instructions. Your canvas stays unchanged until you accept the proposed rules.');
+    status(apiKey?'Review the instructions, including trade size and network, then interpret to load the rules. Each request uses your 0G balance.':'Add your 0G inference key above, then interpret these instructions to load the rules onto your canvas.');
     refresh();$("ai-dialog").showModal();
     if(apiKey){try{($("ai-run")||$("ai-prompt"))?.focus();}catch{}}
   }};

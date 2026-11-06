@@ -3,7 +3,6 @@ import {readBoundedJson} from "../ai/zero-g.ts";
 import {pairForStrategy,tradingPairs} from "../market/config.ts";
 import {FlashError} from "../market/flash.ts";
 export const FLASH_ALLOWANCE="0x5d00000873b6BF41539e6f5365B0Ff7d3c368f78";
-const VAULT="0x1074393effFCf1A15e306cD3931F48eDA9ABcd55";
 const same=(a:unknown,b:string)=>typeof a==="string"&&a.toLowerCase()===b.toLowerCase();
 const address=(a:unknown)=>typeof a==="string"&&/^0x[0-9a-fA-F]{40}$/.test(a)&&!/^0x0{40}$/i.test(a);
 function units(value:unknown,decimals:number){

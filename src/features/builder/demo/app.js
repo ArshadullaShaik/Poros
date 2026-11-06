@@ -1,20 +1,23 @@
 import { recordExecutionSnapshot } from "../../../../apps/web/src/builder.ts";
 import { editStrategy, importStrategyJson, exportStrategyJson } from "../adapters/editor.ts";
-import { tradingPairs, pairForStrategy, strategyForPair, contextForPair, priceStrategy as defaultStrategy, validatePriceStrategy as validateMarketStrategy } from "../market/config.ts";
+import { tradingPairs, marketPriceBounds, isMarketPrice, pairForStrategy, strategyForPair, contextForPair, priceStrategy as defaultStrategy, validatePriceStrategy as validateMarketStrategy } from "../market/config.ts";
 import {mountBacktest} from './backtest.js';
 import { keepFocus } from "./focus.js";
 import { mountCanvasDragTarget } from "./drag-target.js";
 import { mountStrategyAi } from "./ai.js";
 import { mountExecution } from "./execution.js";
 import { mountFundsMode } from "./funds-mode.js";
-import { mountCanvasLayout } from "./canvas-layout.js";
 import { mountLivePrices } from "./prices.js";
 import { mountCommunityLibrary, mountLibraryTabs, mountMemberLibrary } from "./community.js";
 
 const $ = selector => document.querySelector(selector);
 const canvas = $("#canvas");
-const stopCanvasLayout = mountCanvasLayout();
-window.addEventListener('pagehide', stopCanvasLayout, {once:true});
+let strategyLoads=0;
+function setStrategyLoading(loading) {
+  strategyLoads+=loading?1:-1;
+  $("#strategy-loading").hidden=strategyLoads===0;
+  canvas.setAttribute('aria-busy',String(strategyLoads>0));
+}
 const dialog = $("#import-dialog");
 $("#open-run-settings").addEventListener("click", () => $("#run-settings-dialog").showModal());
 $("#close-run-settings").addEventListener("click", () => $("#run-settings-dialog").close());
@@ -36,7 +39,7 @@ let strategyLoad=0;
 function publishChartContext() {
   window.dispatchEvent(new CustomEvent('poros:strategy-chart', {detail:{
     pairId:pairForStrategy(draft).id,
-    ranges:draft.nodes.filter(node=>node.type==='signal.price').map(node=>({type:node.type,minPriceUsd:node.minPriceUsd,maxPriceUsd:node.maxPriceUsd})),
+    ranges:draft.nodes.filter(node=>node.type==='signal.price'&&!isMarketPrice(node)).map(node=>({type:node.type,minPriceUsd:node.minPriceUsd,maxPriceUsd:node.maxPriceUsd})),
   }}));
 }
 window.addEventListener('poros:request-strategy-chart',publishChartContext);
@@ -73,7 +76,7 @@ function replaceDraft(next,preserveMode=false) {
 function mayReplace() { return !dirty || window.confirm("Replace your current draft? Export JSON first if you want to keep it."); }
 
 function describe(node) {
-  if (node.type === "signal.price") return `$${node.minPriceUsd} ≤ ${pairForStrategy(draft).base.reference}/USD ≤ $${node.maxPriceUsd}`;
+  if (node.type === "signal.price") return isMarketPrice(node) ? "Market price · once after Run" : `$${node.minPriceUsd} ≤ ${pairForStrategy(draft).base.reference}/USD ≤ $${node.maxPriceUsd}`;
   if (node.type === "guard.risk") return `Maximum $${draft.riskPolicy.maxNotionalUsd} per order`;
   return `${node.side === "BUY" ? "Buy" : "Sell"} · $${node.notionalUsd}`;
 }
@@ -206,7 +209,6 @@ function field(labelText, value, attributes, change) {
 
 function renderSettings() {
   $("#strategy-name").value = draft.name;
-  $("#max-notional").value = draft.riskPolicy.maxNotionalUsd;
   $("#max-slippage").value = draft.riskPolicy.maxSlippageBps;
   $(".paper-label").textContent = draft.riskPolicy.paperTradingOnly ? "Virtual funds only" : "LIVE · browser wallet approval required";
   const node = draft.nodes.find(item => item.id === selected);
@@ -216,12 +218,20 @@ function renderSettings() {
   $("#selected-kind").textContent = node ? kinds[node.type].label : "None";
   if (!node) { panel.append(element("p", "small muted", "Select a block to edit its settings.")); return; }
   const update = settings => edit({type: "updateNode", nodeId: node.id, settings});
+  const priceMode = rule => field("Price",isMarketPrice(rule)?"market":"target",{options:[["target","Target price"],["market","Market price"]]},value=>edit({type:"updateNode",nodeId:rule.id,settings:value==="market"?marketPriceBounds:{minPriceUsd:2000,maxPriceUsd:2100}}));
   if (node.type === "signal.price") {
-    panel.append(field("Minimum price (USD, inclusive)", node.minPriceUsd, {type:"number",min:0.000001,max:1000000,step:"any"}, value=>update({minPriceUsd:value})),
+    const market=isMarketPrice(node);
+    panel.append(priceMode(node));
+    if(market)panel.append(element("p","small muted","Uses a fresh executable quote after Run. Executes once; wallet approval and slippage limits still apply."));
+    else panel.append(field("Minimum price (USD, inclusive)", node.minPriceUsd, {type:"number",min:0.000001,max:1000000,step:"any"}, value=>update({minPriceUsd:value})),
       field("Maximum price (USD, inclusive)", node.maxPriceUsd, {type:"number",min:0.000001,max:1000000,step:"any"}, value=>update({maxPriceUsd:value})));
   } else if (node.type === "action.intent") {
     panel.append(field("Action", node.side, {options: [["BUY", "Buy base asset"], ["SELL", "Sell base asset"]]}, value => update({side: value})),
       field("Order size (USD)", node.notionalUsd, {type: "number", min: 0.01, step: 0.01}, value => update({notionalUsd: value})));
+    const guard=draft.edges.find(edge=>edge.target===node.id)?.source;
+    const source=draft.edges.find(edge=>edge.target===guard)?.source;
+    const rule=draft.nodes.find(item=>item.id===source&&item.type==='signal.price');
+    if(rule)panel.append(priceMode(rule));
   } else panel.append(element("p", "small muted", "This block checks the order limits below before an action is allowed. Every action needs a risk guard."));
 }
 
@@ -276,7 +286,6 @@ function render() {
     const result = validateMarketStrategy(draft);
     renderNodes(result); renderSettings(); renderConnections(); renderValidation(result);
     $("#block-count").textContent = `${draft.nodes.length} blocks · ${draft.edges.length} connections`;
-    $("#json-preview").textContent = JSON.stringify(draft, null, 2);
   });
   executionUI?.draftChanged();
   backtestUI?.sync();
@@ -322,17 +331,16 @@ canvas.addEventListener("drop", event => {
   } catch { announce("Drag a block from the palette onto the canvas."); }
 });
 $("#strategy-name").addEventListener("change", event => { draft = {...draft, name: event.target.value}; dirty = true; render(); });
-for (const [selector, key] of [["#max-notional", "maxNotionalUsd"], ["#max-slippage", "maxSlippageBps"]]) {
-  $(selector).addEventListener("change", event => { draft = {...draft, riskPolicy: {...draft.riskPolicy, [key]: Number(event.target.value)}}; dirty = true; render(); });
-}
+$("#max-slippage").addEventListener("change", event => { draft = {...draft, riskPolicy: {...draft.riskPolicy, maxSlippageBps: Number(event.target.value)}}; dirty = true; render(); });
 $("#execution-mode").addEventListener("change", () => {draft={...draft,riskPolicy:{...draft.riskPolicy,paperTradingOnly:$("#execution-mode").value!=="LIVE"}};dirty=true;render();});
 $("#delete-node").addEventListener("click", () => removeNode(selected));
 $("#close-strategy-settings").addEventListener("click", () => $("#strategy-settings").close());
 $("#load-example").addEventListener("click", () => { if (mayReplace()) { replaceDraft(defaultStrategy); announce("Price example loaded: buy $20 once between $2000 and $2100."); } });
 $("#new-strategy").addEventListener("click", () => { if (mayReplace()) { replaceDraft({...defaultStrategy, strategyId: crypto.randomUUID(), name: "Untitled strategy", description: "Paper strategy draft", nodes: [], edges: []}); announce("Blank canvas ready. Add blocks from the left."); } });
-for (const view of ["canvas", "json"]) $("#" + view + "-view").addEventListener("click", () => {
-  $("#canvas-viewport").hidden = view !== "canvas"; $("#json-panel").hidden = view !== "json";
-  for (const name of ["canvas", "json"]) { $("#" + name + "-view").classList.toggle("active", view === name); $("#" + name + "-view").setAttribute("aria-pressed", String(view === name)); }
+$("#clear-canvas").addEventListener("click", () => {
+  replaceDraft({...draft,nodes:[],edges:[]});
+  dirty=true;
+  announce("Canvas cleared. Add blocks or drop a strategy to start again.");
 });
 $("#export").addEventListener("click", () => {
   try {
@@ -374,9 +382,9 @@ const ai = mountStrategyAi({
   },
 });
 executionUI = mountExecution({
+  onLoading:setStrategyLoading,
   getPair:()=>pairForStrategy(draft),
   getDraft: () => draft,
-  mayReplace,
   applyDraft(next) {replaceDraft(next); dirty = true;forkSource=undefined;},
   validateDraft: next => validateMarketStrategy(next),
   getApiKey: ai.getKey,
@@ -387,9 +395,8 @@ executionUI = mountExecution({
     });
   },
 });
-communityUI=mountCommunityLibrary({onText:ai.openText,onLoad(next,versionKey){
+communityUI=mountCommunityLibrary({onLoading:setStrategyLoading,onText:entry=>executionUI.openUnlockedStrategy(entry),onLoad(next,versionKey){
   if(!validateMarketStrategy(next).valid)throw new Error("This public strategy uses unsupported rules or a market outside this live-price builder.");
-  if(!mayReplace())throw new Error("Your draft was kept.");
   replaceDraft(next);dirty=true;forkSource=versionKey;
 }});
 window.addEventListener("poros:public-data-updated",()=>void communityUI.refresh());

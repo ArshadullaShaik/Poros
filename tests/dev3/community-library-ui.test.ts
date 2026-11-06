@@ -3,7 +3,7 @@ import {test} from 'node:test';
 import {mountCommunityLibrary} from '../../src/features/builder/demo/community.js';
 class Node {textContent='';children:any[]=[];handlers:any={};disabled=false;hidden=false;append(...v:any[]){this.children.push(...v);}replaceChildren(...v:any[]){this.children=v;}addEventListener(k:string,f:Function){this.handlers[k]=f;}}
 const versionKey='0x'+'1'.repeat(64),communityKey='0x'+'2'.repeat(64);
-function setup(api:any){const controls=new Map(['community-library-title','back-to-communities','community-page-link','community-strategies','community-strategies-status','refresh-community-strategies','more-community-strategies'].map(id=>[id,new Node()]));let loaded:any;const ui=mountCommunityLibrary({root:{querySelector:(id:string)=>controls.get(id.slice(1)),createElement:()=>new Node()},loadApi:async()=>({publicStrategies:api,...api}),onLoad:(graph:any)=>{loaded=graph;},onText:(entry:any)=>{loaded=entry;}});return {ui,controls,get loaded(){return loaded;}};}
+function setup(api:any,onLoading=(_loading:boolean)=>{}){const controls=new Map(['community-library-title','back-to-communities','community-page-link','community-strategies','community-strategies-status','refresh-community-strategies','more-community-strategies'].map(id=>[id,new Node()]));let loaded:any;const ui=mountCommunityLibrary({root:{querySelector:(id:string)=>controls.get(id.slice(1)),createElement:()=>new Node()},loadApi:async()=>({publicStrategies:api,...api}),onLoading,onLoad:(graph:any)=>{loaded=graph;},onText:(entry:any)=>{loaded=entry;}});return {ui,controls,get loaded(){return loaded;}};}
 
 test('written posts expose a drag reference and load verified text through the existing interpreter callback',async()=>{
  const s=setup({listCommunities:async()=>({items:[{name:'Arshad Fan Club',communityKey}],nextOffset:null}),listCommunityStrategies:async()=>({items:[{name:'testing u',postKey:versionKey,communityKey}],nextOffset:null}),readPublicPost:async(room:string,post:string)=>{assert.equal(room,communityKey);assert.equal(post,versionKey);return {text:'buy ETH at 2109',versionId:post};}});
@@ -28,4 +28,16 @@ test('community sidebar loads actual communities, then only strategies in the se
 });
 test('unavailable community data stays an explicit error and does not invent cards',async()=>{
  const s=setup({listCommunities:async()=>{throw new Error('Network unavailable');}});await s.ui.refresh();assert.equal(s.controls.get('community-strategies')!.children.length,0);assert.match(s.controls.get('community-strategies-status')!.textContent,/Network unavailable/);
+});
+
+
+test('community loading state covers the version fetch and clears on success or failure',async()=>{
+  for(const fail of [false,true]){
+    let finish!:(value:any)=>void,loading=false;
+    const s=setup({getVersion:async()=>{const value=await new Promise(resolve=>{finish=resolve;});if(fail)throw new Error('Unavailable');return value;}},value=>{loading=value;});
+    const pending=s.ui.load(versionKey);await new Promise(resolve=>setImmediate(resolve));
+    assert.equal(loading,true);assert.equal(s.loaded,undefined);
+    finish({document:{graph:{name:'Rules'}},versionKey});await pending;
+    assert.equal(loading,false);assert.equal(s.loaded?.name,fail?undefined:'Rules');
+  }
 });

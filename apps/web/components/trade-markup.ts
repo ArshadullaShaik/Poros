@@ -13,12 +13,10 @@ export const tradeMarkup = `
         <button class="palette-block guard" data-kind="guard.risk" draggable="true"><span class="block-icon">◇</span><span><strong>Risk limit</strong><small>Keep each order within limits</small></span><span class="grip" aria-hidden="true">⠿</span></button>
         <button class="palette-block action" data-kind="action.intent" draggable="true"><span class="block-icon">⇄</span><span><strong>Buy / sell</strong><small>Describe the intended action</small></span><span class="grip" aria-hidden="true">⠿</span></button>
         <button id="backtest-open" class="backtest-launcher" type="button" aria-haspopup="dialog" aria-controls="backtest-setup-dialog"><span class="backtest-launcher-icon" aria-hidden="true">↗</span><span><strong>Test your strategy</strong><small>Backtest with virtual funds</small></span><span aria-hidden="true">＋</span></button>
-        <div class="how-to"><p class="eyebrow">A SIMPLE RECIPE</p><ol><li><span>01</span>Start with a price range.</li><li><span>02</span>Add a risk limit and an action.</li><li><span>03</span>Connect the right dot to the next left dot.</li><li><span>04</span>Adjust settings and validate.</li></ol></div>
-        <div class="fixture-note"><span aria-hidden="true">◌</span><div><strong>Real prices, virtual funds</strong><p>Live Chainlink reference and Flash quotes. No history or warm-up. Virtual funds only.</p></div></div>
       </aside>
       <div class="editor-column">
-        <div class="canvas-toolbar"><div><span class="canvas-symbol" aria-hidden="true">⌘</span><strong>Strategy canvas</strong></div><div class="canvas-layout-tools" role="group" aria-label="Canvas space"><button id="canvas-toggle-left" type="button" aria-expanded="true" aria-controls="canvas-blocks-panel">← Hide blocks</button><button id="canvas-toggle-right" type="button" aria-expanded="true" aria-controls="canvas-library-panel">Hide library →</button></div><div class="view-switch" role="group" aria-label="View"><button id="canvas-view" class="active" aria-pressed="true">Canvas</button><button id="json-view" aria-pressed="false">JSON</button></div></div>
-        <div class="canvas-runbar"><span id="execution-selected" class="tiny muted">Current draft · live monitoring / paper funds</span><div class="heading-actions"><button id="open-run-settings" class="button secondary compact" type="button" aria-haspopup="dialog" aria-controls="run-settings-dialog">Run settings</button><button id="execution-start" class="button primary compact" type="button" aria-describedby="execution-help">Run strategy</button><button id="execution-stop" class="button secondary compact" type="button" disabled>Stop</button></div></div>
+        <div class="canvas-toolbar"><div><span class="canvas-symbol" aria-hidden="true">⌘</span><strong>Strategy canvas</strong></div><div class="canvas-layout-tools" role="group" aria-label="Canvas space"><button id="clear-canvas" type="button">Clear canvas</button></div></div>
+        <div class="canvas-runbar"><span id="execution-selected" class="tiny muted">Current draft · live monitoring / paper funds</span><span id="strategy-loading" class="strategy-loading" role="status" hidden><span class="strategy-spinner" aria-hidden="true"></span>Loading strategy…</span><div class="heading-actions"><button id="open-run-settings" class="button secondary compact" type="button" aria-haspopup="dialog" aria-controls="run-settings-dialog">Run settings</button><button id="execution-start" class="button primary compact" type="button" aria-describedby="execution-help">Run strategy</button><button id="execution-stop" class="button secondary compact" type="button" disabled>Stop</button></div></div>
         <section class="price-ticker" aria-label="Live cryptocurrency prices in USD">
       <button id="live-prices-pause" class="ticker-pause" type="button" aria-pressed="false">Pause scrolling</button>
       <div class="ticker-viewport" tabindex="0" aria-label="Scrolling live crypto prices">
@@ -30,15 +28,13 @@ export const tradeMarkup = `
       <p id="live-prices-status" class="ticker-status" role="status">Loading live prices…</p>
     </section>
 
-        <p id="creator-text" class="tiny muted"></p>
-        <p id="execution-help" class="run-help tiny muted"></p>
+        <p id="execution-help" hidden></p>
         <div id="canvas-viewport" class="canvas-viewport">
           <div id="canvas" class="canvas" aria-label="Strategy canvas drop area">
             <svg id="connections" aria-hidden="true"><defs><marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0 0 L8 4 L0 8" fill="#9aa6b8"/></marker></defs><g id="edge-paths"></g></svg>
             <div id="empty-state" class="empty-state" hidden><span>＋</span><h3>Your idea starts here</h3><p>Drop an unlocked strategy here, or add a price range,<br>risk limit, and buy/sell block and connect them.</p></div>
           </div>
         </div>
-        <div id="json-panel" class="json-panel" hidden><p class="muted small">Strategy rules only. Canvas positions are kept separately.</p><pre id="json-preview" tabindex="0" aria-label="Strategy JSON preview"></pre></div>
         <div class="canvas-footer"><span id="block-count">6 blocks · 4 connections</span><span>Move blocks with drag, or focus a block title and use arrow keys.</span></div>
 
         <p id="execution-status" class="small" role="status" aria-live="polite"></p>
@@ -154,9 +150,8 @@ export const tradeMarkup = `
         <button id="delete-node" class="delete-button" hidden>Remove block</button>
         <div class="section-divider"></div>
         <p class="eyebrow">ORDER LIMITS</p>
-        <label class="field"><span>Maximum per order <span class="unit">USD</span></span><input id="max-notional" type="number" min="0.01" step="0.01"></label>
         <label class="field"><span>Maximum slippage <span class="unit">BPS</span></span><input id="max-slippage" type="number" min="0" max="500" step="1"></label>
-        <p class="muted tiny">100 bps = 1%. These limits apply to every action.</p>
+        <p class="muted tiny">100 bps = 1%. This slippage limit applies to every action.</p>
         <div class="paper-label"><span aria-hidden="true">▣</span> Paper-only strategy</div>
         <div class="section-divider"></div>
         <p class="eyebrow">CONNECTIONS</p><div id="connection-list" class="connection-list"></div>

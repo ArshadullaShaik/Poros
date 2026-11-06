@@ -135,22 +135,36 @@ test("provider errors recover controls and explanation never changes the canvas"
   assert.equal(ui.applied, 0);
 });
 
-test('dropped text opens the interpreter with a visible key requirement and only applies reviewed rules',async()=>{
+test('interpreting creator text automatically loads ready rules and closes the dialog',async()=>{
  let requests=0;
  const ui=setup(async(url,init)=>{requests++;assert.equal(url,'/api/interpret');assert.equal(JSON.parse(init.body).name,'Community idea');return Response.json({ok:true,data:{status:'READY',strategy:rsiStrategy,questions:[],inferenceMetadata:{model:'test'}}});},undefined,true);
  ui.api.openText({name:'Community idea',text:'Buy ETH at 2109 and sell at 3000'});
  assert.equal(ui.controls.get('#ai-dialog').open,true);assert.match(ui.controls.get('#ai-status').textContent,/key/i);
   assert.equal(ui.controls.get('#ai-interpreter').open,true);
  assert.equal(ui.controls.get('#ai-prompt').value,'Buy ETH at 2109 and sell at 3000');assert.equal(requests,0);assert.equal(ui.applied,0);
- await ui.enterKey();await ui.event('ai-form','submit');assert.equal(ui.applied,0);
+ await ui.enterKey();await ui.event('ai-form','submit');assert.equal(ui.applied,1);
+ assert.deepEqual(ui.draft,rsiStrategy);assert.equal(ui.controls.get('#ai-dialog').open,false);
+ assert.match(ui.controls.get('#ai-status').textContent,/rules loaded/i);
  await ui.event('ai-accept');assert.equal(ui.applied,1);
 });
 
 test('ambiguous dropped text stays editable with clarification visible and no canvas replacement',async()=>{
- const ui=setup(async()=>Response.json({ok:true,data:{status:'NEEDS_CLARIFICATION',questions:['Which amount?'],inferenceMetadata:{model:'test'}}}),undefined,true);
+ const ui=setup(async()=>Response.json({ok:true,data:{status:'NEEDS_CLARIFICATION',strategy:rsiStrategy,questions:['Which amount?'],inferenceMetadata:{model:'test'}}}),undefined,true);
  ui.api.openText({name:'Incomplete idea',text:'Buy when cheap'});await ui.enterKey();await ui.event('ai-form','submit');
  assert.equal(ui.applied,0);assert.match(ui.controls.get('#ai-explanation').textContent,/Which amount/);assert.equal(ui.controls.get('#ai-accept').hidden,true);
  assert.equal(ui.controls.get('#ai-prompt').disabled,false);
+ assert.equal(ui.controls.get('#ai-dialog').open,true);
+});
+
+test('automatic interpretation never replaces a draft edited while the request is running',async()=>{
+ let resolve;
+ const ui=setup(async()=>new Promise(done=>{resolve=done;}),undefined,true);
+ ui.api.openText({name:'Creator idea',text:'Buy $20 of ETH at 2100'});await ui.enterKey();
+ const pending=ui.event('ai-form','submit');ui.edit();
+ resolve(Response.json({ok:true,data:{status:'READY',strategy:rsiStrategy,questions:[],inferenceMetadata:{model:'test'}}}));
+ await pending;
+ assert.equal(ui.applied,0);assert.equal(ui.draft.name,'Newer manual draft');
+ assert.equal(ui.controls.get('#ai-dialog').open,true);
 });
 
 test('submitting interpreter with key typed into input auto-saves key and runs inference',async()=>{

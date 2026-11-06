@@ -1,17 +1,21 @@
-export function mountCommunityLibrary({root=document,loadApi=()=>import('../../../../apps/web/src/builder.ts'),onLoad,onText}){
+export function mountCommunityLibrary({root=document,loadApi=()=>import('../../../../apps/web/src/builder.ts'),onLoad,onText,onLoading=()=>{}}){
   const $=id=>root.querySelector(`#${id}`);
   let cursor=null,busy=false,community;
   const key=value=>typeof value==='string'&&/^0x[0-9a-f]{64}$/i.test(value);
   const text=(tag,value)=>{const node=root.createElement(tag);node.textContent=value;return node;};
   async function load(versionKey){
     if(!key(versionKey))return false;
+    onLoading(true);
     try{const {publicStrategies}=await loadApi();const version=await publicStrategies.getVersion({versionKey});await onLoad(version.document.graph,version.versionKey);$('community-strategies-status').textContent='Community strategy loaded. Review its rules before Run.';return true;}
     catch(error){$('community-strategies-status').textContent=error.message??'Could not load this community strategy.';return false;}
+    finally{onLoading(false);}
   }
   async function loadPost(communityKey,postKey){
     if(!key(communityKey)||!key(postKey))return false;
+    onLoading(true);
     try{const api=await loadApi();const entry=await api.readPublicPost(communityKey,postKey);return await onText(entry);}
     catch(error){$('community-strategies-status').textContent=error.message??'Could not load this community post.';return false;}
+    finally{onLoading(false);}
   }
   async function refresh(append=false){
     if(busy)return;busy=true;$('refresh-community-strategies').disabled=true;$('more-community-strategies').disabled=true;

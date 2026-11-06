@@ -1,10 +1,10 @@
 import {connectSolanaWallet,signSolanaSetup,signSolanaOrderMessage} from "./solana-wallet.js";
 import {connectBrowserWallet,signFlashOrder} from "./wallet.js";
-export function mountExecution({root=document,getDraft,applyDraft,validateDraft,getApiKey,mayReplace=()=>true,request=fetch,onActivity=()=>{},getPair=()=>({id:"eth-usdc",base:{symbol:"WETH",reference:"ETH"},quote:{symbol:"USDC"}})}) {
+export function mountExecution({root=document,getDraft,applyDraft,validateDraft,getApiKey,mayReplace=()=>true,request=fetch,onLoading=()=>{},onActivity=()=>{},getPair=()=>({id:"eth-usdc",base:{symbol:"WETH",reference:"ETH"},quote:{symbol:"USDC"}})}) {
   const $=id=>root.querySelector(`#${id}`);
   const setText=(id,text)=>{const node=$(id);if(node)node.textContent=text;};
   const entries=new Map();
-  let sessionId,timer,wallet,walletNetwork,solanaConnection,walletBusy=false;
+  let sessionId,timer,wallet,walletNetwork,solanaConnection,walletQuoteId,walletBusy=false;
   let busy=false,sequence=0,controller,lastDraft=JSON.stringify(getDraft()),market,marketLoading=false;
   const notify=event=>{try{onActivity({pairId:getPair().id,time:Date.now(),...event});}catch{/* Chart rendering must never interrupt execution. */}};
   const status=message=>{$("execution-status").textContent=message;notify({kind:"status",message});};
@@ -42,7 +42,7 @@ export function mountExecution({root=document,getDraft,applyDraft,validateDraft,
   function invalidate(message="Run cleared because its inputs changed.",keepResults=false) {
     clearTimeout(timer);
     if(sessionId){void request("/api/monitor",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"stop",id:sessionId}),keepalive:true}).catch(()=>{});sessionId=undefined;}
-    walletBusy=false;
+    walletBusy=false;walletQuoteId=undefined;
     sequence++;controller?.abort();controller=undefined;busy=false;
     if(!keepResults){$("execution-results").hidden=true;$("execution-results").replaceChildren();}
     status(message);refresh();
@@ -51,6 +51,7 @@ export function mountExecution({root=document,getDraft,applyDraft,validateDraft,
     if(!mayReplace())return false;
     invalidate("Loading creator strategy…");
     const current=sequence,snapshot=JSON.stringify(getDraft());
+    onLoading(true);
     try {
       let strategy=entry.strategy;
       if(!strategy){
@@ -68,12 +69,11 @@ export function mountExecution({root=document,getDraft,applyDraft,validateDraft,
       if(current!==sequence||JSON.stringify(getDraft())!==snapshot)return;
       if(!validateDraft(strategy).valid)throw new Error("The interpreter returned unsupported rules. Current canvas is unchanged.");
       lastDraft=JSON.stringify(strategy);applyDraft(structuredClone(strategy));
-      if($("creator-text"))$("creator-text").textContent=entry.text?`Creator instructions: ${entry.text}`:"";
       $("execution-selected").textContent=`${strategy.name} · version ${entry.versionId} · each action once per run`;
       status("Review the interpreted price ranges and amounts on the canvas, then Run to monitor.");
       return true;
     }catch(error){if(current===sequence)status(error.message);return false;}
-    finally{if(current===sequence){busy=false;controller=undefined;refresh();}}
+    finally{onLoading(false);if(current===sequence){busy=false;controller=undefined;refresh();}}
   }
   function validateEntry(entry) {
     if(!entry||typeof entry.versionId!=="string"||!entry.versionId.trim()||entry.versionId.length>128||
@@ -135,9 +135,9 @@ export function mountExecution({root=document,getDraft,applyDraft,validateDraft,
         const quote=data.walletRequest;
         output.append(element("p",`${quote.side} $${quote.notionalUsd} · Flash quote $${quote.effectivePriceUsd} · receives approximately ${quote.expectedReceive} ${quote.side==="BUY"?(quote.baseSymbol??"WETH"):(quote.quoteSymbol??"USDC")}.`,"small"));
         const approve=element("button",walletBusy?"Waiting for your wallet…":"Approve and sign in wallet","button primary");approve.type="button";approve.disabled=walletBusy;
-        approve.addEventListener("click",async()=>{
+        const approveOrder=async()=>{
           if(walletBusy)return;
-          const current=sequence;walletBusy=true;approve.disabled=true;status("Approve the exact token amount, then sign the Flash order in your wallet.");
+          const current=sequence;walletBusy=true;approve.disabled=true;approve.textContent="Waiting for your wallet…";status("Approve the exact token amount, then sign the Flash order in your wallet.");
           try{
             let signature;
             if(quote.family==="solana"){
@@ -153,8 +153,10 @@ export function mountExecution({root=document,getDraft,applyDraft,validateDraft,
             const result=await postMonitor({action:"submit",id:sessionId,signature},AbortSignal.any([controller.signal,AbortSignal.timeout(30000)]));
             if(current!==sequence)return;renderResults(result);status(result.message);
           }catch(error){if(current===sequence)invalidate(error.code===4001?"Wallet request declined. Monitoring stopped.":error.message);}
-          finally{walletBusy=false;}
-        });output.append(approve);
+          finally{if(current===sequence)walletBusy=false;}
+        };
+        approve.addEventListener("click",approveOrder);output.append(approve);
+        if(!walletBusy&&walletQuoteId!==quote.quoteId){walletQuoteId=quote.quoteId;void approveOrder();}
       }
       output.hidden=false;return;
     }

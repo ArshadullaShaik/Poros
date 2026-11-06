@@ -72,3 +72,30 @@ test('a failed market refresh returns an error without committing success header
   await new Promise<void>(resolve=>server.listen(0,'127.0.0.1',resolve));
   try{const address=server.address();assert.ok(address&&typeof address!=='string');const base=`http://127.0.0.1:${address.port}`;const response=await fetch(base+'/api/market');assert.equal(response.status,503);assert.equal((await response.json()).ok,false);assert.equal((await fetch(base+'/api/monitor')).status,405);}finally{await new Promise<void>(resolve=>server.close(()=>resolve()));}
 });
+
+test('market-price creator text produces validated rules that execute once at a fresh price',async()=>{
+  const {createPriceMonitor}=await import('../../src/features/builder/execution/monitor.ts');
+  const {editStrategy}=await import('../../src/features/builder/adapters/editor.ts');
+  const {marketPriceBounds,isMarketPrice}=await import('../../src/features/builder/market/config.ts');
+  const {strategyPostBody}=await import('../../apps/web/src/strategy-post.ts');
+  const data=new FormData();
+  for(const [name,value]of Object.entries({pair:'eth-usdc',side:'both','buy-price-mode':'market','sell-price-mode':'market','buy-amount':'1','sell-amount':'0.1',body:'Trade once at the available market quote.'}))data.set(name,value);
+  const text=strategyPostBody(data);
+  const rules=['BUY','SELL'].map(side=>({minPriceUsd:0.000001,maxPriceUsd:1000000,side,notionalUsd:side==='BUY'?1:0.1}));
+  const result=await interpretCreatorStrategy({apiKey:key,name:'Market orders',text},transport({...ready,rules}).fetcher);
+  const loaded=result.strategy!;
+  assert.equal(isMarketPrice(loaded.nodes[0] as any),true);
+  const target=editStrategy(loaded,{type:'updateNode',nodeId:'price-0',settings:{minPriceUsd:2000,maxPriceUsd:2100}});
+  const market=editStrategy(target,{type:'updateNode',nodeId:'price-0',settings:marketPriceBounds});
+  assert.equal(isMarketPrice(market.nodes[0] as any),true);
+  let time=1800000000000,price='47500.000000';
+  const monitor=createPriceMonitor({now:()=>time,market:{refresh:async()=>({priceUsd:price,stale:false}),read:()=>({priceUsd:price,stale:false})}});
+  const start=monitor.start({strategy:market,mode:'RULES_ONLY',initialCashUsd:10,maxTurnoverUsd:10,feeBps:0,slippageBps:0});
+  assert.equal(start.orders.length,0);
+  const bought=await monitor.check(start.id);
+  assert.equal(bought.orders.length,1);assert.equal(bought.orders[0].side,'BUY');assert.equal(bought.orders[0].notionalUsd,'1.000000');
+  price='48000.000000';time+=10000;
+  const sold=await monitor.check(start.id);
+  assert.equal(sold.status,'COMPLETED');assert.equal(sold.orders.length,2);assert.equal(sold.orders[1].side,'SELL');assert.equal(sold.orders[1].notionalUsd,'0.100000');
+  assert.equal((await monitor.check(start.id)).orders.length,2);
+});
