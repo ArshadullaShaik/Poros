@@ -22,6 +22,13 @@ export function mountStrategyAi({root = document, getDraft, applyDraft, request 
     $("ai-prompt").disabled = busy || $("ai-operation").value === "explain";
     $("ai-forget").disabled = !apiKey;
     $("ai-run").textContent = busy ? "Interpreting…" : (interpreterOnly ? "Interpret creator text" : "Ask AI");
+    if ($("ai-key")) {
+      $("ai-key").placeholder = apiKey ? `sk-••••••••${apiKey.slice(-4)} (Key active)` : "sk-…";
+      $("ai-key").title = apiKey ? `Active key: sk-...${apiKey.slice(-4)}` : "0G inference API key";
+    }
+    if ($("ai-use-key")) {
+      $("ai-use-key").textContent = apiKey ? "Update key" : "Use key";
+    }
   }
   function discard() {
     pending = undefined;
@@ -84,6 +91,21 @@ export function mountStrategyAi({root = document, getDraft, applyDraft, request 
   });
   $("ai-form").addEventListener("submit", async event => {
     event.preventDefault();
+    if (!apiKey && $("ai-key")) {
+      const entered = $("ai-key").value.trim();
+      if (validKey(entered)) {
+        apiKey = entered;
+        $("ai-key").value = "";
+        onKeyChange?.();
+        try {
+          root.defaultView.localStorage.setItem(storageKey, apiKey);
+          $("ai-key-status").textContent = "Key saved in this browser until you forget it. 0G checks it when you ask AI.";
+        } catch {
+          $("ai-key-status").textContent = "Key ready for this tab, but not saved: browser storage is unavailable.";
+        }
+        refresh();
+      }
+    }
     if (!apiKey || busy) return;
     const operation = $("ai-operation").value;
     const prompt = $("ai-prompt").value.trim();
@@ -125,5 +147,6 @@ export function mountStrategyAi({root = document, getDraft, applyDraft, request 
     $("ai-interpreter").open=true;
     status(apiKey?'Review the instructions, including trade size and network, then interpret. Each request uses your 0G balance.':'Add your 0G inference key below, then review and interpret these instructions. Your canvas stays unchanged until you accept the proposed rules.');
     refresh();$("ai-dialog").showModal();
+    if(apiKey){try{($("ai-run")||$("ai-prompt"))?.focus();}catch{}}
   }};
 }

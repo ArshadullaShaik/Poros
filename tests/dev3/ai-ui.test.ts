@@ -152,3 +152,13 @@ test('ambiguous dropped text stays editable with clarification visible and no ca
  assert.equal(ui.applied,0);assert.match(ui.controls.get('#ai-explanation').textContent,/Which amount/);assert.equal(ui.controls.get('#ai-accept').hidden,true);
  assert.equal(ui.controls.get('#ai-prompt').disabled,false);
 });
+
+test('submitting interpreter with key typed into input auto-saves key and runs inference',async()=>{
+ let sent;
+ const ui=setup(async(_url,init)=>{sent=init;return Response.json({ok:true,data:{proposedDraft:rsiStrategy,inferenceMetadata:{model:'test'}}});});
+ ui.controls.get("#ai-key").value="sk-auto-saved-inference-key";
+ await ui.event('ai-form','submit');
+ assert.equal(sent?.headers?.Authorization,"Bearer sk-auto-saved-inference-key");
+ assert.equal(ui.getKey(),"sk-auto-saved-inference-key");
+ assert.equal(ui.controls.get("#ai-key").value,"");
+});

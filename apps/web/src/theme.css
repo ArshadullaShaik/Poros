@@ -375,3 +375,18 @@ body{background:var(--paper);color:var(--ink)}
 @media(max-width:1100px){.poros-header{padding:15px 22px}.trade-page .workspace{gap:12px}.app-layout .hero{min-height:0}.app-layout .hero h1{font-size:46px}}
 @media(max-width:760px){.poros-header{padding:14px 16px;gap:14px}.poros-nav{width:100%;margin:0;border-top:1px solid var(--line);padding-top:10px}.poros-nav a{font-size:10px;padding:9px 11px}.trade-intro h1{font-size:29px}.trade-page .workspace{gap:12px}.trade-page .palette,.trade-page .editor-column,.trade-page .library{border-radius:3px}.app-layout .hero{padding:20px 0 26px}.app-layout .hero h1{font-size:42px}.app-layout .hero-art{border-radius:3px}.app-layout .paper-panel,.app-layout .profile-panel,.app-layout .chat-panel,.app-layout .community-card{padding:20px;border-radius:3px}.trade-page dialog.backtest-setup-dialog{border-radius:4px}.trade-page .palette-block strong{font-size:10px}.trade-page .backtest-launcher{flex-basis:100%}}
 @media(prefers-reduced-motion:reduce){.app-layout .community-card,.trade-page .palette-block{transition:none}}
+
+/* 0G AI Dialog enhancements */
+.ai-dialog #ai-key:focus {
+  border-color: var(--blue);
+}
+.ai-dialog #ai-key-status {
+  padding: 8px 12px;
+  background: #f4f7fc;
+  border-radius: 6px;
+  border: 1px solid #dce4f2;
+  margin: 10px 0;
+  line-height: 1.5;
+  color: #3b506d;
+}
+
