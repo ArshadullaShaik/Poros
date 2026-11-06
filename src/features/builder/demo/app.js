@@ -8,7 +8,6 @@ import { mountGraphGestures } from "./canvas-gestures.js";
 import { dismissOnBackdrop } from "./dialogs.js";
 import { mountStrategyAi } from "./ai.js";
 import { mountExecution } from "./execution.js";
-import { mountFundsMode } from "./funds-mode.js";
 import { mountLivePrices } from "./prices.js";
 import { mountCommunityLibrary, mountLibraryTabs, mountMemberLibrary } from "./community.js";
 
@@ -31,6 +30,7 @@ const kinds = {
   "action.intent": {label: "Buy / sell", className: "action"},
 };
 let draft = structuredClone(defaultStrategy);
+draft.riskPolicy.paperTradingOnly = false;
 let selected = draft.nodes[0]?.id;
 let positions = new Map();
 let connectFrom;
@@ -283,7 +283,7 @@ function renderValidation(result) {
     item.append(button); list.append(item);
   });
   $("#export").disabled = !result.valid;
-  $("#publish-community").disabled = !result.valid || !draft.riskPolicy.paperTradingOnly;
+  $("#publish-community").disabled = !result.valid;
   $("#export").title = result.valid ? "Save validated strategy JSON" : "Fix validation errors before exporting";
 }
 
@@ -380,7 +380,6 @@ $("#import-form").addEventListener("submit", event => {
   try{const parsed=JSON.parse($("#import-text").value);result=importStrategyJson($("#import-text").value,contextForPair(pairForStrategy(parsed)));}catch{result={valid:false,issues:[{path:"$",message:"Choose a valid strategy with a registered network and pair."}]};}
   if (result.valid) result = validateMarketStrategy(result.strategy);
   if (!result.valid) { $("#import-error").textContent = result.issues.slice(0, 5).map(issue => `${issue.path}: ${issue.message}`).join("\n"); return; }
-  if (!result.strategy.riskPolicy.paperTradingOnly) { $("#import-error").textContent = "This demo accepts paper-only strategies. Set paperTradingOnly to true before importing."; return; }
   if (!mayReplace()) return;
   replaceDraft(result.strategy); dialog.close(); announce("Strategy imported and validated. Layout was rebuilt from its blocks.");
 });
@@ -460,8 +459,6 @@ backtestUI=mountBacktest({getDraft:()=>draft,getPair:()=>pairForStrategy(draft),
   throw new Error('Drop a strategy card from Community or Unlocked.');
 }});
 window.addEventListener('pagehide',()=>backtestUI.stop());
-const stopFundsMode = mountFundsMode($("#execution-mode"));
-window.addEventListener('pagehide', stopFundsMode, {once:true});
 $("#backtest-open").addEventListener("click", () => {
   backtestUI.sync();
   $("#backtest-setup-dialog").showModal();
@@ -488,7 +485,7 @@ async function loadPublicReference(reference) {
 $('#publish-community').addEventListener('click',async()=>{
   try {
     const {builderDocument} = await import('../../../../apps/web/src/builder.ts');
-    const document = builderDocument(draft);
+    const document = builderDocument({...draft,riskPolicy:{...draft.riskPolicy,paperTradingOnly:true}});
     sessionStorage.setItem('poros.public-draft',JSON.stringify({document,...forkSource?{sourceVersionKey:forkSource}:{}}));
     dirty = false;
     location.href = '/community#/publish-draft';

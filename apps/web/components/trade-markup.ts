@@ -118,13 +118,14 @@ export const tradeMarkup = `
   <dialog id="run-settings-dialog" class="strategy-dialog run-settings-dialog" aria-labelledby="run-settings-title">
     <div class="dialog-heading"><h2 id="run-settings-title">Run settings</h2><button id="close-run-settings" class="icon-button" type="button" aria-label="Close run settings">×</button></div>
         <section class="execution-settings">
-          <label class="field"><span>Execution mode</span><select id="execution-mode"><option value="LIVE">LIVE · 0G agent + connected wallet (real funds)</option><option value="AI" selected>0G execution agent · virtual funds</option><option value="RULES_ONLY">Local live-price monitor (no AI cost)</option></select></label>
+          <select id="execution-mode" hidden aria-label="Execution mode"><option value="LIVE" selected>Live trading</option></select>
+          <p class="small">Live trading · 0G agent with wallet approval</p>
           <div class="execution-limits">
-            <label class="field"><span>Starting virtual cash / live buy spending cap (USD)</span><input id="execution-capital" type="number" value="1000" min="0.000001" max="1000000" step="0.000001"></label>
+            <label class="field"><span>Buy spending cap (USD)</span><input id="execution-capital" type="number" value="1000" min="0.000001" max="1000000" step="0.000001"></label>
             <label class="field"><span>Total turnover limit, including fees (USD)</span><input id="execution-turnover" type="number" value="2000" min="0.000001" max="1000000" step="0.000001"></label>
-            <label class="field"><span>Simulated fee (basis points)</span><input id="execution-fee" type="number" value="10" min="0" max="1000" step="1"></label>
-            <label class="field"><span>Simulated slippage (basis points)</span><input id="execution-slippage" type="number" value="25" min="0" max="500" step="1"></label>
-          </div><p class="tiny muted">100 basis points = 1%. Slippage must fit the strategy limit. Uses current prices and virtual funds. Each action executes once per run. Fees and fills are simulated.</p>
+            <input id="execution-fee" type="hidden" value="10">
+            <label class="field"><span>Slippage limit (basis points)</span><input id="execution-slippage" type="number" value="25" min="0" max="500" step="1"></label>
+          </div><p class="tiny muted">100 basis points = 1%. Slippage must fit the strategy limit. Each action executes once per run. Review and sign orders in your wallet.</p>
         </section>
   </dialog>
   <dialog id="backtest-setup-dialog" class="backtest-setup-dialog backtest-panel" aria-labelledby="backtest-setup-title">
