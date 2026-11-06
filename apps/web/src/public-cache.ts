@@ -5,7 +5,7 @@ type Entry={at:number;value:unknown};
 export function createPublicReadCache({storage,now=Date.now,onCached=()=>{},onRefresh=(_key:string,_changed:boolean)=>{},onError=()=>{}}:{
   storage?:Storage;now?:()=>number;onCached?:()=>void;onRefresh?:(key:string,changed:boolean)=>void;onError?:()=>void;
 }={}){
-  const memory=new Map<string,Entry>(),pending=new Map<string,Promise<unknown>>();let generation=0;
+  const memory=new Map<string,Entry>(),pending=new Map<string,Promise<unknown>>(),failures=new Map<string,{until:number;attempts:number;error:unknown}>();let generation=0;
   async function read<T>(key:string,load:()=>Promise<T>,valid:(value:unknown)=>value is T):Promise<T>{
     let entry=memory.get(key);
     if(!entry)try{const raw=storage?.getItem(prefix+key);if(raw&&raw.length<=250000)entry=JSON.parse(raw) as Entry;}catch{}
@@ -15,10 +15,12 @@ export function createPublicReadCache({storage,now=Date.now,onCached=()=>{},onRe
     const saved=entry;
     const refresh=()=>{
       const existing=pending.get(key);if(existing)return existing as Promise<T>;
+      const failed=failures.get(key);if(failed&&now()<failed.until)return Promise.reject(failed.error);
       const current=generation;
       const job=Promise.resolve().then(load).then(value=>{
         if(!valid(value))throw new Error('Invalid public cache response.');
         if(current===generation){
+          failures.delete(key);
           const next={at:now(),value};memory.set(key,next);if(memory.size>40)memory.delete(memory.keys().next().value!);
           try{
             const keys=Array.from({length:storage?.length??0},(_,i)=>storage!.key(i)).filter((k):k is string=>!!k?.startsWith(prefix));
@@ -28,6 +30,13 @@ export function createPublicReadCache({storage,now=Date.now,onCached=()=>{},onRe
           onRefresh(key,!!saved&&JSON.stringify(saved.value)!==JSON.stringify(value));
         }
         return value;
+      }).catch(error=>{
+        if(current===generation){
+          const attempts=Math.min(4,(failures.get(key)?.attempts??0)+1);
+          failures.set(key,{until:now()+Math.min(120000,15000*2**(attempts-1)),attempts,error});
+          if(failures.size>40)failures.delete(failures.keys().next().value!);
+        }
+        throw error;
       }).finally(()=>{if(current===generation)pending.delete(key);});
       pending.set(key,job);return job;
     };
@@ -38,7 +47,7 @@ export function createPublicReadCache({storage,now=Date.now,onCached=()=>{},onRe
     return refresh();
   }
   function clear(){
-    generation++;memory.clear();pending.clear();
+    generation++;memory.clear();pending.clear();failures.clear();
     try{const keys=Array.from({length:storage?.length??0},(_,i)=>storage!.key(i));for(const key of keys)if(key?.startsWith(prefix))storage?.removeItem(key);}catch{}
   }
   return {read,clear};

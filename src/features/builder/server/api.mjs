@@ -10,11 +10,13 @@ import { PaperError, runPaperStrategy } from "../execution/paper.ts";
 import { runExecutionAgent } from "../execution/agent.ts";
 import { createSepoliaProxy, createArkivProxy } from "./rpc.mjs";
 import {runHistoricalBacktest} from '../execution/backtest.ts';
+import {createChartHistory} from '../market/chart-history.ts';
 
 export function createApiHandler({fetcher = fetch, market = createLiveMarkets({fetcher})} = {}) {
   // shortcut: local demo concurrency gate, replace with authenticated per-user limits before hosting.
   const handleSepolia = createSepoliaProxy(fetcher);
   const handleArkiv = createArkivProxy(fetcher);
+  const chartHistory = createChartHistory({fetcher});
   const performance=createFlashPerformance({fetcher});
   let aiBusy = false;
   let backtestBusy = false;
@@ -155,12 +157,12 @@ export function createApiHandler({fetcher = fetch, market = createLiveMarkets({f
     }
     if (pathname === "/api/arkiv-rpc") {await handleArkiv(request,response);return;}
     if (pathname === "/api/sepolia-rpc") {await handleSepolia(request,response);return;}
-    if (pathname === "/api/market" || pathname === "/api/price" || pathname === "/api/chart-price") {
+    if (pathname === "/api/market" || pathname === "/api/price" || pathname === "/api/chart-price" || pathname === "/api/chart-history") {
       if (request.method !== "GET") {response.setHeader("Allow","GET");response.writeHead(405).end("Method not allowed.");return;}
       if ((request.headers.origin && request.headers.origin !== `http://${request.headers.host}`) ||
           (request.headers["sec-fetch-site"] && !["same-origin","none"].includes(request.headers["sec-fetch-site"]))) {response.writeHead(403).end("Open market data from this local demo only.");return;}
       response.setHeader("Content-Type","application/json; charset=utf-8");
-      try {const pairId=new URL(request.url,"http://127.0.0.1").searchParams.get("pair")??"eth-usdc";pairForStrategy(pairId);const data=await (pathname==="/api/chart-price"?market.chartPrice(pairId):pathname==="/api/price"?market.displayPrice(pairId):market.refresh(pairId));response.writeHead(200).end(JSON.stringify({ok:true,data}));}
+      try {const pairId=new URL(request.url,"http://127.0.0.1").searchParams.get("pair")??"eth-usdc";pairForStrategy(pairId);const data=await (pathname==="/api/chart-history"?chartHistory(pairId):pathname==="/api/chart-price"?market.chartPrice(pairId):pathname==="/api/price"?market.displayPrice(pairId):market.refresh(pairId));response.writeHead(200).end(JSON.stringify({ok:true,data}));}
       catch (error) {if(error?.message==="Choose a supported trading pair and network."){response.writeHead(400).end(JSON.stringify({ok:false,error:{message:error.message}}));return;}const safe=error instanceof FlashError?error:new FlashError("Historical, Chainlink or Flash market data is unavailable.");response.writeHead(safe.status).end(JSON.stringify({ok:false,error:{code:safe.code,message:safe.message}}));}
       return;
     }

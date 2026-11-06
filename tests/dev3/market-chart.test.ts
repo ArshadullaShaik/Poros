@@ -111,3 +111,49 @@ test('chart permits the bounded oracle clock drift accepted by the server',()=>{
  assert.equal(chart.observe({...price(),observedAtMs:182000},2000),true);
  assert.equal(chart.observe({...price(),observedAtMs:302001},2000),false);
 });
+
+test('cached candles render before a pending price request, without chart grid lines',async()=>{
+ const {mountMarketChart}=await import('../../src/features/builder/demo/chart.js');
+ const storage=new Storage(),time=20000;
+ const saved=createChartState({storage,now:()=>time});saved.select('eth-usdc');
+ saved.observe({...price(),source:'FLASH'},10000);saved.observe({...price('eth-usdc','2501.000000'),source:'FLASH'},15000);
+ const ids=['chart-position','chart-pnl','chart-position-note','market-chart-svg','chart-pair','chart-network','chart-last-price','chart-agent-status','chart-ai-count','chart-targets','chart-activity','chart-observation','chart-feed-status','chart-hover'];
+ const controls=new Map(ids.map(id=>[id,new Element()]));
+ const root={defaultView:{localStorage:storage},querySelector:(id:string)=>controls.get(id.slice(1)),querySelectorAll:()=>[],createElement:()=>new Element(),createElementNS:()=>new Element()};
+ let finish!:(value:Response)=>void;
+ const chart=mountMarketChart({root,now:()=>time,getPair:()=>({id:'eth-usdc',base:{reference:'ETH',symbol:'WETH'},quote:{symbol:'USDC'},network:{name:'Base'}}),getDraft:()=>({nodes:[]}),request:()=>new Promise<Response>(resolve=>{finish=resolve;})});
+ const pending=chart.refresh();
+ assert.match(controls.get('chart-last-price')!.textContent,/2,501/);
+ assert.match(controls.get('chart-feed-status')!.textContent,/CACHED/);
+ const shapes=controls.get('market-chart-svg')!.children;
+ assert.ok(shapes.some(el=>el.attrs.fill==='#12c7b4'&&el.attrs.width));
+ assert.equal(shapes.some(el=>['#1b2a3c','#142336'].includes(el.attrs.stroke)),false);
+ finish(Response.json({ok:true,data:{...price('eth-usdc','2502.000000'),source:'FLASH'}}));await pending;
+ assert.match(controls.get('chart-last-price')!.textContent,/2,502/);chart.stop();
+});
+
+test('historical OHLC is cached separately from live observations and cannot fabricate trades',()=>{
+ const storage=new Storage(),time=180000,chart=createChartState({storage,now:()=>time});chart.select('eth-usdc');
+ const candle={time:60000,start:60000,end:120000,open:100,high:110,low:90,close:105,source:'COINBASE'};
+ assert.equal(chart.history({pairId:'eth-usdc',source:'COINBASE',candles:[candle]}),true);
+ assert.equal(chart.snapshot().points.length,0);assert.equal(chart.snapshot().markers.length,0);
+ const restored=createChartState({storage,now:()=>time});restored.select('eth-usdc');
+ assert.equal(restored.snapshot().candles.length,1);assert.equal(restored.snapshot().cached,true);
+ assert.equal(restored.history({pairId:'btc-usdt',source:'COINBASE',candles:[candle]}),false);
+ assert.equal(restored.history({pairId:'eth-usdc',source:'COINBASE',candles:[{...candle,high:99}]}),false);
+ assert.equal(restored.history({pairId:'eth-usdc',source:'COINBASE',candles:[{...candle,end:240000}]}),false);
+});
+
+test('historical candles appear while the live quote is still pending',async()=>{
+ const {mountMarketChart}=await import('../../src/features/builder/demo/chart.js');
+ const ids=['chart-position','chart-pnl','chart-position-note','market-chart-svg','chart-pair','chart-network','chart-last-price','chart-agent-status','chart-ai-count','chart-targets','chart-activity','chart-observation','chart-feed-status','chart-hover','chart-history-status'];
+ const controls=new Map(ids.map(id=>[id,new Element()]));
+ const root={querySelector:(id:string)=>controls.get(id.slice(1)),querySelectorAll:()=>[],createElement:()=>new Element(),createElementNS:()=>new Element()};
+ let finish!:(value:Response)=>void;
+ const chart=mountMarketChart({root,now:()=>180000,getPair:()=>({id:'eth-usdc',base:{reference:'ETH',symbol:'WETH'},quote:{symbol:'USDC'},network:{name:'Base'}}),getDraft:()=>({nodes:[]}),request:async(url:string)=>url.includes('chart-history')?Response.json({ok:true,data:{pairId:'eth-usdc',source:'COINBASE',candles:[{time:60000,start:60000,end:120000,open:100,high:110,low:90,close:105,source:'COINBASE'}]}}):new Promise<Response>(resolve=>{finish=resolve;})});
+ const live=chart.refresh();await chart.preload();
+ assert.match(controls.get('chart-last-price')!.textContent,/105/);assert.match(controls.get('chart-observation')!.textContent,/Coinbase USD history/);
+ assert.ok(controls.get('market-chart-svg')!.children.some(el=>el.attrs.fill==='#12c7b4'&&el.attrs.width));
+ finish(Response.json({ok:true,data:price('eth-usdc','106.000000')}));await live;
+ assert.match(controls.get('chart-last-price')!.textContent,/106/);chart.stop();
+});

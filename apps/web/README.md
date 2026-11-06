@@ -61,3 +61,11 @@ For a production-style local demo, run `npm --prefix apps/web run build` followe
 Home, Trade, Orders, Communities, Profile, and 0G Pot share one header, logo, and theme. Trade and Orders share a persistent layout so switching between them keeps the draft and active run in memory. Other workspaces use full-document navigation to preserve the builder draft warning and clear in-memory private keys when leaving the trading workspace. Community deep links retain their existing hash routes. The existing canvas and community controllers run inside Next client boundaries.
 
 Run the production build before the web tests, which verify the actual Next server and generated assets.
+
+## Arkiv query load
+
+Set `ARKIV_ACCESS_KEY` in the root `.env.local` to use an Arkiv account's query allowance, then restart the server. The key is used server-side and must stay out of Git. This does not remove the provider's quota.
+
+The Arkiv proxy merges identical in-flight reads across callers, bounds upstream concurrency to four with a queue of 32, and honors rate-limit cooldowns with `Retry-After`. Only chain identity is cached for 60 seconds; entity, query, block timing and transaction verification results are not cached by this proxy. Browser public-list caching keeps its five-minute age limit and backs off failed refreshes from 15 seconds up to two minutes. Membership/payment verification does not use that stale public cache.
+
+Coordination is per running server process. Multiple production replicas need shared coordination (for example a Redis queue/cache) or an indexed public feed service to maintain the same limits across the deployment; this implementation does not claim unlimited horizontal scale.

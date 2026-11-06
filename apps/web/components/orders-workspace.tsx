@@ -1,5 +1,5 @@
 'use client';
-import {useEffect, useRef, useState} from 'react';
+import {useEffect, useLayoutEffect, useRef, useState} from 'react';
 import Link from 'next/link';
 import {MarketChart} from './market-chart';
 import {createInjectedWallet} from '../src/wallet.ts';
@@ -42,9 +42,10 @@ export function OrdersWorkspace() {
     } catch { /* A missing or invalid preference uses the default market. */ }
   }, []);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const chart = mountMarketChart({getPair:()=>pairRef.current,getDraft:()=>({nodes:rangesRef.current?.pairId===pairRef.current.id?rangesRef.current.ranges:[]})});
     chartRef.current = chart;
+    void chart.preload();
     void chart.refresh();
     const timer = setInterval(() => {if (!document.hidden) void chart.refresh();},2000);
     const visible = () => {if (!document.hidden) void chart.refresh();};

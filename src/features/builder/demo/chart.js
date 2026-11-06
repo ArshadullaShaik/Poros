@@ -1,4 +1,7 @@
 const validPrice=value=>typeof value==='string'&&/^\d+\.\d{6}$/.test(value)&&Number(value)>0&&Number(value)<=1000000;
+function validHistory(candles,now){
+  return Array.isArray(candles)&&candles.length>0&&candles.length<=60&&candles.every((c,i)=>c&&c.source==='COINBASE'&&Number.isSafeInteger(c.time)&&c.time%60000===0&&c.start===c.time&&c.end===c.time+60000&&c.end<=now&&(i===0||c.time>candles[i-1].time)&&[c.open,c.high,c.low,c.close].every(Number.isFinite)&&c.low>0&&c.high<=1000000&&c.low<=Math.min(c.open,c.close)&&c.high>=Math.max(c.open,c.close));
+}
 export function sampledCandles(points){
   const candles=new Map();
   for(const point of points){
@@ -22,18 +25,18 @@ export function paperPosition(data){
   return {quantity,entryPrice:quantity>1e-9?basis/quantity:null,cost,realizedPnl};
 }
 export function createChartState({storage,now=Date.now}={}){
-  let pairId,points=[],markers=[],events=[],message='Ready · start a strategy to monitor its targets.',inferences=0,seen=new Set(),cached=false,position=null,livePosition=null;
+  let pairId,points=[],candles=[],markers=[],events=[],message='Ready · start a strategy to monitor its targets.',inferences=0,seen=new Set(),cached=false,position=null,livePosition=null;
   const prefix='poros.chart.v1.',maxAge=3600000;
   function select(id){
     if(id===pairId)return false;
-    pairId=id;points=[];markers=[];events=[];position=null;livePosition=null;seen.clear();inferences=0;cached=false;message='Ready · start a strategy to monitor its targets.';
+    pairId=id;points=[];candles=[];markers=[];events=[];position=null;livePosition=null;seen.clear();inferences=0;cached=false;message='Ready · start a strategy to monitor its targets.';
     try{
       const raw=storage?.getItem(prefix+id);
       if(raw&&raw.length<=250000){
         const entry=JSON.parse(raw),time=now();
         if(entry.pairId===id&&Number.isFinite(entry.savedAt)&&entry.savedAt<=time&&time-entry.savedAt<=maxAge&&Array.isArray(entry.points)&&entry.points.length<=1800&&entry.points.every((p,i)=>
           p&&Number.isFinite(p.time)&&p.time<=time&&(i===0||p.time>entry.points[i-1].time)&&Number.isFinite(p.price)&&p.price>0&&p.price<=1000000&&Number.isFinite(p.oracleTime)&&p.oracleTime>0&&p.oracleTime<=p.time+300000&&['FLASH','CHAINLINK'].includes(p.source)
-        )){points=entry.points.filter(p=>time-p.time<=maxAge);cached=points.length>0;}
+        )){points=entry.points.filter(p=>time-p.time<=maxAge);if(validHistory(entry.candles,time))candles=entry.candles.filter(c=>time-c.time<=maxAge);cached=points.length>0||candles.length>0;}
       }
     }catch{/* Browser storage is optional. */}
     return true;
@@ -41,7 +44,7 @@ export function createChartState({storage,now=Date.now}={}){
   function save(){
     if(!storage)return;
     try{
-      storage.setItem(prefix+pairId,JSON.stringify({pairId,savedAt:now(),points}));
+      storage.setItem(prefix+pairId,JSON.stringify({pairId,savedAt:now(),points,candles}));
       const keys=Array.from({length:storage.length},(_,i)=>storage.key(i)).filter(key=>key?.startsWith(prefix));
       keys.sort((a,b)=>{try{return JSON.parse(storage.getItem(b)).savedAt-JSON.parse(storage.getItem(a)).savedAt;}catch{return 0;}});
       for(const key of keys.slice(8))storage.removeItem(key);
@@ -76,7 +79,11 @@ export function createChartState({storage,now=Date.now}={}){
     const next=event.message??data?.message;
     if(typeof next==='string'&&next!==message){message=next;events.push({time,message});events=events.slice(-30);}
   }
-  return {select,observe,activity,resetActivity(){markers=[];events=[];seen.clear();position=null;livePosition=null;inferences=0;message='Ready · start a strategy to monitor its targets.';},snapshot:()=>({pairId,points:[...points],markers:[...markers],events:[...events],message,inferences,cached,position,livePosition})};
+  function history(data){
+    if(data?.pairId!==pairId||data.source!=='COINBASE'||!validHistory(data.candles,now()))return false;
+    candles=data.candles.filter(c=>now()-c.time<=maxAge);save();return true;
+  }
+  return {select,observe,history,activity,resetActivity(){markers=[];events=[];seen.clear();position=null;livePosition=null;inferences=0;message='Ready · start a strategy to monitor its targets.';},snapshot:()=>({pairId,points:[...points],candles:[...candles],markers:[...markers],events:[...events],message,inferences,cached,position,livePosition})};
 }
 
 export function chartTimeRange(points,windowMs,now){
@@ -90,12 +97,16 @@ export function mountMarketChart({root=document,getPair,getDraft,request=fetch,n
   const $=id=>root.querySelector(`#${id}`),svg=$('market-chart-svg'),state=createChartState({storage,now});
   const money=value=>new Intl.NumberFormat('en-US',{style:'currency',currency:'USD',maximumFractionDigits:value<1?6:2}).format(value);
   const clock=time=>new Date(time).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit',second:'2-digit'});
-  let controller,sequence=0,pending=false,windowMs=900000,lastPlot,stopped=false;
+  let controller,historyController,historyPair,sequence=0,pending=false,windowMs=900000,lastPlot,stopped=false;
   const ns='http://www.w3.org/2000/svg';
   function node(tag,attrs={},text){const el=root.createElementNS(ns,tag);for(const [key,value]of Object.entries(attrs))el.setAttribute(key,String(value));if(text!==undefined)el.textContent=text;return el;}
   function ranges(){return getDraft().nodes.filter(item=>item.type==='signal.price'&&Number.isFinite(item.minPriceUsd)&&Number.isFinite(item.maxPriceUsd));}
   function render(){
-    const pair=getPair(),data=state.snapshot(),last=data.points.at(-1),{start,end}=chartTimeRange(data.points,windowMs,now()),span=end-start,points=data.points.filter(p=>p.time>=start);
+    const pair=getPair(),data=state.snapshot();
+    const allCandles=[...new Map([...data.candles,...sampledCandles(data.points)].map(c=>[c.time,c])).values()].sort((a,b)=>a.time-b.time);
+    const recent=data.candles.at(-1),quote=data.points.at(-1);
+    const last=recent&&(!quote||recent.end>quote.time)?{price:recent.close,time:recent.end,oracleTime:recent.end,source:'COINBASE'}:quote;
+    const timeline=allCandles.map(c=>({time:c.end})),{start,end}=chartTimeRange(timeline,windowMs,now()),span=end-start,points=data.points.filter(p=>p.time>=start);
     $('chart-pair').textContent=`${pair.base.reference} / USD`;$('chart-network').textContent=`${pair.base.symbol}/${pair.quote.symbol} · ${pair.network.name}`;
     $('chart-last-price').textContent=last?money(last.price):'—';
     if(data.cached&&['loading','cached',undefined].includes($('chart-feed-status').dataset.state)){$('chart-feed-status').textContent='CACHED · REFRESHING';$('chart-feed-status').dataset.state='cached';}
@@ -119,19 +130,19 @@ export function mountMarketChart({root=document,getPair,getDraft,request=fetch,n
     }else{position.textContent='No active position data';pnl.textContent='';note.textContent='Start a strategy to see its position and entry/exit markers.';}
     svg.replaceChildren();lastPlot=undefined;
     const W=1000,H=360,L=18,R=890,T=20,B=320;
-    if(!points.length){$('chart-observation').textContent='No saved history for this market. Waiting for a live price.';svg.append(node('text',{x:500,y:170,'text-anchor':'middle',fill:'#8d9bb2'},'Waiting for the first live price observation…'));return;}
-    const candles=sampledCandles(points),entry=data.position?.entryPrice;
+    if(!allCandles.length){$('chart-observation').textContent='Loading recent candles and live prices…';svg.append(node('text',{x:500,y:170,'text-anchor':'middle',fill:'#8d9bb2'},'Loading candlesticks…'));return;}
+    const candles=allCandles.filter(c=>c.end>=start),entry=data.position?.entryPrice;
     let low=Math.min(...candles.map(c=>c.low),entry??Infinity),high=Math.max(...candles.map(c=>c.high),entry??-Infinity);
     const padding=Math.max((high-low)*0.12,last.price*0.002);low=Math.max(0,low-padding);high+=padding;
     const x=time=>L+(time-start)/span*(R-L),y=price=>B-(price-low)/(high-low)*(B-T);
     lastPlot={points,candles,x,y,L,R,T,B,W,H};
     for(let i=0;i<=5;i++){
       const yy=T+(B-T)*i/5,value=high-(high-low)*i/5;
-      svg.append(node('line',{x1:L,x2:R,y1:yy,y2:yy,stroke:'#1b2a3c'}),node('text',{x:R+12,y:yy+4,fill:'#8d9bb2','font-size':12},money(value)));
+      svg.append(node('text',{x:R+12,y:yy+4,fill:'#8d9bb2','font-size':12},money(value)));
     }
     for(let i=0;i<=4;i++){
       const xx=L+(R-L)*i/4;
-      svg.append(node('line',{x1:xx,x2:xx,y1:T,y2:B,stroke:'#142336'}),node('text',{x:xx,y:B+24,fill:'#8d9bb2','font-size':11,'text-anchor':i===0?'start':i===4?'end':'middle'},clock(start+span*i/4)));
+      svg.append(node('text',{x:xx,y:B+24,fill:'#8d9bb2','font-size':11,'text-anchor':i===0?'start':i===4?'end':'middle'},clock(start+span*i/4)));
     }
     for(const range of ranges()){
       if(range.maxPriceUsd<low||range.minPriceUsd>high)continue;
@@ -141,7 +152,7 @@ export function mountMarketChart({root=document,getPair,getDraft,request=fetch,n
     const color=source=>source==='FLASH'?'#12c7b4':'#7aa8ed';
     const width=Math.min(18,Math.max(2,60000/span*(R-L)*0.65));
     for(const candle of candles){
-      const cx=x((candle.start+candle.end)/2),up=candle.close>=candle.open,fill=candle.source==='CHAINLINK'?'#7aa8ed':up?'#12c7b4':'#ef5e77';
+      const cx=Math.max(L,Math.min(R,x((candle.start+candle.end)/2))),up=candle.close>=candle.open,fill=candle.source==='CHAINLINK'?'#7aa8ed':up?'#12c7b4':'#ef5e77';
       svg.append(node('line',{x1:cx,x2:cx,y1:y(candle.high),y2:y(candle.low),stroke:fill,'stroke-width':1.5}),node('rect',{x:cx-width/2,y:Math.min(y(candle.open),y(candle.close))-0.75,width,height:Math.max(1.5,Math.abs(y(candle.open)-y(candle.close))),fill}));
     }
     if(entry){svg.append(node('line',{x1:L,x2:R,y1:y(entry),y2:y(entry),stroke:'#f6c85b','stroke-dasharray':'6 4'}),node('text',{x:L+8,y:y(entry)-7,fill:'#f6c85b','font-size':11},`PAPER ENTRY ${money(entry)}`));}
@@ -151,7 +162,21 @@ export function mountMarketChart({root=document,getPair,getDraft,request=fetch,n
       const mx=x(mark.time),my=y(mark.price),sell=mark.side==='SELL';
       const el=node('polygon',{points:sell?`${mx-7},${my-12} ${mx+7},${my-12} ${mx},${my}`:`${mx-7},${my+12} ${mx+7},${my+12} ${mx},${my}`,fill:sell?'#f05b72':'#f6c85b',stroke:'#0b1727','stroke-width':1});svg.append(node('text',{x:mx,y:my+(sell?-17:26),'text-anchor':'middle',fill:sell?'#f05b72':'#f6c85b','font-size':10},mark.label));el.append(node('title',{},`${clock(mark.time)} · ${mark.label} · ${money(mark.price)}`));svg.append(el);
     }
-    $('chart-observation').textContent=`${candles.length} sampled 1m candles · ${points.length} ${data.cached?'cached':'live'} observations · auto-fit to collected history · ${last.source==='FLASH'?'Flash quote':'Chainlink oracle'} updated ${clock(last.oracleTime)}${points.length>1&&points.every(point=>point.price===last.price)?' · Price unchanged across these observations':''}`;
+    $('chart-observation').textContent=`${candles.length} one-minute candles · ${data.candles.length?'Coinbase USD history + ':''}${points.length} ${data.cached?'cached':'live'} quote observations · ${last.source==='FLASH'?'Flash quote':last.source==='COINBASE'?'Historical close':'Chainlink oracle'} updated ${clock(last.oracleTime)}${points.length>1&&points.every(point=>point.price===last.price)?' · Price unchanged across these observations':''}`;
+  }
+  async function preload(){
+    const pairId=getPair().id;if(stopped||historyPair===pairId)return;
+    historyPair=pairId;historyController?.abort();const current=historyController=new AbortController();
+    const status=$('chart-history-status');
+    if(status)status.textContent='Loading recent Coinbase USD candles…';
+    try{
+      const response=await request(`/api/chart-history?pair=${encodeURIComponent(pairId)}`,{cache:'no-store',signal:AbortSignal.any([current.signal,AbortSignal.timeout(12000)])}),payload=await response.json();
+      if(stopped||historyController!==current||getPair().id!==pairId)return;
+      if(!response.ok||!payload.ok||!state.history(payload.data))throw new Error('Historical data unavailable');
+      if(status)status.textContent='History: Coinbase spot USD, a reference for the selected on-chain pair. Gaps are left empty. Live quotes: Flash / Chainlink.';
+      if(!state.snapshot().points.length){$('chart-feed-status').textContent='HISTORICAL · REFRESHING';$('chart-feed-status').dataset.state='cached';}
+      render();
+    }catch{if(!stopped&&historyController===current&&status)status.textContent='Historical candles unavailable for this market. Saved candles and live quotes remain available.';}
   }
   async function refresh(){
     if(stopped)return;
@@ -175,9 +200,9 @@ export function mountMarketChart({root=document,getPair,getDraft,request=fetch,n
     if(!lastPlot)return;
     const rect=svg.getBoundingClientRect(),xx=(event.clientX-rect.left)*lastPlot.W/rect.width;
     const candle=lastPlot.candles.reduce((a,b)=>Math.abs(lastPlot.x((a.start+a.end)/2)-xx)<Math.abs(lastPlot.x((b.start+b.end)/2)-xx)?a:b);
-    $('chart-hover').textContent=`${clock(candle.time)} · O ${money(candle.open)} H ${money(candle.high)} L ${money(candle.low)} C ${money(candle.close)} · ${candle.source==='FLASH'?'Flash quotes':'Chainlink reference'}`;
+    $('chart-hover').textContent=`${clock(candle.time)} · O ${money(candle.open)} H ${money(candle.high)} L ${money(candle.low)} C ${money(candle.close)} · ${candle.source==='FLASH'?'Flash quotes':candle.source==='COINBASE'?'Coinbase USD history':'Chainlink reference'}`;
   },{signal:listeners.signal});
   svg.addEventListener('pointerleave',()=>{$('chart-hover').textContent='Move over the chart to inspect a price';},{signal:listeners.signal});
   state.select(getPair().id);render();
-  return {refresh,draftChanged(){if(state.select(getPair().id)){sequence++;controller?.abort();pending=false;$('chart-feed-status').textContent='CONNECTING';$('chart-feed-status').dataset.state='loading';void refresh();}render();},activity(event){state.activity(event);render();},resetActivity(){state.resetActivity();render();},stop(){listeners.abort();stopped=true;sequence++;controller?.abort();}};
+  return {refresh,preload,draftChanged(){if(state.select(getPair().id)){sequence++;controller?.abort();pending=false;$('chart-feed-status').textContent='CONNECTING';$('chart-feed-status').dataset.state='loading';void preload();void refresh();}render();},activity(event){state.activity(event);render();},resetActivity(){state.resetActivity();render();},stop(){listeners.abort();stopped=true;sequence++;controller?.abort();historyController?.abort();}};
 }

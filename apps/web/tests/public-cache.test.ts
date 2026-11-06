@@ -28,3 +28,14 @@ test('public list cache validates summaries and never wraps write or membership 
  const summaries={...page,items:[{strategyId:key,rootVersionKey:key,creator:wallet,name:'Rules',category:'signal',executionChainId:8453,tokenIn:wallet,tokenOut:wallet,expiresAtBlock:'999',source:'arkiv'}]};assert.equal(validStrategies(summaries),true);
  let calls=0;const api=cachedPublicLists({listCommunities:async()=>{calls++;return page;},listStrategies:async()=>summaries} as any,createPublicReadCache());await api.listCommunities();await api.listCommunities();assert.equal(calls,1);assert.equal('reconcileRequest' in api,false);assert.equal('getMembership' in api,false);
 });
+
+test('failed public refreshes back off while saved public data stays available, and clearing permits a fresh read',async()=>{
+ let time=0,calls=0;const cache=createPublicReadCache({now:()=>time});
+ await cache.read('feed',async()=>({name:'Saved'}),valid);time=31000;
+ const fail=async()=>{calls++;throw new Error('Rate limited');};
+ await cache.read('feed',fail,valid);await new Promise(resolve=>setImmediate(resolve));
+ for(let i=0;i<10;i++)assert.equal((await cache.read('feed',fail,valid)).name,'Saved');
+ await new Promise(resolve=>setImmediate(resolve));assert.equal(calls,1);
+ time+=15001;await cache.read('feed',fail,valid);await new Promise(resolve=>setImmediate(resolve));assert.equal(calls,2);
+ cache.clear();assert.equal((await cache.read('feed',async()=>({name:'New'}),valid)).name,'New');
+});
