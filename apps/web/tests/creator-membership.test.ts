@@ -100,3 +100,15 @@ test('retrying the same encrypted draft resumes its saved request and other draf
   assert.equal(calls.length,2);
  }finally{panel.dispose();Object.defineProperty(globalThis,'window',{value:previous,configurable:true});Object.defineProperty(globalThis,'localStorage',{value:storage,configurable:true});}
 });
+
+test('private composer mounting and successful publishing never open the signed read feed',async()=>{
+ const previous=globalThis.window,storage=globalThis.localStorage;
+ Object.defineProperty(globalThis,'window',{value:new EventTarget(),configurable:true});
+ Object.defineProperty(globalThis,'localStorage',{value:{getItem:()=>null},configurable:true});
+ const panel=new CreatorMembershipPanel({getContext:async()=>({account:owner})} as any,{} as any);let feeds=0;
+ const root:any={isConnected:true,innerHTML:'',addEventListener(){},replaceChildren(){},querySelector:()=>({textContent:''})};
+ panel.service.getPlan=async()=>undefined;panel.service.members=async()=>[];panel.readers.now=async()=>1000;
+ (panel as any).feed=async()=>{feeds++;};(panel as any).publishSignal=async()=>{};
+ try{await panel.mount(root,owner,owner,false,false);await panel.publishPost({title:'Private',body:'Rules',source:'manual'});assert.equal(feeds,0);}
+ finally{panel.dispose();Object.defineProperty(globalThis,'window',{value:previous,configurable:true});Object.defineProperty(globalThis,'localStorage',{value:storage,configurable:true});}
+});

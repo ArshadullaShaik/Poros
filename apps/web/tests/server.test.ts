@@ -53,7 +53,7 @@ test('Next serves every workspace with one identity and isolated browser assets'
     for (const name of await readdir(assets, {recursive: true})) {
       if (!name.endsWith('.js')) continue;
       const script = await readFile(new URL(name.replaceAll('\\', '/'), assets), 'utf8');
-      assert.doesNotMatch(script, /node:sqlite|createWalletAuth|openMarketplace|ARKIV_ACCESS_KEY|diagnostic-private/);
+      assert.doesNotMatch(script, /node:sqlite|createWalletAuth|openMarketplace|ARKIV_ACCESS_KEY|MEMBERSHIP_RELAY_PRIVATE_KEY|diagnostic-private/);
     }
   } finally {
     await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));

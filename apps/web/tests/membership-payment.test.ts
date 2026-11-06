@@ -61,3 +61,13 @@ test('storage failure after broadcast preserves uncertainty and prevents a secon
   await assert.rejects(sendMembershipPayment(env.wallet,payment,env.storage,async()=>{},env.locks));
   assert.equal(env.sends(),1);
 });
+
+test('Rabdi membership sends one native transfer with its exact purchase intent',async()=>{
+ const env=setup();let sends=0;
+ const wallet={...env.wallet,getContext:async()=>({account:buyer,provider:{request:async()=> '0x76edad'}}),sendTransaction:async(transaction:any)=>{sends++;assert.equal(transaction.chainId,7794095);assert.notEqual(transaction.data,'0x');assert.match(Buffer.from(transaction.data.slice(2),'hex').toString(),/poros:membership-payment:1/);return hash;}} as unknown as WalletBridge;
+ const provider={request:async()=> '0x76edad'};wallet.getContext=async()=>({account:buyer,provider} as any);
+ // Decimal chain 7794095 is checked independently of the encoded transfer.
+ provider.request=async()=> '0x'+(7794095).toString(16);
+ const result=await sendMembershipPayment(wallet,{...payment,chainId:7794095},env.storage,async()=>{},env.locks);
+ assert.equal(result.hash,hash);assert.equal(sends,1);
+});

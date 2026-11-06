@@ -3,7 +3,7 @@ import {rabdi} from '@arkiv-network/sdk/chains';
 import {and,asc,eq,gt} from '@arkiv-network/sdk/query';
 import type {FullEntity,Expression} from '@arkiv-network/sdk/query';
 import {addr,bytes,defineSchema,key,str,type Schema} from '@arkiv-network/sdk/schema';
-import {custom,http,hexToBytes,type Hex} from 'viem';
+import {custom,http,hexToBytes,type Hex,type Account} from 'viem';
 import type {StoreOptions} from '../contracts.ts';
 import type {EventDTO,EventFilter,EventInput,EventRepository} from './contracts.ts';
 import {address,canonical,entityKey,parseCanonicalRecord,recordBytes,requestId} from '../codec.ts';
@@ -14,7 +14,7 @@ import {CHAIN_ID,CHAT_LIFETIME_DAYS,DURABLE_LIFETIME_DAYS} from '../schema.ts';
 export const SOCIAL_NAMESPACE='ethmumbai.social.v1.events';
 export const socialLifetimeDays=(type:EventInput['type'])=>type==='message'?CHAT_LIFETIME_DAYS:DURABLE_LIFETIME_DAYS;
 const schema:Schema=defineSchema(SOCIAL_NAMESPACE,{eventType:str().indexed(),subject:str().indexed(),scope:str().indexed(),requestId:str().indexed(),record:bytes()});
-export function createArkivEventRepository(options:StoreOptions={}):EventRepository {
+export function createArkivEventRepository(options:StoreOptions & {signer?:Account}={}):EventRepository {
   const chain=rabdi({accessKey:options.accessKey??''});
   const client=createPublicClient({chain,transport:options.publicTransport??http(typeof window === 'undefined' ? undefined : '/api/arkiv-rpc',{timeout:10000,retryCount:0})});
   const locks=new Set<Hex>();
@@ -37,7 +37,7 @@ export function createArkivEventRepository(options:StoreOptions={}):EventReposit
   }
   async function context(){if(!options.getWalletContext)fail('WALLET_REQUIRED');return options.getWalletContext();}
   const repository:EventRepository={source:'arkiv',
-    actor:()=>safe(async()=>address((await context()).account)),
+    actor:()=>safe(async()=>options.signer?address(options.signer.address):address((await context()).account)),
     read:key=>safe(async()=>decode(await client.getEntity(entityKey(key)))),
     scan:filter=>safe(async()=>{
       if(Object.keys(filter).some(k=>!['type','subject','scope','actor','requestId','afterBlock'].includes(k)))fail('INVALID_INPUT');
@@ -65,14 +65,18 @@ export function createArkivEventRepository(options:StoreOptions={}):EventReposit
     append:input=>safe(async()=>{
       const record=buildEvent(input);if(locks.has(record.actor))fail('WRITE_STATUS_UNKNOWN');locks.add(record.actor);
       try{
-        const wallet=await context();const account=address(wallet.account);if(account!==record.actor)fail('ACCOUNT_CHANGED');
-        async function guard(){const latest=await context();if(address(latest.account)!==account||latest.provider!==wallet.provider)fail('ACCOUNT_CHANGED');
-          const accounts=await wallet.provider.request({method:'eth_accounts'});if(!accounts[0]||address(accounts[0])!==account)fail('ACCOUNT_CHANGED');
-          if(BigInt(await wallet.provider.request({method:'eth_chainId'}))!==BigInt(CHAIN_ID))fail('WRONG_CHAIN');}
-        if(BigInt(await wallet.provider.request({method:'eth_chainId'}))!==BigInt(CHAIN_ID)){if(!wallet.requestRabdiSwitch)fail('WRONG_CHAIN');await wallet.requestRabdiSwitch();}
+        const wallet=options.signer?undefined:await context();
+        const account=address(options.signer?.address??wallet!.account);if(account!==record.actor)fail('ACCOUNT_CHANGED');
+        async function guard(){
+          if(options.signer){if(await client.getChainId()!==CHAIN_ID)fail('WRONG_CHAIN');return;}
+          const latest=await context();if(address(latest.account)!==account||latest.provider!==wallet!.provider)fail('ACCOUNT_CHANGED');
+          const accounts=await wallet!.provider.request({method:'eth_accounts'});if(!accounts[0]||address(accounts[0])!==account)fail('ACCOUNT_CHANGED');
+          if(BigInt(await wallet!.provider.request({method:'eth_chainId'}))!==BigInt(CHAIN_ID))fail('WRONG_CHAIN');
+        }
+        if(wallet&&BigInt(await wallet.provider.request({method:'eth_chainId'}))!==BigInt(CHAIN_ID)){if(!wallet.requestRabdiSwitch)fail('WRONG_CHAIN');await wallet.requestRabdiSwitch();}
         await guard();const prior=await repository.scan({actor:account,requestId:record.requestId});
         if(prior.length>1)fail('DUPLICATE_REQUEST');if(prior[0]){if(prior[0].hash!==record.hash)fail('IDEMPOTENCY_CONFLICT');return prior[0];}
-        const writer=createWalletClient({chain,account,transport:custom(wallet.provider,{retryCount:0})});await guard();
+        const writer=options.signer?createWalletClient({chain,account:options.signer,transport:options.publicTransport??http()}):createWalletClient({chain,account,transport:custom(wallet!.provider,{retryCount:0})});await guard();
         let result;
         try{result=await writer.createEntity(schema,{eventType:str(record.type),subject:str(record.subject),scope:str(record.scope),requestId:str(record.requestId),record:bytes(recordBytes(record))},
           {expiration:ExpirationTime.fromDays(socialLifetimeDays(record.type)),flags:{readonly:true,permissionlessExtension:false}});}catch(e){const error=mapError(e,true);error.requestId=record.requestId;throw error;}

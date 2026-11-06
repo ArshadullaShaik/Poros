@@ -42,8 +42,8 @@ export async function readMemberLibrary({account,events,service,readers,getProfi
   account:Hex;events:Pick<EventRepository,'scan'>;service:CreatorMemberships;readers:Readers;
   getProfile:(wallet:Hex)=>Promise<{displayName:string}|null>;
   readMessages:(keys:Hex[])=>Promise<{signalKey:Hex;content:SignalContent;expiresAt:number|null}[]>;}){
-  const claims=await events.scan({type:'subscription',actor:account,scope:'global'});
-  const ids=[...new Set(claims.map(row=>row.subject))];
+  const subscriptions=await service.subscriptions(account);
+  const ids=[...new Set(subscriptions.map(row=>row.creator))];
   if(ids.length>100)throw new Error('Too many creator memberships to load in this sidebar. Open your community profile.');
   const now=await readers.now(),creators:{id:Hex;name:string;expiresAt:number}[]=[];
   for(const id of ids){

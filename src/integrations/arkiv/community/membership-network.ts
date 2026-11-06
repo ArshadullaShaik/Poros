@@ -10,6 +10,7 @@ export function createMembershipReaders(accessKey?: string, paymentRpcUrl = '/ap
   const arkiv = arkivClient({ chain: rabdi({ accessKey: accessKey ?? '' }), transport: http(typeof window === 'undefined' ? undefined : '/api/arkiv-rpc', { timeout: 10000, retryCount: 0 }) });
   return {
     payments: createPublicClient({ chain: sepolia, transport: http(paymentRpcUrl, { timeout: 15000, retryCount: 0 }) }),
+    rabdiPayments:arkiv,
     async now() { return Number((await arkiv.getBlock()).timestamp) * 1000; },
     async isFailedWrite(hash: `0x${string}`) {
       if(await arkiv.getChainId()!==CHAIN_ID)fail('WRONG_CHAIN');

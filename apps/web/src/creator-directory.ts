@@ -1,3 +1,4 @@
+import {planCurrency} from '../../../src/integrations/arkiv/community/membership-intent.ts';
 import type {Hex} from 'viem';
 import type {ArkivStore} from '../../../src/integrations/arkiv/contracts.ts';
 import type {CreatorMemberships} from '../../../src/integrations/arkiv/community/memberships.ts';
@@ -5,7 +6,7 @@ import type {CommunityHub} from '../../../src/integrations/arkiv/community/servi
 import type {EventRepository} from '../../../src/integrations/arkiv/community/contracts.ts';
 import {escape as e,short,formatAmount} from './core.ts';
 
-export type Creator = {wallet:Hex;name:string;strategies:number;posts:number;priceWei?:string};
+export type Creator = {wallet:Hex;name:string;strategies:number;posts:number;priceWei?:string;currency?:string};
 export async function readCreatorDirectory(strategies: Pick<ArkivStore,'listStrategies'>, memberships: Pick<CreatorMemberships,'plans'>, community: Pick<CommunityHub,'getProfile'|'listThreads'>, events:Pick<EventRepository,'scan'>) {
   const [plans,threads] = await Promise.all([memberships.plans(),events.scan({type:'thread'})]);
   const creators = new Map<Hex,Creator>();
@@ -13,7 +14,7 @@ export async function readCreatorDirectory(strategies: Pick<ArkivStore,'listStra
     if(!creators.has(wallet))creators.set(wallet,{wallet,name:short(wallet),strategies:0,posts:0});
     return creators.get(wallet)!;
   };
-  for(const plan of plans)creator(plan.actor).priceWei=String(plan.data.priceWei);
+  for(const plan of plans){creator(plan.actor).priceWei=String(plan.data.priceWei);creator(plan.actor).currency=planCurrency(plan);}
   const seen=new Set<string>();
   let offset:number|null=0,skipped=0;
   // shortcut: bounded discovery for the local demo; add indexed pagination when the directory grows.
@@ -58,7 +59,7 @@ export function rankCreators(results:CreatorResult[],marketId:string) {
 }
 
 export function creatorCard(row:Creator) {
-  return `<article class="creator-discovery-card"><strong>${e(row.name)}</strong><small>${e(short(row.wallet))} · ${row.strategies} public strategies · ${row.posts} community posts</small><p>${row.priceWei?e(formatAmount(row.priceWei,18))+' Sepolia ETH / 30 days':'Membership not offered yet'}</p><a class="button secondary" href="/community#/profile/${row.wallet}">Profile</a> ${row.priceWei?`<a class="button primary" href="/community#/memberships?creator=${row.wallet}">Subscribe / renew</a>`:''}</article>`;
+  return `<article class="creator-discovery-card"><strong>${e(row.name)}</strong><small>${e(short(row.wallet))} · ${row.strategies} public strategies · ${row.posts} community posts</small><p>${row.priceWei?e(formatAmount(row.priceWei,18))+' '+e(row.currency??'Sepolia ETH')+' / 30 days':'Membership not offered yet'}</p><a class="button secondary" href="/community#/profile/${row.wallet}">Profile</a> ${row.priceWei?`<a class="button primary" href="/community#/memberships?creator=${row.wallet}">Subscribe / renew</a>`:''}</article>`;
 }
 
 export function mountCreatorDirectory(root:HTMLElement,load:()=>Promise<Awaited<ReturnType<typeof readCreatorDirectory>>>,compact=false) {

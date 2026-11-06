@@ -34,6 +34,7 @@ test('personal library uses verified active memberships and loads member signals
     getProfile:async()=>({displayName:'Creator'}),
     readMessages:async(keys:string[])=>keys.map(signalKey=>({signalKey,content:signalData,expiresAt:now+100000})),
     service:{
+      subscriptions:async()=>[{creator},{creator}],
       canReadSignal:async()=>true,
       members:async()=>[{wallet:account,expiresAt:active?now+100000:now-1}],
       signals:async()=>[{key:'0x'+'a'.repeat(64),actor:creator,requestId:'publication',createdAtBlock:'0',data:{format:"swarm-message/1"}}],
@@ -54,7 +55,7 @@ test('personal library uses verified active memberships and loads member signals
 test('more than 20 member messages keeps the newest 20 available',async()=>{
  const expiresAt=Date.now()+100000;
  const result=await readMemberLibrary({account,events:{scan:async()=>[{subject:creator}] as any},readers:{now:async()=>Date.now()},getProfile:async()=>({displayName:'Creator'}),
- service:{members:async()=>[{wallet:account,expiresAt}],canReadSignal:async()=>true,signals:async()=>Array.from({length:25},(_,i)=>({key:('0x'+(i+1).toString(16).padStart(64,'0')),createdAtBlock:String(i+1),data:{format:'swarm-message/1'}}))} as any,
+ service:{subscriptions:async()=>[{creator}],members:async()=>[{wallet:account,expiresAt}],canReadSignal:async()=>true,signals:async()=>Array.from({length:25},(_,i)=>({key:('0x'+(i+1).toString(16).padStart(64,'0')),createdAtBlock:String(i+1),data:{format:'swarm-message/1'}}))} as any,
  readMessages:async keys=>keys.map(signalKey=>({signalKey,content:{title:signalKey,body:'Rules',source:'manual'},expiresAt}))});
  assert.equal(result.entries.length,20);assert.equal(result.entries[0]!.versionId,'0x'+(25).toString(16).padStart(64,'0'));
 });

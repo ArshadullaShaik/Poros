@@ -177,3 +177,22 @@ test('read eligibility requires current and publication-time membership with own
  const gap={...signal,key:hash(31000),createdAtBlock:'31000'};
  assert.equal(await env.service.canReadSignal({signal:gap,wallet:bob,now:4000000001}),false);
 });
+
+test('Rabdi relayed claims prove the buyer payment and retain eligibility when indexing is delayed',async()=>{
+ const {membershipPaymentData}=await import('../../../src/integrations/arkiv/community/membership-intent.ts');
+ const env=setup();const service=createCreatorMemberships(env.events,{payments:env.client,rabdiPayments:env.client,blockTimestamp:async block=>Number(block)*100000});
+ const plan=await service.publishPlan({priceWei:'100',chainId:7794095,requestId:crypto.randomUUID()});
+ assert.equal(plan.data.chainId,7794095);
+ const purchaseId=crypto.randomUUID();env.state.chainId=7794095;env.state.timestamp=10200n;env.state.input=membershipPaymentData({buyer:bob,creator:alice,planKey:plan.key,priceWei:'100',requestId:purchaseId});
+ env.client.getTransaction=async({hash:tx}:any)=>({hash:tx,from:bob,to:alice,value:100n,input:env.state.input,blockNumber:102n,blockHash:hash(3)}) as any;
+ env.client.getTransactionReceipt=async({hash:tx}:any)=>({transactionHash:tx,status:'success',blockNumber:102n,blockHash:hash(3)}) as any;
+ env.state.head=200n;
+ const claim=await env.events.append({type:'subscription-relay',actor:alice,subject:bob,scope:alice,requestId:crypto.randomUUID(),data:{planKey:plan.key,transactionHash:hash(77),purchaseId}});
+ claim.createdAtBlock='120';
+ assert.equal((await service.members(alice))[0]?.wallet,bob);
+ assert.equal((await service.members(alice))[0]?.expiresAt,10200000+MEMBERSHIP_MS);
+ assert.equal((await service.members(alice,105n))[0]?.wallet,bob);
+ assert.equal((await service.subscriptions(bob))[0]?.creator,alice);
+ env.rows.push({...claim,key:hash(888)});assert.equal((await service.members(alice))[0]?.expiresAt,10200000+MEMBERSHIP_MS);
+ env.state.input='0x';assert.deepEqual(await service.members(alice),[]);
+});

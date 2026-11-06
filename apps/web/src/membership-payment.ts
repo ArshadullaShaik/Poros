@@ -1,8 +1,10 @@
+import {membershipPaymentData} from '../../../src/integrations/arkiv/community/membership-intent.ts';
 import type { Hex } from 'viem';
 import type { WalletBridge } from './integration.ts';
 import { failure, keyPattern, walletPattern, withWalletLock } from './core.ts';
 
 export interface MembershipPayment {
+  chainId?:7794095;
   buyer: Hex;
   creator: Hex;
   planKey: Hex;
@@ -18,7 +20,7 @@ export function readMembershipPayment(storage: Journal, buyer: Hex): MembershipP
   const raw = storage.getItem(storageKey(buyer));
   if (!raw) return;
   const value = JSON.parse(raw) as MembershipPayment;
-  if (value.buyer !== buyer || !walletPattern.test(value.creator) || value.creator === buyer ||
+  if ((value.chainId!==undefined&&value.chainId!==7794095)||value.buyer !== buyer || !walletPattern.test(value.creator) || value.creator === buyer ||
       !keyPattern.test(value.planKey) ||
       !/^[1-9][0-9]{0,77}$/.test(value.priceWei) || BigInt(value.priceWei) >= 2n ** 256n ||
       !/^[0-9a-f-]{36}$/.test(value.requestId) || typeof value.attempted !== 'boolean' ||
@@ -38,15 +40,16 @@ export async function sendMembershipPayment(wallet: WalletBridge, payment: Membe
     if (readMembershipPayment(storage, payment.buyer)) failure('WRITE_STATUS_UNKNOWN');
     const original = await wallet.getContext();
     if (original.account.toLowerCase() !== payment.buyer) failure('ACCOUNT_CHANGED');
-    await wallet.switchChain?.(11155111);
+    const chainId=payment.chainId??11155111;
+    await wallet.switchChain?.(chainId);
     await preflight();
     const current = await wallet.getContext();
     if (current.account.toLowerCase() !== payment.buyer || current.provider !== original.provider) failure('ACCOUNT_CHANGED');
-    if (BigInt(await current.provider.request({method:'eth_chainId'})) !== 11155111n) failure('WRONG_CHAIN');
+    if (BigInt(await current.provider.request({method:'eth_chainId'})) !== BigInt(chainId)) failure('WRONG_CHAIN');
     const attempt = {...payment, attempted:true};
     saveMembershipPayment(storage, attempt);
     try {
-      attempt.hash = await wallet.sendTransaction({chainId:11155111,to:payment.creator,data:'0x',value:('0x'+BigInt(payment.priceWei).toString(16)) as Hex},payment.buyer);
+      attempt.hash = await wallet.sendTransaction({chainId,to:payment.creator,data:payment.chainId?membershipPaymentData(payment):'0x',value:('0x'+BigInt(payment.priceWei).toString(16)) as Hex},payment.buyer);
       saveMembershipPayment(storage, attempt);
       return attempt;
     } catch (error) {

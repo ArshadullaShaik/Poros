@@ -6,6 +6,7 @@ import type { EventDTO, EventRepository } from './contracts.ts';
 import { latestEvent } from './state.ts';
 import { verifyMembershipPayment, type PaymentClient } from './sepolia.ts';
 import {validateSwarmPointer,type SwarmMessagePointer} from './member-content.ts';
+import {membershipPaymentData,planChain,RABDI_PAYMENT_CHAIN,signalCreator,verifySignalAuthor} from './membership-intent.ts';
 
 export const MEMBERSHIP_MS = 30 * 24 * 60 * 60 * 1000;
 export interface KeyBox { publicKey: string; salt: string; iv: string; ciphertext: string }
@@ -27,7 +28,7 @@ export function envelopeRequestId(signalKey: Hex, recipient: Hex): string {
 }
 
 export function createCreatorMemberships(events: EventRepository, readers: {
-  payments: PaymentClient; blockTimestamp: (block: bigint) => Promise<number>;
+  payments: PaymentClient; rabdiPayments?:PaymentClient; blockTimestamp: (block: bigint) => Promise<number>;
 }) {
   async function typed(key: Hex, type: EventDTO['type']) {
     const record = await events.read(entityKey(key));
@@ -46,38 +47,46 @@ export function createCreatorMemberships(events: EventRepository, readers: {
     return events.append({ type, actor, subject: actor, scope: 'global', requestId: request,
       data: { ...data, ...(previousKey ? { previousKey } : {}) } });
   }
-  async function verifyClaim(claim: EventDTO) {
-    const plan = await typed(entityKey(claim.data.planKey), 'creator-plan');
-    if (plan.actor !== claim.subject || claim.actor === plan.actor) fail('UNTRUSTED_RECORD');
-    if(claim.data.keyRecord){const key=await typed(entityKey(claim.data.keyRecord),'encryption-key');if(key.actor!==claim.actor||BigInt(key.createdAtBlock)>BigInt(claim.createdAtBlock))fail('UNTRUSTED_RECORD');}
-    const [paidAt, activatedAt, planCreatedAt] = await Promise.all([
-      verifyMembershipPayment(readers.payments, { transactionHash: entityKey(claim.data.transactionHash),
-        buyer: claim.actor, creator: plan.actor, priceWei: String(plan.data.priceWei) }),
-      readers.blockTimestamp(BigInt(claim.createdAtBlock)), readers.blockTimestamp(BigInt(plan.createdAtBlock)),
-    ]);
-    if (paidAt < planCreatedAt || activatedAt < paidAt) fail('PAYMENT_UNVERIFIED');
-    return activatedAt;
+  async function claimRows(creator?:Hex,buyer?:Hex){
+    const [legacy,relayed]=await Promise.all([
+      events.scan({type:'subscription',scope:'global',...(creator?{subject:creator}:{}),...(buyer?{actor:buyer}:{})}),
+      events.scan({type:'subscription-relay',...(creator?{scope:creator}:{}),...(buyer?{subject:buyer}:{})}),
+    ]);return [...legacy,...relayed];
   }
-  async function resolveClaims(rows: EventDTO[]) {
-    const seenPayments = new Set<string>();
-    const memberships = new Map<string, PaidMember & { creator: Hex }>();
-    for (const claim of ordered(rows)) {
-      const transactionHash = String(claim.data.transactionHash);
-      if (seenPayments.has(transactionHash)) continue;
-      let activatedAt: number;
-      try { activatedAt = await verifyClaim(claim); }
-      catch (error) {
-        if (error instanceof StorageError && ['PAYMENT_UNVERIFIED','INVALID_INPUT','UNTRUSTED_RECORD','NOT_FOUND_OR_EXPIRED'].includes(error.code)) continue;
-        throw error;
-      }
-      seenPayments.add(transactionHash);
-      const creator = address(claim.subject);
-      const id = creator + ':' + claim.actor;
-      const previous = memberships.get(id);
-      memberships.set(id, { creator, wallet: claim.actor,
-        expiresAt: Math.max(previous?.expiresAt ?? 0, activatedAt) + MEMBERSHIP_MS, lastClaim: claim.key });
-    }
-    return [...memberships.values()];
+  async function verifyClaim(claim: EventDTO) {
+    const relayed=claim.type==='subscription-relay';
+    const buyer=relayed?address(claim.subject):claim.actor,creator=address(relayed?claim.scope:claim.subject);
+    const plan=await typed(entityKey(claim.data.planKey),'creator-plan');
+    if(plan.actor!==creator||buyer===creator||claim.source!=='arkiv')fail('UNTRUSTED_RECORD');
+    if(claim.data.keyRecord){const key=await typed(entityKey(claim.data.keyRecord),'encryption-key');if(key.actor!==buyer||BigInt(key.createdAtBlock)>BigInt(claim.createdAtBlock))fail('UNTRUSTED_RECORD');}
+    const chainId=planChain(plan),native=chainId===RABDI_PAYMENT_CHAIN;
+    if(relayed&&!native)fail('UNTRUSTED_RECORD');
+    const client=native?readers.rabdiPayments:readers.payments;if(!client)fail('DEPENDENCY_UNAVAILABLE');
+    const transactionHash=entityKey(claim.data.transactionHash);
+    const input=native?membershipPaymentData({buyer,creator,planKey:plan.key,priceWei:String(plan.data.priceWei),requestId:requestId(claim.data.purchaseId)}):'0x';
+    const [paidAt,indexedAt,planCreatedAt]=await Promise.all([
+      verifyMembershipPayment(client,{transactionHash,buyer,creator,priceWei:String(plan.data.priceWei),chainId,input}),
+      readers.blockTimestamp(BigInt(claim.createdAtBlock)),readers.blockTimestamp(BigInt(plan.createdAtBlock)),
+    ]);
+    if(paidAt<planCreatedAt||indexedAt<paidAt)fail('PAYMENT_UNVERIFIED');
+    const activationBlock=native?(await client.getTransaction({hash:transactionHash})).blockNumber:BigInt(claim.createdAtBlock);
+    if(activationBlock===null||activationBlock>BigInt(claim.createdAtBlock))fail('PAYMENT_UNVERIFIED');
+    return {claim,buyer,creator,activatedAt:native?paidAt:indexedAt,activationBlock,amountWei:String(plan.data.priceWei),chainId};
+  }
+  async function verifiedClaims(rows:EventDTO[],beforeBlock?:bigint){
+    const verified:Awaited<ReturnType<typeof verifyClaim>>[]=[];
+    for(const claim of rows){try{const result=await verifyClaim(claim);if(beforeBlock===undefined||result.activationBlock<=beforeBlock)verified.push(result);}catch(error){
+      if(error instanceof StorageError&&['PAYMENT_UNVERIFIED','INVALID_INPUT','UNTRUSTED_RECORD','NOT_FOUND_OR_EXPIRED'].includes(error.code))continue;throw error;
+    }}
+    return verified.sort((a,b)=>a.activationBlock<b.activationBlock?-1:a.activationBlock>b.activationBlock?1:a.claim.key.localeCompare(b.claim.key));
+  }
+  async function resolveClaims(rows:EventDTO[],beforeBlock?:bigint){
+    const seen=new Set<string>(),members=new Map<string,PaidMember&{creator:Hex}>();
+    for(const result of await verifiedClaims(rows,beforeBlock)){
+      const {claim,buyer,creator,activatedAt}=result,hash=String(claim.data.transactionHash);if(seen.has(hash))continue;seen.add(hash);
+      const id=creator+':'+buyer,previous=members.get(id);
+      members.set(id,{creator,wallet:buyer,expiresAt:Math.max(previous?.expiresAt??0,activatedAt)+MEMBERSHIP_MS,lastClaim:claim.key});
+    }return [...members.values()];
   }
   const service = {
     getPlan: (creator: Hex) => current('creator-plan', creator),
@@ -95,7 +104,7 @@ export function createCreatorMemberships(events: EventRepository, readers: {
       return plans;
     },
     async subscriptions(wallet: Hex) {
-      const rows = await events.scan({type:'subscription',actor:address(wallet),scope:'global'});
+      const rows = await claimRows(undefined,address(wallet));
       return (await resolveClaims(rows)).map(({creator,expiresAt,lastClaim}) => ({creator,expiresAt,lastClaim}));
     },
     getKey: (wallet: Hex, beforeBlock?: bigint) => current('encryption-key', wallet, beforeBlock),
@@ -112,39 +121,25 @@ export function createCreatorMemberships(events: EventRepository, readers: {
       }
       return [...found.values()];
     },
-    publishPlan: (input: { priceWei: string; requestId: string; previousKey?: Hex }) =>
-      revise('creator-plan', { priceWei: input.priceWei, termDays: 30 }, input.requestId, input.previousKey),
+    publishPlan: (input: { priceWei: string; requestId: string; previousKey?: Hex; chainId?:7794095 }) =>
+      revise('creator-plan', { priceWei: input.priceWei, termDays: 30,...(input.chainId?{chainId:input.chainId}:{}) }, input.requestId, input.previousKey),
     registerKey: (input: { identity: EncryptionIdentity; requestId: string; previousKey?: Hex }) =>
       revise('encryption-key', input.identity as unknown as Record<string, Json>, input.requestId, input.previousKey),
-    async earnings(creator: Hex) {
-      const rows=ordered(await events.scan({type:'subscription',subject:address(creator),scope:'global'}));
-      const seen=new Set<string>();
-      const payments:{wallet:Hex;transactionHash:Hex;amountWei:string;activatedAt:number}[]=[];
-      let total=0n;
-      for(const claim of rows){
-        const transactionHash=entityKey(claim.data.transactionHash);
-        if(seen.has(transactionHash))continue;
-        let activatedAt:number;
-        try{activatedAt=await verifyClaim(claim);}
-        catch(error){
-          if(error instanceof StorageError && ['PAYMENT_UNVERIFIED','INVALID_INPUT','UNTRUSTED_RECORD','NOT_FOUND_OR_EXPIRED'].includes(error.code))continue;
-          throw error;
-        }
-        const plan=await typed(entityKey(claim.data.planKey),'creator-plan');
-        const amountWei=String(plan.data.priceWei);
-        total+=BigInt(amountWei);seen.add(transactionHash);
-        payments.push({wallet:claim.actor,transactionHash,amountWei,activatedAt});
+    async earnings(creator:Hex){
+      const seen=new Set<string>(),payments:{wallet:Hex;transactionHash:Hex;amountWei:string;activatedAt:number;chainId:number}[]=[];
+      let total=0n;const totals:Record<string,string>={};
+      for(const result of await verifiedClaims(await claimRows(address(creator)))){
+        const hash=entityKey(result.claim.data.transactionHash);if(seen.has(hash))continue;seen.add(hash);
+        if(result.chainId===11155111)total+=BigInt(result.amountWei);totals[result.chainId]=(BigInt(totals[result.chainId]??'0')+BigInt(result.amountWei)).toString();
+        payments.push({wallet:result.buyer,transactionHash:hash,amountWei:result.amountWei,activatedAt:result.activatedAt,chainId:result.chainId});
       }
-      return {totalWei:total.toString(),payments:payments.reverse()};
+      return {totalWei:total.toString(),totals,payments:payments.reverse()};
     },
-    async members(creator: Hex, beforeBlock?: bigint): Promise<PaidMember[]> {
-      const rows = (await events.scan({ type: 'subscription', subject: address(creator), scope: 'global' }))
-        .filter(row => beforeBlock === undefined || BigInt(row.createdAtBlock) <= beforeBlock);
-      return (await resolveClaims(rows)).map(({wallet,expiresAt,lastClaim}) => ({wallet,expiresAt,lastClaim}));
-    },
+    async members(creator:Hex,beforeBlock?:bigint):Promise<PaidMember[]>{return (await resolveClaims(await claimRows(address(creator)),beforeBlock)).map(({wallet,expiresAt,lastClaim})=>({wallet,expiresAt,lastClaim}));},
     async claim(input: { planKey: Hex; transactionHash: Hex; requestId: string; keyRecord?:Hex }) {
       const buyer = await events.actor();
       const plan = await typed(input.planKey, 'creator-plan');
+      if(planChain(plan)!==11155111)fail('INVALID_INPUT','Rabdi purchases activate automatically.');
       if(input.keyRecord&&(await typed(input.keyRecord,'encryption-key')).actor!==buyer)fail('KEY_REQUIRED');
       const prior = (await events.scan({ type: 'subscription', actor: buyer })).filter(row => row.data.transactionHash === input.transactionHash);
       if (prior.length) {
@@ -160,16 +155,10 @@ export function createCreatorMemberships(events: EventRepository, readers: {
       let expiresAt = 0;
       let records: EventDTO[] = [];
       const seen = new Set<string>();
-      const claims = ordered(await events.scan({type:'subscription',subject:address(creator),actor:address(buyer),scope:'global'}));
-      for (const claim of claims) {
-        const hash = String(claim.data.transactionHash);
-        if (seen.has(hash)) continue;
-        let activatedAt: number;
-        try { activatedAt = await verifyClaim(claim); }
-        catch (error) {
-          if (error instanceof StorageError && ['PAYMENT_UNVERIFIED','INVALID_INPUT','UNTRUSTED_RECORD','NOT_FOUND_OR_EXPIRED'].includes(error.code)) continue;
-          throw error;
-        }
+      const claims=await verifiedClaims(await claimRows(address(creator),address(buyer)));
+      for(const result of claims){
+        const {claim,activatedAt}=result;
+        const hash=String(claim.data.transactionHash);if(seen.has(hash))continue;
         seen.add(hash);
         if (activatedAt >= expiresAt) records = [];
         records.push(claim, await typed(entityKey(claim.data.planKey),'creator-plan'));
@@ -184,18 +173,20 @@ export function createCreatorMemberships(events: EventRepository, readers: {
       return events.append({ type: 'private-signal', actor: creator, subject: creator, scope: 'global', requestId: input.requestId,
         data: { ...pointer } });
     },
-    async signals(creator: Hex) {
-      return ordered(await events.scan({ type: 'private-signal', actor: address(creator), subject: address(creator), scope: 'global' })).reverse();
+    async signals(creator:Hex){
+      creator=address(creator);
+      const [direct,relayed]=await Promise.all([events.scan({type:'private-signal',actor:creator,subject:creator,scope:'global'}),events.scan({type:'private-signal-relay',subject:creator,scope:'global'})]);
+      const found=new Map<string,EventDTO>();
+      for(const signal of ordered([...direct,...relayed])){try{await verifySignalAuthor(signal);}catch(error){if(error instanceof StorageError&&error.code==='UNTRUSTED_RECORD')continue;throw error;}
+        const id=String(signal.data.publicationId??signal.requestId);if(!found.has(id))found.set(id,signal);
+      }return [...found.values()].reverse();
     },
-    readSignal: (key: Hex) => typed(key, 'private-signal'),
-    async canReadSignal({signal,wallet,now}:{signal:EventDTO;wallet:Hex;now:number}) {
-      if(signal.type!=='private-signal'||signal.source!=='arkiv'||signal.subject!==signal.actor)fail('UNTRUSTED_RECORD');
-      if(address(wallet)===signal.actor)return true;
-      const current=(await service.members(signal.actor)).find(member=>member.wallet===address(wallet));
-      if(!current||current.expiresAt<=now)return false;
+    async readSignal(key:Hex){const signal=await events.read(entityKey(key));await verifySignalAuthor(signal);return signal;},
+    async canReadSignal({signal,wallet,now}:{signal:EventDTO;wallet:Hex;now:number}){
+      const creator=await verifySignalAuthor(signal);if(address(wallet)===creator)return true;
+      const current=(await service.members(creator)).find(member=>member.wallet===address(wallet));if(!current||current.expiresAt<=now)return false;
       const publishedAt=await readers.blockTimestamp(BigInt(signal.createdAtBlock));
-      const historical=(await service.members(signal.actor,BigInt(signal.createdAtBlock)-1n)).find(member=>member.wallet===address(wallet));
-      return Boolean(historical&&historical.expiresAt>publishedAt);
+      const historical=(await service.members(creator,BigInt(signal.createdAtBlock)-1n)).find(member=>member.wallet===address(wallet));return Boolean(historical&&historical.expiresAt>publishedAt);
     },
     async recipients(signal: EventDTO) {
       const at = await readers.blockTimestamp(BigInt(signal.createdAtBlock));

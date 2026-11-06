@@ -284,7 +284,7 @@ class Application {
             else if (route === 'compose')
                 html = this.composerView();
             else if (route === 'memberships')
-                html = heading('Creator memberships', 'Memberships and exclusive strategies', 'Subscribe with Sepolia ETH, manage your creator plan, and read member-only signals.') + '<section id="membership-workspace" class="paper-panel"></section>';
+                html = heading('Creator memberships', 'Memberships and exclusive strategies', 'Subscribe with Rabdi tGLM, manage your creator plan, and read member-only signals.') + '<section id="membership-workspace" class="paper-panel"></section>';
             else if (['marketplace','listing','purchases'].includes(route))
                 html = heading('Creator memberships', 'Get exclusive creator signals.', 'Open memberships to subscribe or publish your creator plan.', link('/memberships', 'Open memberships'));
             else if (route === 'discover')
@@ -378,7 +378,7 @@ class Application {
             form.querySelector('[data-composer-help]')!.textContent = exclusive ? 'Publish an exclusive message for your current paid members.' : 'Join the community before posting. Public posts are visible to everyone.';
             if(exclusive && this.account && !mounted) {
                 mounted = true;
-                void this.creatorMembership.mount(privateRoot,this.account,this.account,!!this.preview);
+                void this.creatorMembership.mount(privateRoot,this.account,this.account,!!this.preview,false);
             }
         });
         void this.getCommunities().then(rooms=>{
@@ -465,7 +465,7 @@ class Application {
         const intro=heading('YOUR PROFILE','Your activity','Membership income and trading results, in one place.',button('refresh','Refresh','secondary'));
         return intro +
             `<div id="profile-identity">${profileIdentityPanel(null,this.account,true)}</div>`+profileSearchForm()+
-            `<section class="profile-metrics" aria-label="Income and profit summary"><article class="paper-panel"><h2>Membership income</h2><strong class="metric-value" id="membership-income">Loading…</strong><p>Sepolia ETH · testnet</p><small>Verified payments in available Arkiv records. Not lifetime income; expired records may be missing.</small></article><article class="paper-panel"><h2>Paper trading profit</h2><strong class="metric-value" id="paper-profit">—</strong><p>Realized P/L · simulated USD</p><small>After simulated fees. Last 100 runs saved in this browser for this wallet. Open positions excluded.</small></article><article class="paper-panel"><h2>Real trading profit</h2><strong class="metric-value" id="real-profit">Loading…</strong><p>Realized fill P/L · by settlement currency</p><small>Verified Arkiv fill records only. Reported fees shown separately; excludes external trades, transfers and open-position gains.</small></article></section>`+
+            `<section class="profile-metrics" aria-label="Income and profit summary"><article class="paper-panel"><h2>Membership income</h2><strong class="metric-value" id="membership-income">Loading…</strong><p>Verified income · by testnet currency</p><small>Verified payments in available Arkiv records. Not lifetime income; expired records may be missing.</small></article><article class="paper-panel"><h2>Paper trading profit</h2><strong class="metric-value" id="paper-profit">—</strong><p>Realized P/L · simulated USD</p><small>After simulated fees. Last 100 runs saved in this browser for this wallet. Open positions excluded.</small></article><article class="paper-panel"><h2>Real trading profit</h2><strong class="metric-value" id="real-profit">Loading…</strong><p>Realized fill P/L · by settlement currency</p><small>Verified Arkiv fill records only. Reported fees shown separately; excludes external trades, transfers and open-position gains.</small></article></section>`+
             `<section class="paper-panel"><div class="section-title"><h2>Membership payments</h2><a href="/community#/memberships">Manage memberships →</a></div><div id="income-payments" role="status">Checking payments…</div></section><section class="paper-panel"><h2>Real trading results</h2><div id="real-results" role="status">Reading verified Arkiv fills…</div></section><section class="paper-panel"><div class="section-title"><h2>Recent paper runs</h2><a href="/">Open Trade →</a></div><div id="paper-runs"></div></section>`;
     }
     async mountProfileIdentity(content:HTMLElement,serial:number,account:Hex){
@@ -497,7 +497,7 @@ class Application {
         try{
             const result=await this.creatorMembership.service.earnings(account);
             if(serial!==this.pageSerial || account!==this.account)return;
-            content.querySelector('#membership-income')!.textContent=formatAmount(result.totalWei,18)+' ETH';
+            content.querySelector('#membership-income')!.textContent=Object.entries(result.totals).map(([chain,amount])=>formatAmount(amount,18)+' '+(chain==='7794095'?'tGLM':'Sepolia ETH')).join(' · ')||'0 tGLM';
             content.querySelector('#income-payments')!.innerHTML=result.payments.length?`<div class="profile-table-wrap"><table class="profile-table"><thead><tr><th>Member</th><th>Activated</th><th>Received</th></tr></thead><tbody>${result.payments.slice(0,20).map(payment=>`<tr><td><code>${e(short(payment.wallet))}</code></td><td>${e(new Date(payment.activatedAt).toLocaleDateString())}</td><td>${e(formatAmount(payment.amountWei,18))} ETH</td></tr>`).join('')}</tbody></table></div><p>${result.payments.length} verified payment(s) in available records.</p>`:'<p>No verified membership payments found.</p>';
         }catch{
             if(serial!==this.pageSerial || account!==this.account)return;

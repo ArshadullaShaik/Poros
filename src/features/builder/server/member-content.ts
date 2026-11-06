@@ -1,3 +1,5 @@
+import {membershipRelayAddress} from '../../../integrations/arkiv/community/relay-writer.ts';
+import {signalPointer,verifySignalAuthor} from '../../../integrations/arkiv/community/membership-intent.ts';
 import {canonical,address,entityKey,requestId} from '../../../integrations/arkiv/codec.ts';
 import {createArkivEventRepository} from '../../../integrations/arkiv/community/repository.ts';
 import {createMembershipReaders} from '../../../integrations/arkiv/community/membership-network.ts';
@@ -53,18 +55,19 @@ export function createMemberContentService({state,events,memberships,beeUrl,batc
   async read({wallet,signalKey}:{wallet:Hex;signalKey:Hex}){
    address(wallet);entityKey(signalKey);
    const signal=await events.read(signalKey);
-   if(signal.key!==signalKey||signal.type!=='private-signal'||signal.source!=='arkiv'||signal.actor!==signal.subject||signal.scope!=='global')memberFailure('CONTENT_UNAVAILABLE');
+   if(signal.key!==signalKey)memberFailure('CONTENT_UNAVAILABLE');
    if(signal.data.format!=='swarm-message/1')memberFailure('LEGACY_MESSAGE');
-   const expected=validateSwarmPointer(signal.data);
-   if(expected.publicationId!==signal.requestId)memberFailure('CONTENT_UNAVAILABLE');
+   const creator=await verifySignalAuthor(signal);
+   const expected=signalPointer(signal);
+   if(signal.type==='private-signal-relay'&&state.job('publish',creator,expected.publicationId)?.result?.key!==signal.key)memberFailure('CONTENT_UNAVAILABLE');
    if(!await memberships.canReadSignal({signal,wallet,now:await now()}))memberFailure('MEMBERSHIP_EXPIRED');
-   const row=state.publication(signal.actor,expected.publicationId);
+   const row=state.publication(creator,expected.publicationId);
    if(!row?.reference||row.status!=='uploaded'||canonical(pointer(row))!==canonical(expected))memberFailure('CONTENT_UNAVAILABLE');
    const content=await bounded(()=>retrieve(row.reference!,row.hash));
    const finished=await now();
    if(!await memberships.canReadSignal({signal,wallet,now:finished}))memberFailure('MEMBERSHIP_EXPIRED');
-   const expiresAt=wallet===signal.actor?null:(await memberships.members(signal.actor)).find(member=>member.wallet===wallet)?.expiresAt;
-   if(wallet!==signal.actor&&(!expiresAt||expiresAt<=finished))memberFailure('MEMBERSHIP_EXPIRED');
+   const expiresAt=wallet===creator?null:(await memberships.members(creator)).find(member=>member.wallet===wallet)?.expiresAt;
+   if(wallet!==creator&&(!expiresAt||expiresAt<=finished))memberFailure('MEMBERSHIP_EXPIRED');
    return {content,expiresAt:expiresAt??null};
   },
  };
@@ -76,12 +79,13 @@ function createRuntime(){
  if(!isAbsolute(path))throw new Error('Configure a persistent absolute membership database path');
  const url=new URL(origin);if(url.origin!==origin||(!['https:'].includes(url.protocol)&&!(url.protocol==='http:'&&['localhost','127.0.0.1','[::1]'].includes(url.hostname))))throw new Error('Configure a canonical HTTPS membership origin');
  const bytes=Buffer.from(key,'base64');if(bytes.length!==32||bytes.toString('base64')!==key)throw new Error('Configure a base64 32-byte membership key');
- const state=openMemberContentState(path,bytes);
+ const state=openMemberContentState(path,bytes,false,!process.env.MEMBERSHIP_RELAY_PRIVATE_KEY);
+ if(process.env.MEMBERSHIP_RELAY_PRIVATE_KEY)state.recoverLegacyUploads();
  try{
   const events=createArkivEventRepository({accessKey:process.env.ARKIV_ACCESS_KEY});
   const readers=createMembershipReaders(process.env.ARKIV_ACCESS_KEY,process.env.SEPOLIA_RPC_URL??'https://ethereum-sepolia-rpc.publicnode.com');
   const memberships=createCreatorMemberships(events,readers);
-  return {origin,state,service:createMemberContentService({state,events,memberships,beeUrl,batchId,now:readers.now,authorization:process.env.SWARM_BEE_AUTHORIZATION})};
+  return {origin,state,events,readers,memberships,relayActor:process.env.MEMBERSHIP_RELAY_PRIVATE_KEY?membershipRelayAddress(process.env.MEMBERSHIP_RELAY_PRIVATE_KEY as Hex):undefined,service:createMemberContentService({state,events,memberships,beeUrl,batchId,now:readers.now,authorization:process.env.SWARM_BEE_AUTHORIZATION})};
  }catch(error){state.close();throw error;}
 }
 export function getMemberContentRuntime(){if(current===undefined)current=createRuntime();return current;}

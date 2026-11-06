@@ -1,7 +1,7 @@
 import type { Hex } from 'viem';
 import type { Json, Source, ArkivStore } from '../contracts.ts';
 export type EventType = 'profile' | 'membership' | 'ban' | 'hidden' | 'moderator' | 'vote' | 'thread' | 'reply' | 'message' | 'listing' | 'delisted' |
-  'creator-plan' | 'encryption-key' | 'subscription' | 'private-signal' | 'signal-envelope';
+  'creator-plan' | 'encryption-key' | 'subscription' | 'private-signal' | 'signal-envelope' | 'subscription-relay' | 'private-signal-relay';
 export interface EventInput { type: EventType; actor: Hex; subject: string; scope: string; requestId: string; data: Record<string, Json> }
 export interface EventRecord extends EventInput { eventSchema: 'social-event/1'; hash: Hex }
 export interface EventDTO extends EventRecord { key: Hex; createdAtBlock: string; expiresAtBlock: string; source: Source; txHash?: Hex }

@@ -46,3 +46,23 @@ test('a feed proof authorizes only its exact message set and uses a single signa
   assert.equal((await request(handler,'read',{nonce:stale.nonce,signature:staleSignature})).status,401);
  }finally{state.close();}
 });
+
+test('one exact publication signature queues encrypted work and public status exposes no content',async()=>{
+ const prior=process.env.MEMBERSHIP_RELAY_PRIVATE_KEY;process.env.MEMBERSHIP_RELAY_PRIVATE_KEY='configured';
+ const state=openMemberContentState(':memory:',new Uint8Array(32).fill(8));state.heartbeat(Date.now(),account.address.toLowerCase());
+ const handler=createMemberContentHandler({getRuntime:()=>({origin:'https://poros.example',state,relayActor:account.address.toLowerCase()})});
+ try{
+  const content={title:'Secret',body:'Private rules',source:'manual'};
+  const {memberContentHash}=await import('../../../src/integrations/arkiv/community/member-content.ts');
+  const target={publicationId:crypto.randomUUID(),payloadHash:memberContentHash(content as any),retryUncertain:false};
+  const challenge=(await request(handler,'challenge',{wallet:account.address.toLowerCase(),operation:'publish',target})).data.data;
+  assert.equal(JSON.parse(challenge.message).chainId,7794095);
+  const signature=await account.signMessage({message:challenge.message});
+  assert.equal((await request(handler,'publish',{nonce:challenge.nonce,signature,content:{...content,body:'tampered'}})).status,401);
+  const result=await request(handler,'publish',{nonce:challenge.nonce,signature,content});assert.equal(result.status,200);
+  assert.equal(state.jobs().length,1);assert.equal(state.jobs()[0]?.payload.content.body,'Private rules');
+  const status=await request(handler,'status',{kind:'publish',owner:account.address.toLowerCase(),id:target.publicationId});
+  assert.deepEqual(status.data.data,{phase:'queued'});assert.doesNotMatch(JSON.stringify(status.data),/Private rules|authorization|signature/);
+  assert.equal((await request(handler,'publish',{nonce:challenge.nonce,signature,content})).status,401);
+ }finally{state.close();if(prior===undefined)delete process.env.MEMBERSHIP_RELAY_PRIVATE_KEY;else process.env.MEMBERSHIP_RELAY_PRIVATE_KEY=prior;}
+});

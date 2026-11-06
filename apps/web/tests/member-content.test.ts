@@ -65,3 +65,20 @@ test('a reference saved before failed read-back is reused without a second uploa
   assert.equal(env.uploads,1);
  }finally{env.state.close();}
 });
+
+test('relay reads use the signed creator and the canonical publication key, not a copied later entity',async()=>{
+ const {privateKeyToAccount}=await import('viem/accounts');
+ const {relayRequestId}=await import('../../../src/integrations/arkiv/community/membership-intent.ts');
+ const {memberContentHash}=await import('../../../src/integrations/arkiv/community/member-content.ts');
+ const signer=privateKeyToAccount(('0x'+'1'.repeat(64)) as `0x${string}`),owner=signer.address.toLowerCase() as `0x${string}`;
+ const env=setup();
+ try{
+  const pointer=await env.service.upload({creator:owner,publicationId:env.id,content});
+  const message=JSON.stringify({domain:'poros:member-content:1',operation:'publish',chainId:7794095,relayActor:creator,wallet:owner,origin:'https://poros.example',nonce:crypto.randomUUID(),issuedAt:1000,expiresAt:301000,target:{publicationId:env.id,payloadHash:memberContentHash(content),retryUncertain:false}});
+  Object.assign(env.signal,{type:'private-signal-relay',subject:owner,requestId:relayRequestId('publish',owner,env.id),data:{...pointer,creator:owner,authorization:{message,signature:await signer.signMessage({message})}}});
+  env.state.enqueue({kind:'publish',owner,id:env.id,payload:{}});env.state.updateJob('publish',owner,env.id,{phase:'done',result:{key:signalKey}});
+  assert.deepEqual((await env.service.read({wallet:owner,signalKey})).content,content);
+  env.state.updateJob('publish',owner,env.id,{result:{key:'0x'+'c'.repeat(64)}});
+  await assert.rejects(env.service.read({wallet:owner,signalKey}),{code:'CONTENT_UNAVAILABLE'});
+ }finally{env.state.close();}
+});

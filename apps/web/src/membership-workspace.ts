@@ -1,3 +1,4 @@
+import {planCurrency} from '../../../src/integrations/arkiv/community/membership-intent.ts';
 import type { Hex } from 'viem';
 import type { EventRepository } from '../../../src/integrations/arkiv/community/contracts.ts';
 import type { compose, WalletBridge } from './integration.ts';
@@ -75,7 +76,7 @@ export function mountMembershipWorkspace(root: HTMLElement, options: WorkspaceOp
         const rows = await panel.service.plans();
         if (disposed || current !== generation) return;
         root.querySelector('[data-plan-list]')!.innerHTML = rows.length
-          ? rows.map(plan => card(plan.actor,formatAmount(String(plan.data.priceWei),18)+' Sepolia ETH / 30 days',plan.actor===connected?'Manage membership':activeCreators.has(plan.actor)?'Open messages':'Buy membership')).join('')
+          ? rows.map(plan => card(plan.actor,formatAmount(String(plan.data.priceWei),18)+' '+planCurrency(plan)+' / 30 days',plan.actor===connected?'Manage membership':activeCreators.has(plan.actor)?'Open messages':'Buy membership')).join('')
           : '<p>No creator has published a membership price yet.</p>';
         void loadNames(rows.map(row=>row.actor));
       } catch {

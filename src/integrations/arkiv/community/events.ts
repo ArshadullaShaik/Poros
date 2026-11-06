@@ -12,6 +12,7 @@ const membership = { membershipKey: key.optional() };
 const currency = z.strictObject({chainId:z.number().int().positive().max(Number.MAX_SAFE_INTEGER),token:wallet,decimals:z.number().int().min(0).max(36)});
 const encoded = (max: number) => z.string().min(1).max(max).regex(/^[A-Za-z0-9_-]+$/);
 const sealedKey = z.strictObject({ publicKey: encoded(43), salt: encoded(43), iv: encoded(16), ciphertext: encoded(128) });
+const swarmPointer={format:z.literal('swarm-message/1'),publicationId:z.string().uuid(),swarmAddress:z.string().regex(/^[a-f0-9]{64}$/),payloadHash:key,source:z.enum(['ai-proposal','rule-engine','manual'])};
 const shapes = {
   profile:z.strictObject({handle:z.string().regex(/^[a-z0-9_]{3,32}$/),displayName:utf(1,80),bio:utf(0,512),...predecessor}),
   membership:z.strictObject({state:z.enum(['joined','left']),...predecessor}),
@@ -25,12 +26,14 @@ const shapes = {
   listing:z.strictObject({packageId:z.string().uuid(),contentHash:key,title:utf(1,80),description:utf(0,2048),terms:utf(1,4096),currency,
     amount:z.string().regex(/^[1-9][0-9]{0,77}$/).refine(value=>BigInt(value)<2n**256n)}),
   delisted:z.strictObject({listingKey:key}),
-  'creator-plan':z.strictObject({priceWei:z.string().regex(/^[1-9][0-9]{0,77}$/).refine(value=>BigInt(value)<2n**256n),termDays:z.literal(30),...predecessor}),
+  'creator-plan':z.strictObject({priceWei:z.string().regex(/^[1-9][0-9]{0,77}$/).refine(value=>BigInt(value)<2n**256n),termDays:z.literal(30),chainId:z.literal(7794095).optional(),...predecessor}),
+  'subscription-relay':z.strictObject({planKey:key,transactionHash:key,purchaseId:z.string().uuid()}),
+  'private-signal-relay':z.strictObject({...swarmPointer,creator:wallet,authorization:z.strictObject({message:utf(1,4096),signature:z.string().regex(/^0x[0-9a-fA-F]{130}$/)})}),
   'encryption-key':z.strictObject({publicKey:encoded(43),backup:z.strictObject({iv:encoded(16),ciphertext:encoded(512)}),...predecessor}),
   subscription:z.strictObject({planKey:key,transactionHash:key,keyRecord:key.optional()}),
   'private-signal':z.union([
     z.strictObject({iv:encoded(16),ciphertext:encoded(12000),creatorKey:key,creatorBox:sealedKey,source:z.enum(['ai-proposal','rule-engine','manual']),sourceVersionKey:key.optional()}),
-    z.strictObject({format:z.literal('swarm-message/1'),publicationId:z.string().uuid(),swarmAddress:z.string().regex(/^[a-f0-9]{64}$/),payloadHash:key,source:z.enum(['ai-proposal','rule-engine','manual'])}),
+    z.strictObject(swarmPointer),
   ]),
   'signal-envelope':z.strictObject({keyRecord:key,box:sealedKey}),
 };
@@ -40,10 +43,12 @@ export function buildEvent(input: EventInput): EventRecord {
   const parsed = shapes[input.type].safeParse(input.data);
   if (!parsed.success) fail('INVALID_INPUT','Invalid social event');
   if(input.type==='private-signal'&&input.data.format==='swarm-message/1'&&input.data.publicationId!==input.requestId)fail('INVALID_INPUT');
+  if(input.type==='private-signal-relay'&&(input.scope!=='global'||input.subject!==input.data.creator))fail('INVALID_INPUT');
   if(['profile','membership','creator-plan','encryption-key','private-signal'].includes(input.type)&&input.subject!==address(input.actor))fail('INVALID_INPUT');
   if(['profile','listing','delisted','creator-plan','encryption-key','subscription','private-signal'].includes(input.type)){if(input.scope!=='global')fail('INVALID_INPUT');}
-  else entityKey(input.scope);
-  if(['subscription','signal-envelope'].includes(input.type))address(input.subject);
+  else if(input.type==='subscription-relay')address(input.scope);
+  else if(input.type!=='private-signal-relay')entityKey(input.scope);
+  if(['subscription','signal-envelope','subscription-relay'].includes(input.type))address(input.subject);
   if(['thread','reply','message'].includes(input.type)&&input.subject!==input.scope)fail('INVALID_INPUT');
   const reference=input.type==='ban'||input.type==='moderator'?'wallet':input.type==='hidden'||input.type==='vote'?'contentKey':input.type==='listing'?'packageId':input.type==='delisted'?'listingKey':undefined;
   if(reference&&input.data[reference]!==input.subject)fail('INVALID_INPUT');
