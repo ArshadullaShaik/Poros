@@ -64,3 +64,28 @@ test('extra optional post index cannot claim an unrecorded strategy relationship
   backend.entities.get(p.postKey)!.values.strategyVersion=`0x${'f'.repeat(64)}`;
   const result=await store.listPosts({communityKey:c.communityKey});assert.equal(result.items.length,0);assert.equal(result.skipped,1);
 });
+
+test('legacy owner-renewable communities remain readable and editable while renewal stays owner-only',async()=>{
+ const {store,backend}=createMockArkivStore({account:alice});
+ const community=value(await store.createCommunity({requestId:request,name:'Legacy community',description:'Existing public record'}));
+ backend.entities.get(community.communityKey)!.permissionlessExtension=false;
+ const page=await store.listCommunities();assert.equal(page.items.length,1);assert.equal(page.skipped,0);
+ assert.equal((await store.getCommunity({communityKey:community.communityKey})).name,'Legacy community');
+ assert.equal((await store.updateCommunity({communityKey:community.communityKey,name:'Updated legacy',description:''})).value.name,'Updated legacy');
+ backend.block=BigInt(community.expiresAtBlock)-100n;backend.account=bob;
+ const signed=backend.signed;await assert.rejects(store.extendOwnedEntity({entityKey:community.communityKey}),{code:'NOT_OWNER'});assert.equal(backend.signed,signed);
+ backend.account=alice;assert.equal((await store.extendOwnedEntity({entityKey:community.communityKey})).state,'extended');
+ await store.deleteOwnedEntity({entityKey:community.communityKey});
+ await assert.rejects(store.getCommunity({communityKey:community.communityKey}),{code:'NOT_FOUND_OR_EXPIRED'});
+});
+test('renewal compatibility still rejects changed owners, immutable communities and tampered records',async()=>{
+ const {store,backend}=createMockArkivStore({account:alice});
+ const community=value(await store.createCommunity({requestId:request,name:'Community',description:''}));
+ const entity=backend.entities.get(community.communityKey)!;
+ entity.permissionlessExtension=false;entity.owner=bob;
+ await assert.rejects(store.getCommunity({communityKey:community.communityKey}),{code:'UNTRUSTED_RECORD'});
+ entity.owner=alice;entity.readonly=true;
+ await assert.rejects(store.getCommunity({communityKey:community.communityKey}),{code:'UNTRUSTED_RECORD'});
+ entity.readonly=false;entity.values.name='Forged name';
+ await assert.rejects(store.getCommunity({communityKey:community.communityKey}),{code:'INTEGRITY_FAILED'});
+});

@@ -1,6 +1,6 @@
 import type {ArkivStore,CommunityDTO,StrategySummaryDTO,Page} from '../../../src/integrations/arkiv/contracts.ts';
 import type {Profile} from '../../../src/integrations/arkiv/community/contracts.ts';
-const prefix='poros.public.7794095.strategyhub-v1.',freshFor=30000,maxAge=300000;
+const prefix='poros.public.7794095.strategyhub-v1.reads-v2.',freshFor=30000,maxAge=300000;
 type Entry={at:number;value:unknown};
 export function createPublicReadCache({storage,now=Date.now,onCached=()=>{},onRefresh=(_key:string,_changed:boolean)=>{},onError=()=>{}}:{
   storage?:Storage;now?:()=>number;onCached?:()=>void;onRefresh?:(key:string,changed:boolean)=>void;onError?:()=>void;

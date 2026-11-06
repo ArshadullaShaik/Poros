@@ -7,11 +7,14 @@ import { mountCanvasDragTarget } from "./drag-target.js";
 import { mountStrategyAi } from "./ai.js";
 import { mountExecution } from "./execution.js";
 import { mountFundsMode } from "./funds-mode.js";
+import { mountCanvasLayout } from "./canvas-layout.js";
 import { mountLivePrices } from "./prices.js";
 import { mountCommunityLibrary, mountLibraryTabs, mountMemberLibrary } from "./community.js";
 
 const $ = selector => document.querySelector(selector);
 const canvas = $("#canvas");
+const stopCanvasLayout = mountCanvasLayout();
+window.addEventListener('pagehide', stopCanvasLayout, {once:true});
 const dialog = $("#import-dialog");
 $("#open-run-settings").addEventListener("click", () => $("#run-settings-dialog").showModal());
 $("#close-run-settings").addEventListener("click", () => $("#run-settings-dialog").close());

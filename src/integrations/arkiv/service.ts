@@ -203,7 +203,7 @@ export function createStorageService(backend: Backend, validator?: ValidateStrat
         if(!found.length){await store.getCommunity({communityKey});if(versionKey)await store.getVersion({versionKey});}
         return createMetadata(writer,'posts',values,postDTO);});},
     async extendOwnedEntity(args){input(args,['entityKey'],['durationDays']);const key=entityKey(args.entityKey);
-      return write(async writer=>{const e=await backend.get(key);if(e.kind !== 'communities' && address(e.owner)!==writer.account)fail('NOT_OWNER');assertNative(e,e.kind!=='communities',e.kind==='communities');
+      return write(async writer=>{const e=await backend.get(key);if(!(e.kind==='communities'&&e.permissionlessExtension) && address(e.owner)!==writer.account)fail('NOT_OWNER');assertNative(e,e.kind!=='communities',e.kind==='communities'?'either':false);
         const durationDays = typeof args.durationDays === 'number' && args.durationDays > 0 ? args.durationDays : undefined;
         const current=await backend.currentBlock();if(!durationDays && e.expiresAt-current>=302_400n)return {state:'unchanged' as const,entityKey:key,expiresAtBlock:String(e.expiresAt),source:backend.source};
         await writer.assertCurrent();const included=await writer.extend(key,durationDays);
@@ -213,7 +213,7 @@ export function createStorageService(backend: Backend, validator?: ValidateStrat
         });
         return {state:'extended' as const,receipt:extended};});},
     async deleteOwnedEntity(args){input(args,['entityKey']);const key=entityKey(args.entityKey);
-      return write(async writer=>{const e=await backend.get(key);if(address(e.owner)!==writer.account)fail('NOT_OWNER');assertNative(e,e.kind!=='communities',e.kind==='communities');
+      return write(async writer=>{const e=await backend.get(key);if(address(e.owner)!==writer.account)fail('NOT_OWNER');assertNative(e,e.kind!=='communities',e.kind==='communities'?'either':false);
         await writer.assertCurrent();const included=await writer.delete(key);
         try{await backend.get(key);}catch(error){if(error instanceof StorageError&&error.code==='NOT_FOUND_OR_EXPIRED')return {entityKey:key,txHash:included.txHash,source:backend.source,readBackMissing:true as const};}
         throw new StorageError('WRITE_CONFIRMED_READ_PENDING','Deletion included; absence not verified',{included:true,entityKey:key,txHash:included.txHash,retryable:true});});},

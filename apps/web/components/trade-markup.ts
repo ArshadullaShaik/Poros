@@ -6,7 +6,7 @@ export const tradeMarkup = `
       <div class="heading-actions"><button id="ai-open" class="api-key-button" type="button" aria-label="Add 0G API key" aria-haspopup="dialog" aria-controls="ai-dialog" title="API key and AI tools"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8" cy="8" r="4.5"/><path d="m11.3 11.3 9.2 9.2m-3-3 2.5-2.5m-5 0 2.5-2.5"/></svg></button><button id="load-example" class="button secondary">Load example</button><button id="new-strategy" class="button primary"><span aria-hidden="true">＋</span> New strategy</button></div>
     </section>
     <section class="workspace" aria-label="Strategy builder">
-      <aside class="palette panel" aria-label="Block palette">
+      <aside id="canvas-blocks-panel" class="palette panel" aria-label="Block palette">
         <div class="panel-title"><h2>Building blocks</h2><span class="small-tag">3 TYPES</span></div>
         <p class="muted small">Drag onto the canvas, or click to add.</p>
         <button class="palette-block indicator" data-kind="signal.price" draggable="true"><span class="block-icon">∿</span><span><strong>Price range</strong><small>When the market meets a rule</small></span><span class="grip" aria-hidden="true">⠿</span></button>
@@ -17,7 +17,7 @@ export const tradeMarkup = `
         <div class="fixture-note"><span aria-hidden="true">◌</span><div><strong>Real prices, virtual funds</strong><p>Live Chainlink reference and Flash quotes. No history or warm-up. Virtual funds only.</p></div></div>
       </aside>
       <div class="editor-column">
-        <div class="canvas-toolbar"><div><span class="canvas-symbol" aria-hidden="true">⌘</span><strong>Strategy canvas</strong></div><div class="view-switch" role="group" aria-label="View"><button id="canvas-view" class="active" aria-pressed="true">Canvas</button><button id="json-view" aria-pressed="false">JSON</button></div></div>
+        <div class="canvas-toolbar"><div><span class="canvas-symbol" aria-hidden="true">⌘</span><strong>Strategy canvas</strong></div><div class="canvas-layout-tools" role="group" aria-label="Canvas space"><button id="canvas-toggle-left" type="button" aria-expanded="true" aria-controls="canvas-blocks-panel">← Hide blocks</button><button id="canvas-toggle-right" type="button" aria-expanded="true" aria-controls="canvas-library-panel">Hide library →</button></div><div class="view-switch" role="group" aria-label="View"><button id="canvas-view" class="active" aria-pressed="true">Canvas</button><button id="json-view" aria-pressed="false">JSON</button></div></div>
         <div class="canvas-runbar"><span id="execution-selected" class="tiny muted">Current draft · live monitoring / paper funds</span><div class="heading-actions"><button id="open-run-settings" class="button secondary compact" type="button" aria-haspopup="dialog" aria-controls="run-settings-dialog">Run settings</button><button id="execution-start" class="button primary compact" type="button" aria-describedby="execution-help">Run strategy</button><button id="execution-stop" class="button secondary compact" type="button" disabled>Stop</button></div></div>
         <section class="price-ticker" aria-label="Live cryptocurrency prices in USD">
       <button id="live-prices-pause" class="ticker-pause" type="button" aria-pressed="false">Pause scrolling</button>
@@ -44,7 +44,7 @@ export const tradeMarkup = `
         <p id="execution-status" class="small" role="status" aria-live="polite"></p>
         <div id="execution-results" class="execution-results" aria-live="polite" hidden></div>
       </div>
-      <aside class="library panel" aria-label="Your strategies and creators">
+      <aside id="canvas-library-panel" class="library panel" aria-label="Your strategies and creators">
         <div class="library-nav" role="tablist" aria-label="Strategy library">
           <button id="tab-community" type="button" role="tab" data-library-tab="community" aria-controls="library-community" aria-selected="true">Community</button>
           <button id="tab-unlocked" type="button" role="tab" data-library-tab="unlocked" aria-controls="library-unlocked" aria-selected="false" tabindex="-1">Unlocked</button>

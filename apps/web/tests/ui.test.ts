@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {threadRows,strategyRows,field,sortThreads,communityCreation} from '../src/ui.ts';
+import {threadRows,messageRows,strategyRows,field,sortThreads,communityCreation} from '../src/ui.ts';
 import {publicStrategyDrag} from '../src/strategy-drag.ts';
 import {strategyReference} from '../src/builder.ts';
 import {preview} from '../src/preview.ts';
@@ -55,4 +55,27 @@ test('community creation requires live mode and a wallet and explains public tes
   assert.match(connected, /180 days/);
   assert.match(connected, /tGLM gas/);
   assert.match(connected, /role="alert"/);
+});
+
+test('messages, replies and threads link their verified entity to Arkiv explorer in a separate tab',()=>{
+ const original=preview.events.find(row=>row.type==='thread')!;
+ for(const type of ['message','reply','thread'] as const){
+  const row={...original,type,source:'arkiv' as const,key:`0x${'a'.repeat(64)}` as Hex};
+  const render=type==='thread'?threadRows:messageRows;
+  const html=render([row],()=> 'Trader');
+  assert.match(html,new RegExp(`href="https://rabdi\\.explorer\\.arkiv\\.network/entity/${row.key}"`));
+  assert.match(html,/target="_blank" rel="noopener noreferrer"/);
+  assert.match(html,/aria-label="View on Arkiv explorer \(opens in a new tab\)"/);
+  assert.doesNotMatch(render([{...row,source:'mock'}],()=> 'Trader'),/arkiv-record-link/);
+  assert.doesNotMatch(render([{...row,key:'javascript:alert(1)' as Hex}],()=> 'Trader'),/arkiv-record-link/);
+ }
+});
+
+test('community messages and posts do not expose moderation controls even for an owner',()=>{
+ const row={...preview.events.find(row=>row.type==='thread')!,source:'arkiv' as const};
+ for(const render of [threadRows,messageRows]){
+  const html=render([row],()=> 'Owner',true);
+  assert.doesNotMatch(html,/data-action="(?:hide|moderate|ban|unhide)"|Hide message|Hide thread/);
+  assert.match(html,/arkiv-record-link/);
+ }
 });

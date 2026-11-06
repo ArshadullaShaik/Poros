@@ -42,10 +42,35 @@ test('question choices use registered markets without a silent default',()=>{
 test('only selected action fields participate in validation and reset clears visibility',async()=>{
   const handlers: Record<string,()=>void>={};
   const side={value:'',addEventListener:(_name:string,fn:()=>void)=>handlers.change=fn};
-  const groups=['buy','sell'].map(rule=>({dataset:{rule},hidden:false,disabled:false}));
+  const ranges:Record<string,any>={};
+  const groups=['buy','sell'].map(rule=>{
+    const input={disabled:false,required:false},toggle={checked:false,addEventListener:(_name:string,fn:()=>void)=>handlers[rule+'-range']=fn};
+    const upper={hidden:false,querySelector:()=>input};
+    const amount={value:'0.10',attrs:{} as Record<string,string>,setAttribute(key:string,value:string){this.attrs[key]=value;},addEventListener:(_name:string,fn:()=>void)=>handlers[rule+'-amount']=fn},output={textContent:''};
+    ranges[rule]={input,toggle,upper,amount,output};
+    return {dataset:{rule},hidden:false,disabled:false,querySelector:(selector:string)=>({'[data-range-toggle]':toggle,'[data-range-upper]':upper,'[data-order-amount]':amount,'[data-order-value]':output}[selector])};
+  });
   mountStrategyQuestions({elements:{namedItem:()=>side},querySelectorAll:()=>groups,addEventListener:(name:string,fn:()=>void)=>handlers[name]=fn} as any);
   assert.ok(groups.every(group=>group.disabled&&group.hidden));
   side.value='buy';handlers.change!();assert.deepEqual(groups.map(group=>group.disabled),[false,true]);
+  assert.equal(ranges.buy.output.textContent,'$0.10');ranges.buy.amount.value='5.25';handlers['buy-amount']!();assert.equal(ranges.buy.output.textContent,'$5.25');assert.equal(ranges.buy.amount.attrs['aria-valuetext'],'$5.25');
+  assert.equal(ranges.buy.input.disabled,true);assert.equal(ranges.buy.upper.hidden,true);
+  ranges.buy.toggle.checked=true;handlers['buy-range']!();assert.equal(ranges.buy.input.disabled,false);assert.equal(ranges.buy.input.required,true);assert.equal(ranges.buy.upper.hidden,false);
+  ranges.buy.toggle.checked=false;handlers['buy-range']!();assert.equal(ranges.buy.input.disabled,true);
   side.value='both';handlers.change!();assert.ok(groups.every(group=>!group.disabled&&!group.hidden));
   handlers.reset!();side.value='';await Promise.resolve();assert.ok(groups.every(group=>group.disabled&&group.hidden));
+});
+
+test('one target price becomes an exact rule without entering it twice',()=>{
+ const data=answers({side:'buy'});data.delete('buy-max');
+ assert.match(strategyPostBody(data),/BUY \$10 USD notional.*\$2000 and \$2000, inclusive/);
+ data.set('buy-max','2050');assert.match(strategyPostBody(data),/\$2000 and \$2050, inclusive/);
+ assert.doesNotMatch(strategyQuestions(),/enter the same value twice/);
+});
+
+test('order amount sliders start at ten cents and reject smaller submitted amounts',()=>{
+ const html=strategyQuestions();
+ assert.match(html,/name="buy-amount" type="range" min="0.10" max="20" step="0.01" value="0.10"/);
+ assert.match(strategyPostBody(answers({'buy-amount':'0.10'})),/BUY \$0\.1 USD notional/);
+ for(const amount of ['0','0.001','0.09'])assert.throws(()=>strategyPostBody(answers({'buy-amount':amount})),/between \$0\.10 and \$20/);
 });

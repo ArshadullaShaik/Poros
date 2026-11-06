@@ -103,11 +103,6 @@ class Application {
         };
     } | undefined;
     renderedRoute = '';
-    lastHidden: {
-        room: Hex;
-        key: Hex;
-        owner: Hex;
-    } | undefined;
     dialog: HTMLDialogElement | undefined;
     creatorMembership: CreatorMembershipPanel;
     membershipWorkspace?: ReturnType<typeof mountMembershipWorkspace>;
@@ -163,7 +158,7 @@ class Application {
     shell() {
         return `
     ${this.preview ? `<div class="preview-banner">${icon('info')}<span>Read-only design preview. Every profile, strategy and price here is illustrative.</span><button data-action="live">Switch to real Rabdi ${icon('arrow')}</button></div>` : ''}
-    <div class="app-layout"><aside class="sidebar"><span class="nav-label">POROS COMMUNITY</span><nav aria-label="Main navigation">${[['/communities', 'people', 'Communities'], ['/compose', 'plus', 'Write a strategy'], ['/creators', 'people', 'Creators & leaderboard'], ['/creator', 'user', 'Creator dashboard'], ['/memberships', 'lock', 'Memberships']].map(([route, glyph, label]) => `<a href="#${route}" data-nav="${route}">${icon(glyph!)}<span>${label}</span></a>`).join('')}</nav><div class="sidebar-divider"></div><div class="nav-label nav-label-row">OPEN ROOMS <a href="#/communities" aria-label="Browse communities">${icon('plus')}</a></div><div id="rooms" class="room-links"></div><div class="sidebar-bottom"><div class="sidebar-note">${icon('leaf')}<p>Better ideas grow<br>in good company.</p></div><button class="settings-button" data-action="setup">${icon('settings')} Connection details</button><small>Built in public. Stored on Arkiv.</small></div></aside><main id="main" tabindex="-1"><div id="pending"></div><p id="public-cache-status" class="muted" role="status"></p><div id="content"></div></main></div><footer><span>POROS COMMUNITY</span><p>Ideas are public. Trading decisions are yours.</p><button data-action="${this.preview ? 'live' : 'preview'}">${this.preview ? 'Return to Rabdi' : 'Explore the design preview'} ${icon('arrow')}</button></footer>`;
+    <div class="app-layout"><aside class="sidebar"><span class="nav-label">POROS COMMUNITY</span><nav aria-label="Main navigation">${[['/communities', 'people', 'Communities'], ['/compose', 'plus', 'Write a strategy'], ['/creators', 'people', 'Creators & leaderboard'], ['/creator', 'user', 'Creator dashboard'], ['/memberships', 'lock', 'Memberships']].map(([route, glyph, label]) => `<a href="#${route}" data-nav="${route}">${icon(glyph!)}<span>${label}</span></a>`).join('')}</nav><div class="sidebar-divider"></div><div class="nav-label nav-label-row">OPEN ROOMS <a href="#/communities" aria-label="Browse communities">${icon('plus')}</a></div><div id="rooms" class="room-links"></div><div class="sidebar-bottom"><div class="sidebar-note">${icon('leaf')}<p>Better ideas grow<br>in good company.</p></div><button class="settings-button" data-action="setup">${icon('settings')} Connection details</button><small>Built in public. Stored on Arkiv.</small></div></aside><main id="main" tabindex="-1"><p id="public-cache-status" class="muted" role="status"></p><div id="content"></div></main></div><footer><span>POROS COMMUNITY</span><p>Ideas are public. Trading decisions are yours.</p><button data-action="${this.preview ? 'live' : 'preview'}">${this.preview ? 'Return to Rabdi' : 'Explore the design preview'} ${icon('arrow')}</button></footer>`;
     }
     label(wallet: string) { return this.profiles.get(wallet)?.displayName ?? short(wallet); }
     updateChrome() {
@@ -187,9 +182,7 @@ class Application {
                 item.removeAttribute('aria-current');
         });
         document.querySelector('#rooms')!.innerHTML = this.rooms.length ? this.rooms.slice(0, 5).map((room, i) => `<a href="#/community/${room.communityKey}"><span class="room-dot dot-${i % 3}"></span>${e(room.name)}</a>`).join('') : '<a href="#/communities">' + icon('plus') + ' Find a community</a>';
-        document.querySelector('#pending')!.innerHTML = this.pending ? `<div class="pending-bar">${icon('info')}<span role="status">${e(this.pending.account !== this.account ? 'Connect the original wallet to verify this write.' : this.pendingCheckMessage || 'Transaction verification starts automatically.')} ${e(short(this.pending.requestId))}</span>${button('reconcile', 'Check status', 'secondary', this.pendingChecking ? 'disabled' : '')}${!this.pending.txHash && !this.pending.entityKey ? button('recover-write', 'No transaction?', 'secondary') : ''}</div>` : '';
-        if (this.lastHidden && this.lastHidden.owner === this.account)
-            document.querySelector('#pending')!.insertAdjacentHTML('beforeend', `<div class="pending-bar">${icon('shield')}<span>Content hidden from the community view.</span>${button('unhide', 'Undo hide', 'secondary', `data-key="${this.lastHidden.key}" data-room="${this.lastHidden.room}"`)}</div>`);
+
     }
     route() { return (location.hash.slice(1).split('?')[0] || (location.pathname.startsWith('/home') ? '/discover' : location.pathname.startsWith('/profile') ? '/dashboard' : location.pathname.startsWith('/0g-pot') ? '/pot' : '/communities')).split('/').filter(Boolean); }
     async accountChanged() {
@@ -366,7 +359,7 @@ class Application {
     }
     composerView() {
         return heading('Strategy post','Share your strategy','Explain your reasoning, choose a community, and select who can read it.') +
-          `<section class="paper-panel"><form data-form="strategy-post">${field('title','Title',{required:true})}${strategyQuestions()}<div data-public-attachment>${field('version','Public strategy version (optional)',{placeholder:'0x…'})}<a href="/">Build an editable strategy</a></div><div data-exclusive-attachment hidden>${field('strategy','Editable strategy JSON (optional)',{area:true})}</div><label class="field"><span>Community</span><select name="communityKey" required><option value="">Loading communities…</option></select></label><p data-composer-rooms role="status"></p><label class="field"><span>Audience</span><select name="audience"><option value="public">Everyone · public post</option><option value="exclusive">My paid subscribers · encrypted post</option></select></label><label class="check-field"><input type="checkbox" name="approved" required>I reviewed this strategy and approve publication to the selected audience.</label><p data-composer-help>Join the community before posting. Public posts are visible to everyone.</p><button class="button primary" ${this.account && !this.preview?'':'disabled'}>Publish strategy post</button>${this.account?'':button('connect','Connect wallet','secondary')}</form></section><section id="composer-private" class="paper-panel" hidden></section>`;
+          `<section class="paper-panel"><form data-form="strategy-post">${field('title','Title',{required:true})}${strategyQuestions()}<details class="strategy-attachments"><summary>Attach an editable strategy (optional)</summary><div data-public-attachment>${field('version','Public strategy version (optional)',{placeholder:'0x…'})}<a href="/">Build an editable strategy</a></div><div data-exclusive-attachment hidden>${field('strategy','Editable strategy JSON (optional)',{area:true})}</div></details><label class="field"><span>Community</span><select name="communityKey" required><option value="">Loading communities…</option></select></label><p data-composer-rooms role="status"></p><label class="field"><span>Audience</span><select name="audience"><option value="public">Everyone · public post</option><option value="exclusive">My paid subscribers · encrypted post</option></select></label><label class="check-field"><input type="checkbox" name="approved" required>I reviewed this strategy and approve publication to the selected audience.</label><p data-composer-help>Join the community before posting. Public posts are visible to everyone.</p><button class="button primary" ${this.account && !this.preview?'':'disabled'}>Publish strategy post</button>${this.account?'':button('connect','Connect wallet','secondary')}</form></section><section id="composer-private" class="paper-panel" hidden></section>`;
     }
     mountComposer(content: HTMLElement, serial: number) {
         const form = content.querySelector<HTMLFormElement>('[data-form="strategy-post"]')!;
@@ -425,14 +418,13 @@ class Application {
         const owner = !!this.account && room.owner === this.account;
         const joined = owner || this.membership?.event?.data.state === 'joined';
         const canPost = joined && !this.membership?.banned && !this.preview;
-        const canModerate = !this.preview && !!this.account && (owner || await this.api.community.isModerator({communityKey:room.communityKey,wallet:this.account}));
         this.votes = chatOnly ? {} : await this.votesFor(room.communityKey,threads);
         await this.profilesFor([...threads, ...messages].map(row => row.actor));
         if (serial !== this.pageSerial)
             failure('STALE_VIEW');
         this.activeCommunity = room;
         const membershipButton = this.preview ? '' : owner ? tag('Community owner', 'green') : button('membership', this.membership?.banned ? 'Posting restricted' : joined ? 'Leave community' : 'Join community', joined ? 'secondary' : 'primary', this.membership?.banned ? 'disabled' : '');
-        const top = `<a href="#/communities" class="back-link">← All communities</a>` + heading('THE OPEN ROOMS', room.name, room.description, membershipButton) + `<div class="community-meta">${tag('Public community', 'green')}<span class="community-timer" title="Expires at Arkiv block ${room.expiresAtBlock}">⏱ Expires block #${e(room.expiresAtBlock)}</span><span>Owned by <a href="#/profile/${room.owner}">${e(this.label(room.owner))}</a></span><code>${e(short(room.communityKey))}</code>${button('extend-community', '⏱ Extend expiration', 'secondary compact')}${owner ? button('edit-community', 'Edit details', 'text-button') + button('moderate', 'Moderation', 'text-button') : ''}${canModerate&&!owner?tag('Moderator','green'):''}</div>${this.preview?'':notice('Votes, moderation, and expiration extensions are public Arkiv transactions. Each action uses tGLM gas.')}`;
+        const top = `<a href="#/communities" class="back-link">← All communities</a>` + heading('THE OPEN ROOMS', room.name, room.description, membershipButton) + `<div class="community-meta">${tag('Public community', 'green')}<span class="community-timer" title="Expires at Arkiv block ${room.expiresAtBlock}">⏱ Expires block #${e(room.expiresAtBlock)}</span><span>Owned by <a href="#/profile/${room.owner}">${e(this.label(room.owner))}</a></span><code>${e(short(room.communityKey))}</code>${button('extend-community', '⏱ Extend expiration', 'secondary compact')}${owner ? button('edit-community', 'Edit details', 'text-button') : ''}</div>${this.preview?'':notice('Votes and expiration extensions are public Arkiv transactions. Each action uses tGLM gas.')}`;
         if (thread) {
             if (!keyPattern.test(thread))
                 failure('INVALID_INPUT');
@@ -444,11 +436,11 @@ class Application {
             await this.profilesFor(replies.map(row => row.actor));
             if (serial !== this.pageSerial)
                 failure('STALE_VIEW');
-            return top + `<div class="thread-detail">${threadRows([parent], w => this.label(w), canModerate,this.votes,canPost)}<h2>Keep the conversation going.</h2>${replies.length ? messageRows(replies, w => this.label(w), canModerate,this.votes,canPost) : '<p class="muted">No replies yet. Add another perspective.</p>'}<form data-form="reply" class="composer">${field('body', 'Your reply', { area: true, required: true, placeholder: 'Build on the idea…', hint: 'Public text · up to 2,000 UTF-8 bytes' })}<button class="button primary" ${canPost ? '' : 'disabled'}>Post reply ${icon('right')}</button>${!canPost ? '<p class="muted">' + (this.preview ? 'Preview conversations are read-only.' : 'Join with a connected wallet to reply.') + '</p>' : ''}</form></div>`;
+            return top + `<div class="thread-detail">${threadRows([parent], w => this.label(w), false,this.votes,canPost)}<h2>Keep the conversation going.</h2>${replies.length ? messageRows(replies, w => this.label(w), false,this.votes,canPost) : '<p class="muted">No replies yet. Add another perspective.</p>'}<form data-form="reply" class="composer">${field('body', 'Your reply', { area: true, required: true, placeholder: 'Build on the idea…', hint: 'Public text · up to 2,000 UTF-8 bytes' })}<button class="button primary" ${canPost ? '' : 'disabled'}>Post reply ${icon('right')}</button>${!canPost ? '<p class="muted">' + (this.preview ? 'Preview conversations are read-only.' : 'Join with a connected wallet to reply.') + '</p>' : ''}</form></div>`;
         }
-        const chat = `<aside class="chat-panel"><div class="chat-heading"><h2>${icon('message')} The common room</h2><span class="status-dot"></span></div><p class="chat-disclosure">Public, on-chain messages. Each send uses tGLM gas.</p><div id="chat-error"></div><div id="messages" class="chat-messages">${messages.length ? messageRows(messages, w => this.label(w), canModerate) : '<p class="muted">The room is quiet. Say hello.</p>'}</div><form data-form="message" class="chat-compose"><label class="sr-only" for="chat-body">Your public message</label><textarea id="chat-body" name="body" rows="2" required placeholder="Add to the conversation…" ${canPost ? '' : 'disabled'}></textarea><button class="button primary" ${canPost ? '' : 'disabled'}>Send ${icon('right')}</button></form><small>${this.preview ? 'Read-only illustrative messages.' : canPost ? 'Messages are public. Never share private code.' : 'Join this community to send a message.'}</small></aside>`;
+        const chat = `<aside class="chat-panel"><div class="chat-heading"><h2>${icon('message')} The common room</h2><span class="status-dot"></span></div><p class="chat-disclosure">Public, on-chain messages. Each send uses tGLM gas.</p><div id="chat-error"></div><div id="messages" class="chat-messages">${messages.length ? messageRows(messages, w => this.label(w), false) : '<p class="muted">The room is quiet. Say hello.</p>'}</div><form data-form="message" class="chat-compose"><label class="sr-only" for="chat-body">Your public message</label><textarea id="chat-body" name="body" rows="2" required placeholder="Add to the conversation…" ${canPost ? '' : 'disabled'}></textarea><button class="button primary" ${canPost ? '' : 'disabled'}>Send ${icon('right')}</button></form><small>${this.preview ? 'Read-only illustrative messages.' : canPost ? 'Messages are public. Never share private code.' : 'Join this community to send a message.'}</small></aside>`;
         if (chatOnly) return `<div class="section-title"><h3>${e(room.name)}</h3>${membershipButton}</div><p><a href="#/community/${room.communityKey}">Open community discussion →</a></p>` + chat;
-        return top + `<div class="community-columns"><section><div class="section-title"><h2>The discussion.</h2>${button('new-thread', icon('plus') + ' Start a thread', 'secondary', canPost ? '' : 'disabled')}</div><div class="feed-tabs" role="group" aria-label="Discussion order">${button('sort-new','New','secondary',`aria-pressed="${this.sortOrder==='new'}"`)}${button('sort-top','Top','secondary',`aria-pressed="${this.sortOrder==='top'}"`)}</div><div id="threads">${threads.length ? threadRows(sortThreads(threads,this.votes,this.sortOrder), w => this.label(w), canModerate,this.votes,canPost) : empty('Start with a question', 'Good discussion starts with a clear idea or an honest uncertainty.')}</div></section>${chat}</div>`;
+        return top + `<div class="community-columns"><section><div class="section-title"><h2>The discussion.</h2>${button('new-thread', icon('plus') + ' Start a thread', 'secondary', canPost ? '' : 'disabled')}</div><div class="feed-tabs" role="group" aria-label="Discussion order">${button('sort-new','New','secondary',`aria-pressed="${this.sortOrder==='new'}"`)}${button('sort-top','Top','secondary',`aria-pressed="${this.sortOrder==='top'}"`)}</div><div id="threads">${threads.length ? threadRows(sortThreads(threads,this.votes,this.sortOrder), w => this.label(w), false,this.votes,canPost) : empty('Start with a question', 'Good discussion starts with a clear idea or an honest uncertainty.')}</div></section>${chat}</div>`;
     }
     async strategyView(id?: string) {
         const serial = this.pageSerial;
@@ -467,8 +459,10 @@ class Application {
     }
     dashboardView(creator = false) {
         if(!this.account || this.preview)return heading(creator?'CREATOR DASHBOARD':'YOUR PROFILE',creator?'Become a creator':'Profile',creator?'Anyone can become a creator. Connect your wallet, create a public profile, set up private access, and publish your 30-day membership price.':'Connect your wallet to see membership income and saved trading results.',button('connect','Connect wallet'));
-        return heading(creator?'CREATOR DASHBOARD':'YOUR PROFILE',creator?'Your creator dashboard':'Your activity','Membership income and trading results, in one place.',button('refresh','Refresh','secondary'))+
-            (creator?'<section class="paper-panel"><h2>Build your creator presence</h2><ol><li><a href="/community#/profile/me">Create or edit your public profile</a>.</li><li>Set up your encryption key below and keep its recovery code.</li><li>Publish your 30-day Sepolia ETH membership price below.</li><li><a href="/community#/compose">Post a strategy</a> for everyone or your paid subscribers.</li></ol><p>Memberships are open to everyone. Public strategy activity improves discovery; finalized Flash results determine your <a href="/community#/creators">profit leaderboard</a> position. Profit is never guaranteed.</p></section><section id="creator-membership" class="paper-panel"></section>':'<p><a class="button primary" href="/community#/creator">Become a creator / Dashboard</a></p>')+
+        const intro = heading(creator?'CREATOR DASHBOARD':'YOUR PROFILE',creator?'Your creator dashboard':'Your activity',creator?'Set up your creator profile and publish memberships.':'Membership income and trading results, in one place.',button('refresh','Refresh','secondary'))+
+            (creator?'<section class="paper-panel"><h2>Build your creator presence</h2><ol><li><a href="/community#/profile/me">Create or edit your public profile</a>.</li><li>Set up your encryption key below and keep its recovery code.</li><li>Publish your 30-day Sepolia ETH membership price below.</li><li><a href="/community#/compose">Post a strategy</a> for everyone or your paid subscribers.</li></ol><p>Memberships are open to everyone. Public strategy activity improves discovery; finalized Flash results determine your <a href="/community#/creators">profit leaderboard</a> position. Profit is never guaranteed.</p></section><section id="creator-membership" class="paper-panel"></section>':'<p><a class="button primary" href="/community#/creator">Become a creator / Dashboard</a></p>');
+        if (creator) return intro;
+        return intro +
             `<div class="profile-panel">${avatar(this.account)}<div><strong>Connected wallet</strong><p><code>${e(this.account)}</code></p></div><a class="button secondary" href="/community#/profile/me">Edit public profile</a></div>`+
             `<section class="profile-metrics" aria-label="Income and profit summary"><article class="paper-panel"><h2>Membership income</h2><strong class="metric-value" id="membership-income">Loading…</strong><p>Sepolia ETH · testnet</p><small>Verified payments in available Arkiv records. Not lifetime income; expired records may be missing.</small></article><article class="paper-panel"><h2>Paper trading profit</h2><strong class="metric-value" id="paper-profit">—</strong><p>Realized P/L · simulated USD</p><small>After simulated fees. Last 100 runs saved in this browser for this wallet. Open positions excluded.</small></article><article class="paper-panel"><h2>Real trading profit</h2><strong class="metric-value" id="real-profit">Loading…</strong><p>Realized fill P/L · by settlement currency</p><small>Finalized Flash fills only. Reported fees shown separately; excludes external trades, transfers and open-position gains.</small></article></section>`+
             `<section class="paper-panel"><div class="section-title"><h2>Membership payments</h2><a href="/community#/memberships">Manage memberships →</a></div><div id="income-payments" role="status">Checking payments…</div></section><section class="paper-panel"><h2>Real trading results</h2><div id="real-results" role="status">Reading finalized Flash fills…</div></section><section class="paper-panel"><div class="section-title"><h2>Recent paper runs</h2><a href="/">Open Trade →</a></div><div id="paper-runs"></div></section>`;
@@ -691,7 +685,7 @@ class Application {
         const serial = this.pageSerial;
         this.polling = true;
         try {
-            const [messages, threads, membership, canModerate] = await Promise.all([this.getEvents('message', room.communityKey), this.getEvents('thread', room.communityKey), !this.preview && this.account ? this.api.community.getMembership({ communityKey: room.communityKey, wallet: this.account }) : undefined, !this.preview && this.account ? this.api.community.isModerator({communityKey:room.communityKey,wallet:this.account}) : false]);
+            const [messages, threads, membership] = await Promise.all([this.getEvents('message', room.communityKey), this.getEvents('thread', room.communityKey), !this.preview && this.account ? this.api.community.getMembership({ communityKey: room.communityKey, wallet: this.account }) : undefined]);
             const votes = await this.votesFor(room.communityKey,threads);
             await this.profilesFor([...messages, ...threads].map(row => row.actor));
             if (serial !== this.pageSerial)
@@ -706,9 +700,9 @@ class Application {
                 memberButton.disabled = !!membership?.banned;
                 memberButton.textContent = membership?.banned ? 'Posting restricted' : membership?.event?.data.state === 'joined' ? 'Leave community' : 'Join community';
             }
-            document.querySelector('#messages')!.innerHTML = messageRows(messages, w => this.label(w), canModerate) || '<p class="muted">The room is quiet. Say hello.</p>';
+            document.querySelector('#messages')!.innerHTML = messageRows(messages, w => this.label(w), false) || '<p class="muted">The room is quiet. Say hello.</p>';
             const threadContainer = document.querySelector('#threads');
-            if (threadContainer) threadContainer.innerHTML = threadRows(sortThreads(threads,votes,this.sortOrder), w => this.label(w), canModerate,votes,!!canPost) || empty('Start with a question', 'Add a perspective to this public community.');
+            if (threadContainer) threadContainer.innerHTML = threadRows(sortThreads(threads,votes,this.sortOrder), w => this.label(w), false,votes,!!canPost) || empty('Start with a question', 'Add a perspective to this public community.');
             document.querySelector('#chat-error')!.innerHTML = '';
             this.pollFailures = 0;
         }
@@ -911,6 +905,7 @@ class Application {
     }
     setup() {
         this.openDialog('Community connections',
+            (this.pending ? `<details><summary>Pending transaction</summary><p>${e(this.pendingCheckMessage || 'Verification continues automatically.')} ${e(short(this.pending.requestId))}</p>${button('reconcile','Check status','secondary',this.pendingChecking?'disabled':'')}${!this.pending.txHash&&!this.pending.entityKey?button('recover-write','No transaction?','secondary'):''}</details>` : '') +
             '<p>Anyone can browse public communities. Connect MetaMask to create, join, and post.</p>' +
             notice(this.host.wallet ? 'A browser wallet is available. Connect and approve the switch to Rabdi.' : 'Open this page in Chrome with the MetaMask extension enabled, then reload.') +
             '<p>Rabdi is the Arkiv testnet. Community actions require tGLM for gas. Approve each transaction in your wallet.</p>' +
@@ -1120,32 +1115,6 @@ class Application {
             this.openDialog('Share this strategy in a community', `<form data-form="share-strategy" data-version="${version.versionKey}"><label class="field"><span>Community</span><select name="communityKey" required>${rooms.map(room=>`<option value="${room.communityKey}">${e(room.name)}</option>`).join('')}</select></label>${field('title','Post title',{required:true,value:version.document.name})}${field('body','Explain your strategy',{area:true,required:true,value:version.document.description})}${notice('Join the selected community before posting. Readers can open this exact strategy version in the builder.')}<button class="button primary">Publish strategy post</button></form>`);
             return;
         }
-        if (action === 'moderate') {
-            this.openDialog('Keep the conversation thoughtful.', `<form data-form="ban">${field('wallet', 'Wallet to restrict', { required: true, placeholder: '0x…' })}<label class="field"><span>Action</span><select name="banned"><option value="true">Restrict posting</option><option value="false">Restore posting</option></select></label><button class="button primary">Apply ban</button></form><form data-form="moderator">${field('wallet','Moderator wallet',{required:true,placeholder:'0x…'})}<label class="field"><span>Action</span><select name="enabled"><option value="true">Appoint moderator</option><option value="false">Remove moderator</option></select></label><button class="button secondary">Update moderator</button></form>${notice('Moderators can hide content. Only the owner can ban or appoint. Records remain public on Arkiv; each action uses Rabdi gas.')}`);
-            return;
-        }
-        if (action === 'hide' && target.dataset.key && this.activeCommunity) {
-            const contentKey = target.dataset.key as Hex;
-            const room = this.activeCommunity;
-            this.openDialog('Hide this content?', `<p>This removes the content from the community’s visible feed. It remains public on the chain.</p>${button('confirm-hide', 'Hide content', 'primary', `data-key="${contentKey}"`)} ${button('unhide', 'Restore this content', 'secondary', `data-key="${contentKey}" data-room="${room.communityKey}"`)}`);
-            return;
-        }
-        if ((action === 'confirm-hide' || action === 'unhide') && target.dataset.key) {
-            const contentKey = target.dataset.key as Hex;
-            const room = (target.dataset.room ?? this.activeCommunity?.communityKey) as Hex;
-            const hidden = action === 'confirm-hide';
-            const previous = this.lastHidden, generation = this.generation;
-            this.lastHidden = hidden && this.account ? { key: contentKey, room, owner: this.account } : undefined;
-            try {
-                await this.busyAction(() => this.write('hidden', { contentKey, hidden }, requestId => this.api.community.setHidden({ requestId, communityKey: room, contentKey, hidden }), room));
-            }
-            catch (error) {
-                if (generation === this.generation)
-                    this.lastHidden = previous;
-                throw error;
-            }
-            return;
-        }
         if (action === 'publish' || action === 'fork' || action === 'revise') {
             if (this.preview)
                 failure('PREVIEW_ONLY');
@@ -1321,20 +1290,6 @@ class Application {
                 const expected = {title:checkedText(value('title'),1,80),body:checkedText(value('body'),1,4096),strategyVersionKey};
                 const post = await this.write('thread',expected,requestId=>this.api.community.createThread({requestId,communityKey,...expected}),communityKey);
                 location.hash = '/thread/' + communityKey + '/' + post.key;
-            }
-            else if (kind === 'ban') {
-                const wallet = value('wallet').toLowerCase() as Hex;
-                if (!walletPattern.test(wallet))
-                    failure('INVALID_INPUT');
-                const banned = value('banned') === 'true';
-                const room = this.activeCommunity!;
-                await this.write('ban', { wallet, banned }, requestId => this.api.community.setBan({ requestId, communityKey: room.communityKey, wallet, banned }), room.communityKey);
-            }
-            else if (kind === 'moderator') {
-                const wallet=value('wallet').toLowerCase() as Hex;
-                if(!walletPattern.test(wallet))failure('INVALID_INPUT');
-                const enabled=value('enabled')==='true',room=this.activeCommunity!;
-                await this.write('moderator',{wallet,enabled},requestId=>this.api.community.setModerator({requestId,communityKey:room.communityKey,wallet,enabled}),room.communityKey);
             }
             else if (kind === 'profile-search') {
                 const handle = value('handle');
