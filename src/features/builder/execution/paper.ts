@@ -5,6 +5,7 @@ export type Candle = {openTimeMs: number; closeTimeMs: number; open: number; hig
 export type PaperInput = {
   strategy: StrategyDefinition; context: ValidationContext; candles: Candle[];
   initialCashUsd: number; maxTurnoverUsd: number; feeBps: number; slippageBps: number;
+  tradingStartTimeMs?: number;
 };
 type Signal = {actionNodeId: string; side: "BUY" | "SELL"; notional: bigint; rsi: number};
 export type PaperOrder = {actionNodeId: string; side: "BUY" | "SELL"; signalTimeMs: number; fillTimeMs: number; priceUsd: string; baseQuantity: string; notionalUsd: string; feeUsd: string};
@@ -42,13 +43,14 @@ export function calculateRsi(closes: number[], period: number): number | null {
 }
 
 export function validatePaperInput(input: PaperInput) {
-  if (!input || typeof input !== "object" || Object.keys(input).some(key => !["strategy","context","candles","initialCashUsd","maxTurnoverUsd","feeBps","slippageBps"].includes(key)) ||
+  if (!input || typeof input !== "object" || Object.keys(input).some(key => !["strategy","context","candles","initialCashUsd","maxTurnoverUsd","feeBps","slippageBps","tradingStartTimeMs"].includes(key)) ||
       !validateStrategy(input.strategy, input.context).valid || input.strategy.riskPolicy.paperTradingOnly !== true) throw new PaperError("Supply a valid paper-only strategy and trusted market context.");
   const {strategy, candles, feeBps, slippageBps} = input;
   micro(input.initialCashUsd); micro(input.maxTurnoverUsd); micro(strategy.riskPolicy.maxNotionalUsd);
   strategy.nodes.forEach(node => {if (node.type === "action.intent") micro(node.notionalUsd);});
   if (!Number.isInteger(feeBps) || feeBps < 0 || feeBps > 1000 || !Number.isInteger(slippageBps) || slippageBps < 0 || slippageBps > strategy.riskPolicy.maxSlippageBps) throw new PaperError("Fees must be 0–1,000 integer bps; slippage must respect the strategy cap.");
   if (!Array.isArray(candles) || !candles.length || candles.length > 500) throw new PaperError("Supply 1–500 ordered, continuous candles.");
+  if(input.tradingStartTimeMs!==undefined&&(!Number.isSafeInteger(input.tradingStartTimeMs)||!candles.some(c=>c.openTimeMs===input.tradingStartTimeMs)))throw new PaperError("Trading start must match a historical candle open.");
   let interval = 0;
   for (const [i, candle] of candles.entries()) {
     if (!candle || typeof candle !== "object" || Object.keys(candle).length !== 6 || Object.keys(candle).some(key => !["openTimeMs","closeTimeMs","open","high","low","close"].includes(key)) ||
@@ -69,22 +71,28 @@ export function runPaperStrategy(input: PaperInput) {
   const nodes = new Map(strategy.nodes.map(node => [node.id, node]));
   const paths = strategy.nodes.filter(node => node.type === "action.intent").map(action => ({action, signal: nodes.get(source.get(source.get(action.id)!)!)!}));
   const closes = candles.map(candle => candle.close);
-  const signals: (Signal | undefined)[] = candles.map((_candle, index) => {
+  const done = new Set<string>();
+  function signalAt(index:number):Signal|undefined {
     const matching: Signal[] = [];
     for (const {action, signal} of paths) {
+      if(signal.type==='signal.price'){
+        if(!done.has(action.id)&&closes[index]!>=signal.minPriceUsd&&closes[index]!<=signal.maxPriceUsd)matching.push({actionNodeId:action.id,side:action.side,notional:micro(action.notionalUsd),rsi:NaN});
+        continue;
+      }
       if (signal.type !== "indicator.rsi") throw new PaperError("Invalid execution path.");
       const rsi = calculateRsi(closes.slice(0, index + 1), signal.period);
       if (rsi !== null && (signal.comparison === "lt" ? rsi < signal.threshold : rsi > signal.threshold)) matching.push({actionNodeId: action.id, side: action.side, notional: micro(action.notionalUsd), rsi});
     }
-    if (matching.length > 1) throw new PaperError("Conflicting actions match the same candle; no execution is allowed.");
+    if (matching.length > 1 && paths.some(path=>path.signal.type==='indicator.rsi')) throw new PaperError("Conflicting actions match the same candle; no execution is allowed.");
     return matching[0];
-  });
+  }
   const orders: PaperOrder[] = [];
   const decisions: {timeMs: number; decision: "BUY" | "SELL" | "HOLD"; reason: string; rsi?: number}[] = [];
   const rejections: {timeMs: number; actionNodeId: string; reason: string}[] = [];
   const equityCurve: {timeMs: number; valueUsd: string}[] = [];
   let pending: Signal | undefined;
   for (const [i, candle] of candles.entries()) {
+    if(input.tradingStartTimeMs!==undefined&&candle.openTimeMs<input.tradingStartTimeMs){pending=signalAt(i);continue;}
     if (pending) {
       const buying = pending.side === "BUY";
       const rawPrice = micro(candle.open) * BigInt(buying ? 10000 + slippageBps : 10000 - slippageBps);
@@ -92,8 +100,10 @@ export function runPaperStrategy(input: PaperInput) {
       const quantity = price > 0n ? pending.notional * BASE / price : 0n;
       const gross = buying ? ceil(quantity * price, BASE) : quantity * price / BASE;
       const fee = ceil(gross * BigInt(feeBps), 10000n);
+      const condition=nodes.get(source.get(source.get(pending.actionNodeId)!)!)!;
       let reason = "";
       if (!quantity || !gross || (!buying && fee >= gross)) reason = "Order is below paper precision after costs.";
+      else if(condition.type==='signal.price'&&(price<micro(condition.minPriceUsd)||price>micro(condition.maxPriceUsd)))reason='Next-open execution price is outside the strategy target range.';
       else if (gross > micro(strategy.riskPolicy.maxNotionalUsd)) reason = "Order exceeds the strategy cap.";
       else if (turnover + gross + fee > maxTurnover) reason = "Cumulative turnover limit reached (including fees).";
       else if (buying ? cash < gross + fee : base < quantity) reason = "Insufficient virtual balance.";
@@ -102,18 +112,19 @@ export function runPaperStrategy(input: PaperInput) {
         cash += buying ? -gross - fee : gross - fee;
         base += buying ? quantity : -quantity;
         turnover += gross + fee;
+        done.add(pending.actionNodeId);
         orders.push({actionNodeId: pending.actionNodeId, side: pending.side, signalTimeMs: candles[i - 1]!.closeTimeMs, fillTimeMs: candle.openTimeMs, priceUsd: format(price), baseQuantity: format(quantity,8), notionalUsd: format(gross), feeUsd: format(fee)});
       }
     }
     equityCurve.push({timeMs: candle.closeTimeMs, valueUsd: format(cash + base * micro(candle.close) / BASE)});
-    pending = signals[i];
-    decisions.push({timeMs: candle.closeTimeMs, decision: pending?.side ?? "HOLD", reason: pending ? "Strategy condition matched; fill requires a following candle and passing risk checks." : "No matching condition or insufficient RSI history.", ...(pending ? {rsi: pending.rsi} : {})});
+    pending = signalAt(i);
+    decisions.push({timeMs: candle.closeTimeMs, decision: pending?.side ?? "HOLD", reason: pending ? "Strategy condition matched; fill requires a following candle and passing risk checks." : "No matching condition or insufficient history, or price action already filled.", ...(pending&&Number.isFinite(pending.rsi) ? {rsi: pending.rsi} : {})});
   }
   const finalValue = cash + base * micro(candles.at(-1)!.close) / BASE;
   return {
     mode: "PAPER" as const, orders, decisions, rejections, equityCurve,
     summary: {initialCashUsd: format(initialCash), cashUsd: format(cash), baseQuantity: format(base,8), finalValueUsd: format(finalValue), netPnlUsd: format(finalValue - initialCash), turnoverUsd: format(turnover), tradeCount: orders.length},
     ...(pending ? {unfilledSignal: {side: pending.side, actionNodeId: pending.actionNodeId, reason: "No following candle exists to fill the final signal."}} : {}),
-    assumptions: ["Paper replay only; no wallet or Flash order.", "Quote currency explicitly valued at USD 1 for this replay, not a live FX claim.", "Signals at candle close; fills at next open with adverse slippage and fees.", "Virtual base precision: 8 decimals; USD precision: 6 decimals. Fees count toward cumulative turnover.", "A BUY/SELL decision is a signal; only the orders list contains filled paper trades."],
+    assumptions: ["Paper replay only; no wallet or Flash order.", "Quote currency explicitly valued at USD 1 for this replay, not a live FX claim.", "Signals at candle close; fills at next open with adverse slippage and fees.", "Price-range actions fill once per run in canvas order; RSI signals may repeat.", "Virtual base precision: 8 decimals; USD precision: 6 decimals. Fees count toward cumulative turnover.", "A BUY/SELL decision is a signal; only the orders list contains filled paper trades."],
   };
 }

@@ -1,6 +1,6 @@
 import {connectSolanaWallet,signSolanaSetup,signSolanaOrderMessage} from "./solana-wallet.js";
 import {connectBrowserWallet,signFlashOrder} from "./wallet.js";
-export function mountExecution({root=document,getDraft,applyDraft,validateDraft,getApiKey,onText,mayReplace=()=>true,request=fetch,onActivity=()=>{},getPair=()=>({id:"eth-usdc",base:{symbol:"WETH",reference:"ETH"},quote:{symbol:"USDC"}})}) {
+export function mountExecution({root=document,getDraft,applyDraft,validateDraft,getApiKey,mayReplace=()=>true,request=fetch,onActivity=()=>{},getPair=()=>({id:"eth-usdc",base:{symbol:"WETH",reference:"ETH"},quote:{symbol:"USDC"}})}) {
   const $=id=>root.querySelector(`#${id}`);
   const setText=(id,text)=>{const node=$(id);if(node)node.textContent=text;};
   const entries=new Map();
@@ -48,22 +48,31 @@ export function mountExecution({root=document,getDraft,applyDraft,validateDraft,
     status(message);refresh();
   }
   async function choose(entry) {
-    if(!entry.strategy){
-      try{onText(entry);}catch(error){status(error.message);}
-      return;
-    }
-    if(!mayReplace())return;
+    if(!mayReplace())return false;
     invalidate("Loading creator strategy…");
     const current=sequence,snapshot=JSON.stringify(getDraft());
     try {
-      const strategy=entry.strategy;
+      let strategy=entry.strategy;
+      if(!strategy){
+        const apiKey=getApiKey();
+        if(!apiKey)throw new Error("Add your 0G key first. The interpreter reads creator text separately from the execution agent.");
+        busy=true;controller=new AbortController();refresh();
+        status("Interpreter is reading the creator’s text. This uses one 0G request; no trade starts.");
+        const response=await request("/api/interpret",{method:"POST",signal:AbortSignal.any([controller.signal,AbortSignal.timeout(45000)]),headers:{"Content-Type":"application/json",Authorization:`Bearer ${apiKey}`},body:JSON.stringify({name:entry.name,text:entry.text})});
+        const payload=await response.json();
+        if(current!==sequence)return;
+        if(!response.ok||!payload.ok)throw new Error(payload.error?.message??"Creator text could not be interpreted.");
+        if(payload.data.status!=="READY")throw new Error(`Creator must clarify: ${(payload.data.questions??[]).join(" ")}`);
+        strategy=payload.data.strategy;
+      }
       if(current!==sequence||JSON.stringify(getDraft())!==snapshot)return;
       if(!validateDraft(strategy).valid)throw new Error("The interpreter returned unsupported rules. Current canvas is unchanged.");
       lastDraft=JSON.stringify(strategy);applyDraft(structuredClone(strategy));
       if($("creator-text"))$("creator-text").textContent=entry.text?`Creator instructions: ${entry.text}`:"";
       $("execution-selected").textContent=`${strategy.name} · version ${entry.versionId} · each action once per run`;
       status("Review the interpreted price ranges and amounts on the canvas, then Run to monitor.");
-    }catch(error){if(current===sequence)status(error.message);}
+      return true;
+    }catch(error){if(current===sequence)status(error.message);return false;}
     finally{if(current===sequence){busy=false;controller=undefined;refresh();}}
   }
   function validateEntry(entry) {
@@ -198,5 +207,5 @@ export function mountExecution({root=document,getDraft,applyDraft,validateDraft,
   root.defaultView?.ethereum?.on?.("chainChanged",()=>invalidate("Wallet network changed. Reconnect on the selected network before Run."));
   root.defaultView?.addEventListener("pagehide",()=>invalidate("Monitoring stopped because this tab closed."));
   $("execution-results").hidden=true;refresh();
-  return {clearUnlockedStrategies(){entries.clear();$("execution-library").replaceChildren();},addUnlockedStrategy,openUnlockedStrategy(entry){validateEntry(entry);return choose(structuredClone(entry));},setFollowedCreators,refreshMarket,invalidate,draftChanged(){const now=JSON.stringify(getDraft());if(now!==lastDraft){lastDraft=now;$("execution-selected").textContent="Current edited draft · live price monitor";invalidate("Draft changed. Review it before starting a new run.");if((market?.pairId??"eth-usdc")!==getPair().id){market=undefined;void refreshMarket();}}}};
+  return {openUnlockedReference(id){if(!entries.has(id))throw new Error("Drop a strategy from the unlocked library.");return choose(entries.get(id));},clearUnlockedStrategies(){entries.clear();$("execution-library").replaceChildren();},addUnlockedStrategy,openUnlockedStrategy(entry){validateEntry(entry);return choose(structuredClone(entry));},setFollowedCreators,refreshMarket,invalidate,draftChanged(){const now=JSON.stringify(getDraft());if(now!==lastDraft){lastDraft=now;$("execution-selected").textContent="Current edited draft · live price monitor";invalidate("Draft changed. Review it before starting a new run.");if((market?.pairId??"eth-usdc")!==getPair().id){market=undefined;void refreshMarket();}}}};
 }
