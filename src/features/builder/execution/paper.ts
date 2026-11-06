@@ -24,7 +24,7 @@ function micro(value: unknown): bigint {
     throw new PaperError("Amounts and prices must be positive, at most 1,000,000, with at most six decimal places.");
   }
   const [whole, fraction = ""] = String(value).split(".");
-  return BigInt(whole) * USD + BigInt(fraction.padEnd(6, "0"));
+  return BigInt(whole!) * USD + BigInt(fraction.padEnd(6, "0"));
 }
 
 export function calculateRsi(closes: number[], period: number): number | null {

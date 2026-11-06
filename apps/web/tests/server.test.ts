@@ -1,24 +1,62 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {spawn} from 'node:child_process';
+import {createServer} from 'node:http';
 import {fileURLToPath} from 'node:url';
-test('one origin serves builder and community with isolated assets and private files',async()=>{
-  const child=spawn(process.execPath,['tooling/server.mjs'],{cwd:fileURLToPath(new URL('../',import.meta.url)),env:{...process.env,PORT:'0'},windowsHide:true,stdio:['ignore','pipe','pipe']});
-  let stderr='';child.stderr.on('data',chunk=>{stderr+=String(chunk);});
-  try{
-    const base=await new Promise<string>((resolve,reject)=>{const timeout=setTimeout(()=>reject(new Error('Static host did not start')),20000);let output='';child.stdout.on('data',chunk=>{output+=String(chunk);const found=output.match(/http:\/\/127\.0\.0\.1:\d+/);if(found){clearTimeout(timeout);resolve(found[0]);}});child.on('error',reject);child.on('exit',code=>{clearTimeout(timeout);reject(new Error('Static host stopped: '+code+' '+stderr));});});
-    const home=await fetch(base);assert.equal(home.status,200);const homeHtml=await home.text();assert.match(homeHtml,/Poros.*Strategy builder/);
-    assert.doesNotMatch(homeHtml,/community-marquee|execution-workspace/);
-    assert.match(homeHtml,/href="\/community">Communities/);
-    assert.match(homeHtml,/href="\/home">Home/);assert.match(homeHtml,/href="\/profile">Profile/);
-    for(const path of ['/home','/profile','/0g-pot'])assert.equal((await fetch(base+path)).status,200);
-    assert.equal((await fetch(base+'/community/builder.js')).status,200);
-    const community=await fetch(base+'/community');assert.equal(community.status,200);assert.match(await community.text(),/Poros Community/);
-    const script=await fetch(base+'/community/app.js');assert.match(script.headers.get('content-type')!,/javascript/);assert.equal(script.headers.get('cache-control'),'no-store');
-    const bundle=await script.text();assert.doesNotMatch(bundle,/Find your next idea/);assert.match(bundle,/Membership income/);assert.doesNotMatch(bundle,/node:sqlite|createWalletAuth|openMarketplace|diagnostic-private|Weekly accumulation/);
-    assert.equal((await fetch(base+'/api/community-marketplace/orders')).status,404);
-    assert.equal((await fetch(base+'/api/community-marketplace/orders',{method:'POST'})).status,405);
-    assert.equal((await fetch(base+'/.env')).status,404);assert.equal((await fetch(base+'/vault.sqlite')).status,404);
-    assert.equal((await fetch(base+'/src/main.ts')).status,404);
-  }finally{child.kill();}
+import {readFile, readdir} from 'node:fs/promises';
+import next from 'next';
+
+test('Next serves every workspace with one identity and isolated browser assets', async () => {
+  const app = next({dev: false, dir: fileURLToPath(new URL('../', import.meta.url))});
+  await app.prepare();
+  const server = createServer(app.getRequestHandler());
+  await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
+  const address = server.address();
+  assert.ok(address && typeof address !== 'string');
+  const base = `http://127.0.0.1:${address.port}`;
+  try {
+    let logo: string | undefined;
+    for (const path of ['/', '/orders', '/home', '/community', '/profile', '/0g-pot', '/community?preview=1']) {
+      const response = await fetch(base + path);
+      assert.equal(response.status, 200, path);
+      assert.equal(response.headers.get('x-content-type-options'), 'nosniff');
+      const html = await response.text();
+      const policy = response.headers.get('content-security-policy');
+      assert.match(policy ?? '', /script-src 'self' 'nonce-[^']+' 'strict-dynamic'/);
+      assert.match(html, /<script[^>]+nonce="[^"]+"/);
+      assert.ok(policy?.includes("form-action 'self'"));
+      const header = html.match(/<header class="poros-header">.*?<\/header>/s)?.[0];
+      assert.ok(header, path);
+      const mark = header.match(/<svg.*?<\/svg>/s)?.[0];
+      assert.ok(mark);
+      logo ??= mark;
+      assert.equal(mark, logo);
+      for (const label of ['Home', 'Trade', 'Orders', 'Communities', 'Profile', '0G Pot']) assert.ok(header.includes(label));
+      assert.equal((html.match(/id="wallet-connect"/g) ?? []).length, 1);
+      assert.match(html, /\/_next\/static\//);
+      if (path === '/') {
+        assert.match(html, /id="canvas"/);
+        assert.doesNotMatch(html, /id="market-chart-svg"/);
+        assert.match(html, /draggable="true"/);
+        assert.match(html, /id="publish-community"/);
+      }
+      if(path === '/orders'){assert.match(html,/id="market-chart-svg"/);assert.match(html,/Transaction history/);assert.doesNotMatch(html,/id="canvas"/);}
+    }
+    for (const path of ['/.env', '/.env.local', '/vault.sqlite', '/src/main.ts', '/core/validation/strategy.ts', '/package.json', '/.git/config', '/server.mjs', '/community/app.js']) {
+      assert.equal((await fetch(base + path)).status, 404, path);
+    }
+    assert.equal((await fetch(base + '/api/community-marketplace/orders')).status, 404);
+    assert.equal((await fetch(base + '/api/monitor')).status, 405);
+    assert.equal((await fetch(base + '/api/performance?wallet=invalid')).status, 400);
+    assert.equal((await fetch(base + '/api/sepolia-rpc', {method: 'POST', headers: {'Content-Type': 'application/json', Origin: 'https://foreign.example'}, body: '{}'})).status, 403);
+    assert.equal((await fetch(base + '/api/sepolia-rpc', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({jsonrpc:'2.0',id:1,method:'eth_sendTransaction',params:[]})})).status, 400);
+    const assets = new URL('../.next/static/', import.meta.url);
+    for (const name of await readdir(assets, {recursive: true})) {
+      if (!name.endsWith('.js')) continue;
+      const script = await readFile(new URL(name.replaceAll('\\', '/'), assets), 'utf8');
+      assert.doesNotMatch(script, /node:sqlite|createWalletAuth|openMarketplace|ARKIV_ACCESS_KEY|diagnostic-private/);
+    }
+  } finally {
+    await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
+    await app.close();
+  }
 });

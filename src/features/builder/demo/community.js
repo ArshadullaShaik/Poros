@@ -1,4 +1,4 @@
-export function mountCommunityLibrary({root=document,loadApi=()=>import('/community/builder.js'),onLoad}){
+export function mountCommunityLibrary({root=document,loadApi=()=>import('../../../../apps/web/src/builder.ts'),onLoad,onText}){
   const $=id=>root.querySelector(`#${id}`);
   let cursor=null,busy=false,community;
   const key=value=>typeof value==='string'&&/^0x[0-9a-f]{64}$/i.test(value);
@@ -8,20 +8,25 @@ export function mountCommunityLibrary({root=document,loadApi=()=>import('/commun
     try{const {publicStrategies}=await loadApi();const version=await publicStrategies.getVersion({versionKey});await onLoad(version.document.graph,version.versionKey);$('community-strategies-status').textContent='Community strategy loaded. Review its rules before Run.';}
     catch(error){$('community-strategies-status').textContent=error.message??'Could not load this community strategy.';}
   }
+  async function loadPost(communityKey,postKey){
+    if(!key(communityKey)||!key(postKey))return;
+    try{const api=await loadApi();const entry=await api.readPublicPost(communityKey,postKey);await onText(entry);}
+    catch(error){$('community-strategies-status').textContent=error.message??'Could not load this community post.';}
+  }
   async function refresh(append=false){
     if(busy)return;busy=true;$('refresh-community-strategies').disabled=true;$('more-community-strategies').disabled=true;
     $('community-strategies-status').textContent=community?'Loading community strategies…':'Loading communities…';
     try{
-      const {publicStrategies,publicLists=publicStrategies}=await loadApi(),pageInput={offset:append?cursor:0,limit:20};
-      const page=community?await publicLists.listStrategies({communityKey:community.communityKey,page:pageInput}):await publicLists.listCommunities({page:pageInput});
-      if(!Array.isArray(page.items)||page.items.length>20||page.items.some(row=>!key(community?row.rootVersionKey:row.communityKey)||typeof row.name!=='string'||row.name.length>128||community&&row.communityKey!==community.communityKey))throw new Error('Invalid community response.');
+      const {publicStrategies,publicLists=publicStrategies,listCommunityStrategies}=await loadApi(),pageInput={offset:append?cursor:0,limit:20};
+      const page=community?await (listCommunityStrategies??publicStrategies.listStrategies)({communityKey:community.communityKey,page:pageInput}):await publicLists.listCommunities({page:pageInput});
+      if(!Array.isArray(page.items)||page.items.length>20||page.items.some(row=>!key(community?(row.rootVersionKey??row.postKey):row.communityKey)||typeof row.name!=='string'||row.name.length>128||community&&row.communityKey!==community.communityKey))throw new Error('Invalid community response.');
       if(!append)$('community-strategies').replaceChildren();
       for(const row of page.items){
         const card=text('button','');card.type='button';card.className='unlocked-card';card.draggable=!!community;
-        card.append(text('strong',row.name),text('small',community?'Public strategy · drag or click to load':row.description||'View community strategies'));
+        card.append(text('strong',row.name),text('small',community?(row.postKey?'Written post · drag or click to interpret (0G key and cost)':'Public strategy · drag or click to load'):row.description||'View community strategies'));
         if(community){
-          card.addEventListener('click',()=>load(row.rootVersionKey));
-          card.addEventListener('dragstart',event=>{event.dataTransfer.setData('text/plain',JSON.stringify({kind:'public-strategy',versionKey:row.rootVersionKey}));event.dataTransfer.effectAllowed='copy';});
+          card.addEventListener('click',()=>row.postKey?loadPost(row.communityKey,row.postKey):load(row.rootVersionKey));
+          card.addEventListener('dragstart',event=>{event.dataTransfer.setData('text/plain',JSON.stringify(row.postKey?{kind:'public-post',communityKey:row.communityKey,postKey:row.postKey}:{kind:'public-strategy',versionKey:row.rootVersionKey}));event.dataTransfer.effectAllowed='copy';});
         }else card.addEventListener('click',()=>{if(busy)return;community=row;return refresh();});
         $('community-strategies').append(card);
       }
@@ -37,7 +42,7 @@ export function mountCommunityLibrary({root=document,loadApi=()=>import('/commun
   $('refresh-community-strategies').addEventListener('click',()=>refresh());
   $('more-community-strategies').addEventListener('click',()=>refresh(true));
   $('back-to-communities').addEventListener('click',()=>{if(busy)return;community=undefined;void refresh();});
-  return {refresh,load};
+  return {refresh,load,loadPost};
 }
 
 export function mountLibraryTabs({root=document,onCommunity,onSelect}){
@@ -66,7 +71,7 @@ export function mountLibraryTabs({root=document,onCommunity,onSelect}){
   select(tabs[0]);
 }
 
-export function mountMemberLibrary({root=document,loadApi=()=>import('/community/builder.js'),onEntries,onCreators,onReset=()=>{}}){
+export function mountMemberLibrary({root=document,loadApi=()=>import('../../../../apps/web/src/builder.ts'),onEntries,onCreators,onReset=()=>{}}){
   const $=id=>root.querySelector(`#${id}`);
   let generation=0,expiryTimer,unsubscribe,stopped=false;
   const status=message=>{for(const id of ['unlocked-status','creators-status'])$(id).textContent=message;};

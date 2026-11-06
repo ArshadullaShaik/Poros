@@ -1,9 +1,11 @@
 import {savePaperRun} from './performance.ts';
+import {saveExecutionRun} from './order-history.ts';
+import {paperPosition} from '../../../src/features/builder/demo/chart.js';
 import {createPublicReadCache,browserStorage,cachedPublicLists} from './public-cache.ts';
 import {compose} from './integration.ts';
 import {createInjectedWallet} from './wallet.ts';
 import {createCreatorMemberships,createMembershipReaders} from '../../../src/integrations/arkiv/community/index.ts';
-import {readMemberLibrary} from './builder-library.ts';
+import {readMemberLibrary,readCommunityStrategies,readCommunityPost} from './builder-library.ts';
 import { validateBuilderDocument } from './strategy-document.ts';
 import { mountMembershipWorkspace } from './membership-workspace.ts';
 import type { memberStrategy } from './member-strategy.ts';
@@ -12,6 +14,8 @@ const integration=typeof window==='undefined'?{}:window.__COMMON_GROUND__;
 const wallet=typeof window==='undefined'?undefined:integration?.wallet??createInjectedWallet();
 const api=compose({...integration,...(wallet?{wallet}:{}),validateStrategyDocument:validateBuilderDocument});
 export const publicStrategies=api.strategies;
+export const listCommunityStrategies=(input:Parameters<typeof readCommunityStrategies>[2])=>readCommunityStrategies(api.strategies,api.community,input);
+export const readPublicPost=(communityKey:`0x${string}`,postKey:`0x${string}`)=>readCommunityPost(api.community,communityKey,postKey);
 export const publicLists=cachedPublicLists(api.strategies,createPublicReadCache({storage:browserStorage(),onRefresh:(_key,changed)=>{if(changed&&typeof window!=='undefined')window.dispatchEvent(new Event('poros:public-data-updated'));}}));
 export { MEMBER_STRATEGY_TYPE, readMemberStrategy } from './member-strategy.ts';
 export async function readPersonalLibrary(recoveryCode?:string){
@@ -43,12 +47,27 @@ export function strategyReference(text: string, origin: string): `0x${string}` {
 
 // A run stays associated with the wallet connected at its first snapshot.
 const performanceOwners=new Map<string,Promise<string|undefined>>();
-export async function recordPaperPerformance(run:import('./performance.ts').PaperRun){
-  if(!performanceOwners.has(run.id)){
-    performanceOwners.set(run.id,wallet?.getContext().then(context=>context.account.toLowerCase()).catch(()=>undefined)??Promise.resolve(undefined));
+function ownerForRun(id:string, liveWallet?:string){
+  if(!performanceOwners.has(id)){
+    performanceOwners.set(id,liveWallet?Promise.resolve(liveWallet):wallet?.getContext().then(context=>context.account.toLowerCase()).catch(()=>undefined)??Promise.resolve(undefined));
     if(performanceOwners.size>100)performanceOwners.delete(performanceOwners.keys().next().value!);
   }
-  const owner=await performanceOwners.get(run.id);
+  return performanceOwners.get(id)!;
+}
+export async function recordPaperPerformance(run:import('./performance.ts').PaperRun){
+  const owner=await ownerForRun(run.id);
   if(!owner || !wallet || (await wallet.getContext()).account.toLowerCase()!==owner)return;
   savePaperRun(localStorage,owner,run);
+}
+export async function recordExecutionSnapshot(snapshot:any, time:number){
+  const owner=await ownerForRun(snapshot.id,snapshot.wallet);
+  if(owner?.startsWith('0x') && (!wallet || (await wallet.getContext()).account.toLowerCase()!==owner.toLowerCase()))return;
+  const save=()=>{
+    saveExecutionRun(localStorage,owner,snapshot,time);
+    const position=paperPosition(snapshot);
+    if(position && owner?.startsWith('0x'))savePaperRun(localStorage,owner,{id:snapshot.id,pair:snapshot.pair.label,realizedPnl:position.realizedPnl,fills:snapshot.orders.length,updatedAt:time});
+    window.dispatchEvent(new Event('poros:execution-updated'));
+  };
+  if(navigator.locks)await navigator.locks.request('poros.execution-history:'+(owner??'paper'),save);
+  else save();
 }

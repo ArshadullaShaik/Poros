@@ -124,7 +124,7 @@ export function mountExecution({root=document,getDraft,applyDraft,validateDraft,
   for(const id of ["execution-mode","execution-capital","execution-turnover","execution-fee","execution-slippage"])$(id).addEventListener("change",()=>invalidate("Execution settings changed. Start a new paper run to use them."));
   $("execution-stop").addEventListener("click",()=>invalidate("Stopped. Pending AI may still be charged. Submitted Flash orders may still fill; their IDs remain below.",true));
   function renderResults(data) {
-    notify({kind:"snapshot",data});
+    notify({kind:"snapshot",data:{...data,wallet:data.wallet??(walletNetwork===getPair().network?.id?wallet:undefined)}});
     const output=$("execution-results");output.replaceChildren();
     output.append(element("h3",`${data.status} · ${data.mode==="LIVE"?"LIVE Flash orders":`${data.orders.length} paper fills`}`));
     if(data.mode==="LIVE"){

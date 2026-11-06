@@ -1,4 +1,5 @@
 import {readChainlink} from "./chainlink.ts";
+import {networks} from "./networks.ts";
 import {readBoundedJson} from "../ai/zero-g.ts";
 import {PaperError} from "../execution/paper.ts";
 import type {Candle} from "../execution/paper.ts";
@@ -10,7 +11,7 @@ const MINUTE = 60000;
 const ORACLE_MAX_AGE = 1200000;
 const unavailable = (message: string) => new FlashError(message);
 
-export function createMarketData({fetcher = fetch, now = Date.now, rpcUrl = process.env.BASE_RPC_URL ?? "https://mainnet.base.org"} = {}) {
+export function createMarketData({fetcher = fetch, now = Date.now, rpcUrl = process.env.BASE_RPC_URL ?? networks.base.rpc} = {}) {
   const flash = createFlashMarket({fetcher, now});
   let candles: Candle[] = [], checkedAt = -Infinity, lastAttempt = -Infinity, healthy = false;
   let chainlink: {priceUsd: string; updatedAtMs: number; feed: string} | undefined;

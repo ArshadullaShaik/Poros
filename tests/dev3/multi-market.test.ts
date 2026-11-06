@@ -17,7 +17,7 @@ test("pair price caches never return ETH data for a BTC request",async()=>{
   const markets=createLiveMarkets({now:()=>time,fetcher:async(url:any,init:any)=>{
     const body=JSON.parse(init.body);calls.push(body);
     if(String(url).includes("flash")){const pair=tradingPairs.find(p=>p.base.address.toLowerCase()===body.targetAsset.toLowerCase()&&p.quote.address.toLowerCase()===body.contraAsset.toLowerCase())!;const price=pair.base.symbol==="cbBTC"?75000:2500;return Response.json({quoteId:"quote-"+pair.id,side:"buy",orderType:"market",targetAsset:body.targetAsset,contraAsset:body.contraAsset,from:{asset:"contra",amount:"20"},to:{asset:"target",amount:String(20/price),notional:"20"}});}
-    return Response.json(body.map((call:any)=>({jsonrpc:"2.0",id:call.id,result:call.method==="eth_chainId"?"0x2105":call.params[0].data==="0x313ce567"?"0x"+word(8):call.params[0].to.toLowerCase()==="0xbcf85224fc0756b9fa45aa7892530b47e10b6433"?round(0):round(tradingPairs.some(p=>p.base.symbol==="cbBTC"&&p.base.feed.toLowerCase()===call.params[0].to.toLowerCase())?75000e8:tradingPairs.some(p=>p.quote.feed.toLowerCase()===call.params[0].to.toLowerCase())?1e8:2500e8)})));
+    return Response.json(body.map((call:any)=>({jsonrpc:"2.0",id:call.id,result:call.method==="eth_chainId"?"0x2105":call.method==="eth_getBlockByNumber"?{number:"0x1234",timestamp:"0x"+(time/1000).toString(16)}:call.params[0].data==="0x313ce567"?"0x"+word(8):call.params[0].to.toLowerCase()==="0xbcf85224fc0756b9fa45aa7892530b47e10b6433"?round(0):round(tradingPairs.some(p=>p.base.symbol==="cbBTC"&&p.base.feed.toLowerCase()===call.params[0].to.toLowerCase())?75000e8:tradingPairs.some(p=>p.quote.feed.toLowerCase()===call.params[0].to.toLowerCase())?1e8:2500e8)})));
   }});
   const eth=await markets.refresh("eth-usdc"),btc=await markets.refresh("btc-usdt");
   assert.equal(eth.priceUsd,"2500.000000");assert.equal(btc.priceUsd,"75000.000000");assert.equal(btc.pairId,"btc-usdt");assert.equal(btc.quotePriceUsd,"1.000000");
@@ -52,10 +52,10 @@ test('AMP display reads a fresh Chainlink price without requiring a Flash route;
  const markets=createLiveMarkets({now:()=>time,fetcher:async(url:any,init:any)=>{
   calls++;
   if(String(url).includes('flash'))return Response.json({error:'No route'},{status:400});
-  return Response.json(JSON.parse(init.body).map((call:any)=>({jsonrpc:'2.0',id:call.id,result:call.method==='eth_chainId'?'0x2105':call.params[0].data==='0x313ce567'?'0x'+word(8):'0x'+[1,call.params[0].to.toLowerCase()==='0xbcf85224fc0756b9fa45aa7892530b47e10b6433'?0:120000,time/1000-7200,time/1000-(stale?90000:0),1].map(word).join('')})));
+  return Response.json(JSON.parse(init.body).map((call:any)=>({jsonrpc:'2.0',id:call.id,result:call.method==='eth_chainId'?'0x2105':call.method==='eth_getBlockByNumber'?{number:'0x1234',timestamp:'0x'+(time/1000).toString(16)}:call.params[0].data==='0x313ce567'?'0x'+word(8):'0x'+[1,call.params[0].to.toLowerCase()==='0xbcf85224fc0756b9fa45aa7892530b47e10b6433'?0:120000,time/1000-7200,time/1000-(stale?90000:0),1].map(word).join('')})));
  }});
- const price=await markets.displayPrice('base-amp-usdc');assert.equal(price.source,'CHAINLINK');assert.equal(price.priceUsd,'0.001200');assert.equal(calls,1);
- await markets.displayPrice('base-amp-usdc');assert.equal(calls,1);
+ const price=await markets.displayPrice('base-amp-usdc');assert.equal(price.source,'CHAINLINK');assert.equal(price.priceUsd,'0.001200');assert.equal(calls,2);
+ await markets.displayPrice('base-amp-usdc');assert.equal(calls,2);
  await assert.rejects(markets.refresh('base-amp-usdc'),/HTTP 400/);assert.equal(markets.read('base-amp-usdc').stale,true);
  stale=true;await assert.rejects(markets.displayPrice('eth-usdc'));
 });
@@ -65,7 +65,7 @@ test('chart uses a fresh Flash quote every two seconds and labels Chainlink fall
  const markets=createLiveMarkets({now:()=>time,fetcher:async(url:any,init:any)=>{
   const body=JSON.parse(init.body);
   if(String(url).includes('flash')){calls++;if(fail)return Response.json({error:'No route'},{status:400});return Response.json({quoteId:'quote',side:'buy',orderType:'market',targetAsset:body.targetAsset,contraAsset:body.contraAsset,from:{asset:'contra',amount:'20'},to:{asset:'target',amount:'0.01',notional:calls===1?'20':'21'}});}
-  return Response.json(body.map((call:any)=>({jsonrpc:'2.0',id:call.id,result:call.method==='eth_chainId'?'0x2105':call.params[0].data==='0x313ce567'?'0x'+word(8):'0x'+[1,call.params[0].to.toLowerCase()==='0xbcf85224fc0756b9fa45aa7892530b47e10b6433'?0:200000000000,time/1000-7200,time/1000,1].map(word).join('')})));
+  return Response.json(body.map((call:any)=>({jsonrpc:'2.0',id:call.id,result:call.method==='eth_chainId'?'0x2105':call.method==='eth_getBlockByNumber'?{number:'0x1234',timestamp:'0x'+(time/1000).toString(16)}:call.params[0].data==='0x313ce567'?'0x'+word(8):'0x'+[1,call.params[0].to.toLowerCase()==='0xbcf85224fc0756b9fa45aa7892530b47e10b6433'?0:200000000000,time/1000-7200,time/1000,1].map(word).join('')})));
  }});
  const first=await markets.chartPrice('eth-usdc');assert.equal(first.source,'FLASH');assert.equal(first.priceUsd,'2000.000000');assert.equal(markets.read('eth-usdc').stale,true);
  time+=1999;await markets.chartPrice('eth-usdc');assert.equal(calls,1);

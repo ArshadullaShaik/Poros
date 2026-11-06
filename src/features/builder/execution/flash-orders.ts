@@ -67,7 +67,7 @@ export function createFlashOrders({fetcher=fetch,now=Date.now,apiKey=process.env
     const signing=validateWalletQuote(quote,{...order,pairId:pair.id},now());
     const received=Number(quote.to.amount),spent=Number(quote.from.amount),effectivePrice=(buy?spent/received:received/spent)*quoteUsd;
     if(!Number.isFinite(effectivePrice)||effectivePrice<condition.minPriceUsd||effectivePrice>condition.maxPriceUsd)throw new FlashError("The executable Flash quote is outside the creator’s price range.");
-    return {...signing,order,pairId:pair.id,notionalUsd:notional.toFixed(6),side:action.side,pairId:pair.id,baseSymbol:pair.base.native?"W"+pair.base.reference:pair.base.symbol,quoteSymbol:pair.quote.symbol,quotePriceUsd:quoteUsd.toFixed(6),basePriceUsd:price.toFixed(6),expectedReceive:quote.to.amount,effectivePriceUsd:effectivePrice.toFixed(6)};
+    return {...signing,order,pairId:pair.id,notionalUsd:notional.toFixed(6),side:action.side,baseSymbol:pair.base.native?"W"+pair.base.reference:pair.base.symbol,quoteSymbol:pair.quote.symbol,quotePriceUsd:quoteUsd.toFixed(6),basePriceUsd:price.toFixed(6),expectedReceive:quote.to.amount,effectivePriceUsd:effectivePrice.toFixed(6)};
   }
   async function revalidate(prepared:any,condition:any,signal?:AbortSignal,quotePriceUsd=prepared.quotePriceUsd??"1.000000",basePriceUsd=prepared.basePriceUsd){
     if(prepared.family==="solana")return solana.revalidate(prepared,condition,signal,quotePriceUsd,basePriceUsd);

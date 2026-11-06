@@ -1,7 +1,7 @@
 import {zeroGPotPage,mountZeroGPot} from './zero-g-pot.ts';
 import {readPaperRuns} from './performance.ts';
 import serialize from 'canonicalize';
-import {archiveUnsubmittedWrite} from './pending-write.ts';
+import {archiveUnsubmittedWrite,createPendingWriteChecker} from './pending-write.ts';
 import {createPublicReadCache,browserStorage,cachedPublicLists,validProfile} from './public-cache.ts';
 import { keccak256, toBytes, type Hex } from 'viem';
 import type { CommunityDTO, StrategySummaryDTO, VersionDTO, Json, StrategyDocumentV1 } from '../../../src/integrations/arkiv/index.ts';
@@ -60,6 +60,23 @@ class Application {
     skipped = 0;
     profiles = new Map<string, Profile>();
     pending: PendingWrite | undefined;
+    pendingCheckMessage = '';
+    pendingChecking = false;
+    verifyPendingWrite = createPendingWriteChecker(async () => {
+        await this.reconcile(true);
+        return !this.pending;
+    }, (request, state) => {
+        if (!this.pending || request !== this.pending.account + ':' + this.pending.requestId) return;
+        this.pendingChecking = state === 'checking';
+        this.pendingCheckMessage = {
+            checking: 'Checking transaction automatically…',
+            waiting: 'Waiting for Arkiv confirmation. Checking automatically…',
+            retrying: 'Verification is delayed. Retrying automatically…',
+            review: 'Verification needs review. Use Check status for details.',
+            verified: '',
+        }[state];
+        this.updateChrome();
+    });
     activeCommunity: CommunityDTO | undefined;
     activeVersion: VersionDTO | undefined;
     activeListing: Listing | undefined;
@@ -101,15 +118,14 @@ class Application {
         }
         catch { }
         if (new URLSearchParams(location.search).get('preview') === '1') {
-            const url = '/community/preview.js';
-            this.preview = (await import(url)).preview as PreviewData;
+            this.preview = (await import('./preview.ts')).preview as PreviewData;
             this.rooms = this.preview.communities;
             for (const p of this.preview.profiles)
                 this.profiles.set(p.wallet, p);
         }
         app.innerHTML = this.shell();
-        document.querySelector('.skip-link')?.addEventListener('click', event => { event.preventDefault(); document.querySelector<HTMLElement>('#main')!.focus(); });
         window.addEventListener('pagehide', () => { this.generation++; this.market.session.clear(); this.sellerDraft = undefined; this.closeDialog(); });
+        document.querySelector('#wallet-connect')?.addEventListener('click', event => { void this.action(event.currentTarget as HTMLElement).catch(error => this.report(error)); });
         app.addEventListener('click', event => {
             const target = (event.target as Element).closest<HTMLElement>('[data-action]');
             if (target) {
@@ -139,7 +155,7 @@ class Application {
         setInterval(() => void this.poll(), 1000);
     }
     shell() {
-        return `<header class="topbar"><a class="brand" href="/home" aria-label="Poros Home"><span class="brand-mark">${mark}</span><span>Poros<small>COMMUNITY</small></span></a><nav class="primary-nav" aria-label="Workspace"><a href="/home" data-workspace="home">Home</a><a href="/">Trade</a><a href="/community" data-workspace="community">Communities</a><a href="/profile" data-workspace="profile">Profile</a><a href="/0g-pot" data-workspace="pot">0G Pot</a></nav><div class="header-actions"><span class="source-badge">${this.preview ? 'DESIGN PREVIEW' : 'RABDI · TESTNET'}<i></i></span><button class="button wallet-button" data-action="connect">${icon('wallet')}<span id="wallet-label">Connect wallet</span></button></div></header>
+        return `
     ${this.preview ? `<div class="preview-banner">${icon('info')}<span>Read-only design preview. Every profile, strategy and price here is illustrative.</span><button data-action="live">Switch to real Rabdi ${icon('arrow')}</button></div>` : ''}
     <div class="app-layout"><aside class="sidebar"><span class="nav-label">POROS COMMUNITY</span><nav aria-label="Main navigation">${[['/communities', 'people', 'Communities'], ['/compose', 'plus', 'Write a strategy'], ['/memberships', 'lock', 'Memberships']].map(([route, glyph, label]) => `<a href="#${route}" data-nav="${route}">${icon(glyph!)}<span>${label}</span></a>`).join('')}</nav><div class="sidebar-divider"></div><div class="nav-label nav-label-row">OPEN ROOMS <a href="#/communities" aria-label="Browse communities">${icon('plus')}</a></div><div id="rooms" class="room-links"></div><div class="sidebar-bottom"><div class="sidebar-note">${icon('leaf')}<p>Better ideas grow<br>in good company.</p></div><button class="settings-button" data-action="setup">${icon('settings')} Connection details</button><small>Built in public. Stored on Arkiv.</small></div></aside><main id="main" tabindex="-1"><div id="pending"></div><p id="public-cache-status" class="muted" role="status"></p><div id="content"></div></main></div><footer><span>POROS COMMUNITY</span><p>Ideas are public. Trading decisions are yours.</p><button data-action="${this.preview ? 'live' : 'preview'}">${this.preview ? 'Return to Rabdi' : 'Explore the design preview'} ${icon('arrow')}</button></footer>`;
     }
@@ -165,7 +181,7 @@ class Application {
                 item.removeAttribute('aria-current');
         });
         document.querySelector('#rooms')!.innerHTML = this.rooms.length ? this.rooms.slice(0, 5).map((room, i) => `<a href="#/community/${room.communityKey}"><span class="room-dot dot-${i % 3}"></span>${e(room.name)}</a>`).join('') : '<a href="#/communities">' + icon('plus') + ' Find a community</a>';
-        document.querySelector('#pending')!.innerHTML = this.pending ? `<div class="pending-bar">${icon('info')}<span>A write needs verification. ${e(short(this.pending.requestId))}</span>${button('reconcile', 'Check status', 'secondary')}${!this.pending.txHash && !this.pending.entityKey ? button('recover-write', 'No transaction?', 'secondary') : ''}</div>` : '';
+        document.querySelector('#pending')!.innerHTML = this.pending ? `<div class="pending-bar">${icon('info')}<span role="status">${e(this.pending.account !== this.account ? 'Connect the original wallet to verify this write.' : this.pendingCheckMessage || 'Transaction verification starts automatically.')} ${e(short(this.pending.requestId))}</span>${button('reconcile', 'Check status', 'secondary', this.pendingChecking ? 'disabled' : '')}${!this.pending.txHash && !this.pending.entityKey ? button('recover-write', 'No transaction?', 'secondary') : ''}</div>` : '';
         if (this.lastHidden && this.lastHidden.owner === this.account)
             document.querySelector('#pending')!.insertAdjacentHTML('beforeend', `<div class="pending-bar">${icon('shield')}<span>Content hidden from the community view.</span>${button('unhide', 'Undo hide', 'secondary', `data-key="${this.lastHidden.key}" data-room="${this.lastHidden.room}"`)}</div>`);
     }
@@ -239,7 +255,7 @@ class Application {
         const generation = this.generation;
         const [route = 'discover', id, thread] = this.route();
         const page=route==='discover'||route==='strategies'?'/home':route==='dashboard'?'/profile':route==='pot'?'/0g-pot':'/community';
-        if(location.pathname!==page)history.replaceState(null,'',page+location.hash);
+        if(location.pathname!==page)history.replaceState(null,'',page+location.search+location.hash);
         this.activeCommunity = undefined;
         this.membership = undefined;
         this.updateChrome();
@@ -363,7 +379,7 @@ class Application {
         return this.discoverHTML(rows, rooms, q);
     }
     discoverHTML(rows: StrategySummaryDTO[], rooms: CommunityDTO[], q = '', loading = false) {
-        return `<section class="hero"><div class="hero-copy"><span class="eyebrow"><span class="little-star">✳</span> IDEAS GROW BETTER TOGETHER</span><h1>Good strategies.<br><em>Common ground.</em></h1><p>A place to build trading ideas in public.<br>Find your people, share your reasoning,<br class="desktop-break"> and make the next version better.</p><div class="hero-actions">${link('/memberships', 'Creator memberships ' + icon('right'))}${button('new-community', icon('plus') + ' Create community', 'secondary')}${button('publish', 'Share a strategy', 'text-button')}</div><div class="hero-footnote"><span class="small-mark">${mark}</span><span>Yours to create. Ours to explore.</span></div></div><div class="hero-art">${garden}<span class="art-caption">FROM A LITTLE IDEA TO A CLEARER STRATEGY ↗</span></div></section>
+        return `<section class="hero"><div class="hero-copy"><span class="eyebrow"><span class="little-star">✳</span> IDEAS GROW BETTER TOGETHER</span><h1>Good strategies.<br><em>Common ground.</em></h1><p>A place to build trading ideas in public.<br>Find your people, share your reasoning,<br class="desktop-break"> and make the next version better.</p><div class="hero-footnote"><span class="small-mark">${mark}</span><span>Yours to create. Ours to explore.</span></div></div><div class="hero-art">${garden}<span class="art-caption">FROM A LITTLE IDEA TO A CLEARER STRATEGY ↗</span></div></section>
     <div class="principles"><span>${icon('user')} Wallet-owned identity</span><span>${icon('fork')} Source-pinned versions</span><span>${icon('shield')} Exclusive signals are encrypted</span></div>
     <div class="discovery-columns"><section class="discovery-feed"><div class="section-title"><div><span class="eyebrow">THE IDEA EXCHANGE</span><h2>Something worth building on.</h2></div><a href="#/communities" class="text-link">Explore ${icon('arrow')}</a></div><div class="feed-tabs"><span class="selected">Public strategies</span><a href="#/communities">Communities</a></div>
     ${q ? notice('Showing names starting with “' + q + '”.') : ''}${this.skipped ? notice('Some unverified records were skipped.') : ''}
@@ -549,6 +565,9 @@ class Application {
         return html + (orders.length ? `<div class="purchase-list">${orders.map(order => `<article class="purchase-row"><div>${icon(order.transactionHash ? 'lock' : 'book')}</div><span><strong>${e(order.listing.title)}</strong><small>${e(short(order.orderId))} · ${e(formatAmount(order.listing.amount, order.listing.currency.decimals))} token units</small></span>${tag(order.transactionHash ? 'Previously settled' : 'Awaiting payment', order.transactionHash ? 'green' : '')}${order.transactionHash ? button('download', 'Open package', 'secondary', `data-package="${e(order.listing.packageId)}" data-hash="${e(order.listing.contentHash)}"`) : button('resume', 'Recover order', 'secondary', `data-order="${e(order.orderId)}"`)}</article>`).join('')}</div>` : empty('Room for your first discovery.', 'No orders are associated with this wallet yet.', link('/marketplace', 'Browse private strategies', 'secondary'))) + notice('Previously settled orders are checked again at download. A reorg or unavailable RPC can temporarily block delivery.');
     }
     async poll() {
+        if (!document.hidden && navigator.onLine && !this.busy && !this.preview && this.pending && this.pending.account === this.account) {
+            void this.verifyPendingWrite(this.pending.account + ':' + this.pending.requestId);
+        }
         if (document.hidden || !navigator.onLine || this.polling || this.busy || this.dialog?.open || Date.now() < this.nextPoll || this.route()[0] !== 'community' || !this.activeCommunity)
             return;
         const room = this.activeCommunity;
@@ -636,6 +655,7 @@ class Application {
         }
     }
     persistPending() {
+        if (!this.pending) this.pendingChecking = false;
         try {
             if (this.pending)
                 localStorage.setItem('common-ground.pending-write', JSON.stringify(this.pending));
@@ -662,6 +682,7 @@ class Application {
             const generation = this.generation;
             const requestId = crypto.randomUUID();
             this.pending = { account, requestId, kind, expected, ...(scope ? { scope } : {}) };
+            this.pendingCheckMessage = '';
             this.persistPending();
             try {
                 const result = await operation(requestId);
@@ -689,13 +710,15 @@ class Application {
             }
         }, navigator.locks);
     }
-    async reconcile() {
+    async reconcile(automatic = false) {
         const pending = this.pending;
         if (!pending)
             return;
         if (await this.requireAccount() !== pending.account)
             failure('ACCOUNT_CHANGED');
+        const generation = this.generation;
         return withWalletLock(async () => {
+            this.ensureGeneration(generation);
             let stored: PendingWrite | undefined;
             try {
                 const raw = localStorage.getItem('common-ground.pending-write');
@@ -724,7 +747,7 @@ class Application {
                 if (found.state === 'duplicates')
                     failure('DUPLICATE_REQUEST');
                 if (found.state === 'absent') {
-                    this.toast('No record found yet. The write remains locked; absence is not proof of failure.');
+                    if (!automatic) this.toast('No record found yet. The write remains locked; absence is not proof of failure.');
                     return;
                 }
                 if (pending.kind === 'community') {
@@ -743,19 +766,22 @@ class Application {
                 if (rows.length > 1)
                     failure('DUPLICATE_REQUEST');
                 if (!rows.length) {
-                    this.toast('No record found yet. Check again after the network catches up.');
+                    if (!automatic) this.toast('No record found yet. Check again after the network catches up.');
                     return;
                 }
                 const row = rows[0]!;
                 if (row.type !== pending.kind || pending.scope && row.scope !== pending.scope || Object.entries(pending.expected).some(([key, value]) => serialize(row.data[key]) !== serialize(value)))
                     failure('INTEGRITY_FAILED');
             }
+            this.ensureGeneration(generation);
             this.pending = undefined;
+            this.pendingCheckMessage = '';
             this.persistPending();
-            this.closeDialog();
+            if (!automatic) this.closeDialog();
             this.publicCache.clear();
             this.toast('Stored data matches the original intent. No second transaction was sent.');
-            await this.render();
+            if (automatic) this.refreshPublicView();
+            else await this.render();
         }, navigator.locks);
     }
     async requireMarket() {

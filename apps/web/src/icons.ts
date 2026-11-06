@@ -22,17 +22,17 @@ const paths: Record<string, string> = {
     leaf: '<path d="M20 3c-9-1-17 2-16 10a6 6 0 0 0 10 5c4-3 5-9 6-15Z"/><path d="M4 21 15 9"/>',
 };
 export const icon = (name: string) => `<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths[name] ?? paths.grid}</svg>`;
-export const mark = '<svg viewBox="0 0 48 48" fill="none" aria-hidden="true"><path d="M9 39V21a15 15 0 0 1 30 0v18M17 39V21a7 7 0 0 1 14 0v18M9 30h30" stroke="currentColor" stroke-width="4"/></svg>';
+export const mark = '<svg class="poros-mark" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="9" fill="currentColor"/><path d="M10 22 22 10M11 10h11v11" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 export const garden = `<svg class="garden" viewBox="0 0 520 350" fill="none" aria-label="A strategy idea passes through a risk guard before an action" role="img">
-<defs><pattern id="dots" width="20" height="20" patternUnits="userSpaceOnUse"><circle cx="1" cy="1" r="1" fill="#c9cdc0"/></pattern></defs>
-<rect x="2" y="2" width="516" height="346" rx="12" fill="#e9eee2"/><rect x="2" y="2" width="516" height="346" rx="12" fill="url(#dots)"/>
-<path d="M58 286c84-94 110 19 181-51s92-25 126-110 86-46 108-91" stroke="#9da98d" stroke-width="1.5" stroke-dasharray="4 5"/>
-<path d="M146 115v32c0 14 14 14 30 14h82c15 0 20 6 20 21v33m0 61v25" stroke="#556d4b" stroke-width="2"/>
-<rect x="49" y="55" width="194" height="65" rx="8" fill="#fffdf7" stroke="#bbc5ae"/><circle cx="73" cy="79" r="5" fill="#e85e35"/>
-<text x="88" y="83" fill="#34412e" font-family="monospace" font-size="11">01 / THE IDEA</text><text x="69" y="105" fill="#253522" font-family="Georgia" font-size="16">A signal worth exploring.</text>
-<rect x="182" y="178" width="196" height="69" rx="8" fill="#314d39"/><path d="m205 197 7 3v6c0 4-7 7-7 7s-7-3-7-7v-6l7-3Z" stroke="#c3d2b6"/>
-<text x="220" y="207" fill="#d6e0ce" font-family="monospace" font-size="10">02 / THE GUARD</text><text x="201" y="232" fill="#fffdf7" font-family="Georgia" font-size="16">Risk comes before action.</text>
-<rect x="288" y="278" width="194" height="49" rx="8" fill="#fffdf7" stroke="#bbc5ae"/><circle cx="307" cy="302" r="5" fill="#6e875e"/><text x="323" y="307" fill="#253522" font-family="monospace" font-size="11">03 / A CLEAR INTENT</text>
-<path d="M320 102c0-17 13-25 25-25 2 17-7 29-25 25Zm0 0c0-16-13-24-25-24-1 16 7 28 25 24Zm0 0v30" stroke="#68815b" stroke-width="2"/>
-<text x="40" y="320" fill="#68735f" font-family="monospace" font-size="9">GOOD IDEAS NEED GOOD ROOTS.</text>
+<defs><pattern id="dots" width="20" height="20" patternUnits="userSpaceOnUse"><circle cx="1" cy="1" r="1" fill="var(--line)"/></pattern></defs>
+<rect x="2" y="2" width="516" height="346" rx="12" fill="var(--pale)"/><rect x="2" y="2" width="516" height="346" rx="12" fill="url(#dots)"/>
+<path d="M58 286c84-94 110 19 181-51s92-25 126-110 86-46 108-91" stroke="var(--muted)" stroke-width="1.5" stroke-dasharray="4 5"/>
+<path d="M146 115v32c0 14 14 14 30 14h82c15 0 20 6 20 21v33m0 61v25" stroke="var(--blue)" stroke-width="2"/>
+<rect x="49" y="55" width="194" height="65" rx="8" fill="var(--white)" stroke="var(--line)"/><circle cx="73" cy="79" r="5" fill="var(--blue)"/>
+<text x="88" y="83" fill="var(--ink)" font-family="monospace" font-size="11">01 / THE IDEA</text><text x="69" y="105" fill="var(--ink)" font-family="Inter, system-ui, sans-serif" font-size="14">A signal worth exploring.</text>
+<rect x="182" y="178" width="196" height="69" rx="8" fill="var(--blue)"/><path d="m205 197 7 3v6c0 4-7 7-7 7s-7-3-7-7v-6l7-3Z" stroke="var(--white)"/>
+<text x="220" y="207" fill="var(--white)" font-family="monospace" font-size="10">02 / THE GUARD</text><text x="201" y="232" fill="var(--white)" font-family="Inter, system-ui, sans-serif" font-size="14">Risk comes before action.</text>
+<rect x="288" y="278" width="194" height="49" rx="8" fill="var(--white)" stroke="var(--line)"/><circle cx="307" cy="302" r="5" fill="var(--blue)"/><text x="323" y="307" fill="var(--ink)" font-family="monospace" font-size="11">03 / A CLEAR INTENT</text>
+<path d="M320 102c0-17 13-25 25-25 2 17-7 29-25 25Zm0 0c0-16-13-24-25-24-1 16 7 28 25 24Zm0 0v30" stroke="var(--blue)" stroke-width="2"/>
+<text x="40" y="320" fill="var(--muted)" font-family="monospace" font-size="9">GOOD IDEAS NEED GOOD ROOTS.</text>
 </svg>`;

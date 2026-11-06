@@ -98,3 +98,16 @@ test('paper position computes entry and net P/L from confirmed fills, never from
  assert.equal(paperPosition({mode:'LIVE',orders,liveOrders:[{status:'ORDER_STATUS_PENDING'}]}),null);
  assert.equal(paperPosition({mode:'PAPER',orders:[orders[1]]}),null);
 });
+
+
+test('changing the viewed wallet clears execution activity while preserving public price observations',()=>{
+ const chart=createChartState();chart.select('eth-usdc');chart.observe(price(),2000);
+ chart.activity({kind:'status',pairId:'eth-usdc',time:2000,message:'Previous account activity'});
+ chart.resetActivity();assert.equal(chart.snapshot().points.length,1);assert.equal(chart.snapshot().markers.length,0);assert.equal(chart.snapshot().events.length,0);
+});
+
+test('chart permits the bounded oracle clock drift accepted by the server',()=>{
+ const chart=createChartState();chart.select('eth-usdc');
+ assert.equal(chart.observe({...price(),observedAtMs:182000},2000),true);
+ assert.equal(chart.observe({...price(),observedAtMs:302001},2000),false);
+});

@@ -1,6 +1,6 @@
 // Verified registry snapshot: official token lists, Chainlink directories and Flash read-only quotes.
 export const networks = {
-  base:{"key":"base","id":8453,"name":"Base","family":"evm","rpc":"https://mainnet.base.org","nativeSymbol":"ETH","sequencer":"0xBCF85224fc0756B9Fa45aA7892530B47e10b6433","settlement":"0x5d00000873b6BF41539e6f5365B0Ff7d3c368f78","vault":"0x1074393effFCf1A15e306cD3931F48eDA9ABcd55"},
+  base:{"key":"base","id":8453,"name":"Base","family":"evm","rpc":"https://base-rpc.publicnode.com","nativeSymbol":"ETH","sequencer":"0xBCF85224fc0756B9Fa45aA7892530B47e10b6433","settlement":"0x5d00000873b6BF41539e6f5365B0Ff7d3c368f78","vault":"0x1074393effFCf1A15e306cD3931F48eDA9ABcd55"},
   ethereum:{"key":"ethereum","id":1,"name":"Ethereum","family":"evm","rpc":"https://ethereum-rpc.publicnode.com","nativeSymbol":"ETH","settlement":"0x5d00000873b6BF41539e6f5365B0Ff7d3c368f78","vault":"0x1074393effFCf1A15e306cD3931F48eDA9ABcd55"},
   bsc:{"key":"bsc","id":56,"name":"BNB Chain","family":"evm","rpc":"https://bsc-dataseed.bnbchain.org","nativeSymbol":"BNB","settlement":"0x5d00000873b6BF41539e6f5365B0Ff7d3c368f78","vault":"0x1074393effFCf1A15e306cD3931F48eDA9ABcd55"},
   avalanche:{"key":"avalanche","id":43114,"name":"Avalanche","family":"evm","rpc":"https://api.avax.network/ext/bc/C/rpc","nativeSymbol":"AVAX","settlement":"0x5d00000873b6BF41539e6f5365B0Ff7d3c368f78","vault":"0x1074393effFCf1A15e306cD3931F48eDA9ABcd55"},

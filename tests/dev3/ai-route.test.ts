@@ -90,7 +90,7 @@ test("oversized chunked bodies return 413 without destroying the response or spe
 test("AI source, server and credentials are not public assets", async () => {
   for (const path of ["/ai/zero-g.ts", "/core/ai/zero-g.ts", "/server.mjs"]) assert.equal((await fetch(base + path)).status, 404);
   assert.equal((await fetch(`${base}/api/ai`)).status, 405);
-  assert.equal((await fetch(`${base}/ai.js`)).status, 200);
+  assert.equal((await fetch(`${base}/ai.js`)).status, 404);
   const page = await fetch(base);
   assert.ok(page.headers.get("content-security-policy")?.includes("form-action 'self'"));
 });

@@ -41,3 +41,22 @@ test('history errors fail closed without caching a false zero',async()=>{
  const read=createFlashPerformance({fetcher:async()=>{calls++;return new Response('',{status:503});},apiKey:'test',pause:async()=>{}});
  await assert.rejects(read(wallet));await assert.rejects(read(wallet));assert.equal(calls,2);
 });
+
+
+test('individual finalized transactions expose realized sell profit and loss without inventing buy profit',()=>{
+ const buy=detail(),profit=detail('sell','profit','1','70','2026-11-02T00:00:00Z');
+ const loss=detail('sell','loss','1','40','2026-11-03T00:00:00Z');
+ const result=summarizeFlashFills([loss,profit,buy],wallet,true);
+ assert.deepEqual(result.transactions.map(row=>[row.orderId,row.realizedPnl]),[['loss','-10'],['profit','20'],['buy',null]]);
+ assert.equal(result.transactions[0]?.feeUsd,'0.1');assert.equal(result.transactions[0]?.transactionId,'loss');
+ const partial=summarizeFlashFills([buy,profit],wallet,false);assert.ok(partial.transactions.every(row=>row.realizedPnl===null));
+});
+
+test('Solana history is read-only and compares wallet addresses with exact case',async()=>{
+ const solana='7YhW8azAFNvE8GqeQ35U5BVB6hDhSfzq5fJRtRixyNbW';
+ const row=detail();row.order.funderAddress=solana;row.order.recipientAddress=solana;
+ const result=summarizeFlashFills([row],solana,true);assert.equal(result.fills,1);
+ assert.throws(()=>summarizeFlashFills([row],solana.toLowerCase()));
+ const read=createFlashPerformance({fetcher:async(_url:any,init:any)=>{assert.equal(init.method,'GET');return Response.json({orders:[],nextPageToken:null});},pause:async()=>{}});
+ assert.equal((await read(solana)).fills,0);
+});

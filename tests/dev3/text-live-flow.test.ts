@@ -27,10 +27,10 @@ test("live market has no candle request or warm-up",async()=>{
   const market=createLiveMarket({now:()=>time,fetcher:async(url:any,init:any)=>{
     urls.push(String(url));
     if(String(url).includes("flash"))return Response.json({quoteId:"live-quote",side:"buy",orderType:"market",targetAsset:priceStrategy.tokenOut,contraAsset:priceStrategy.tokenIn,from:{asset:"contra",amount:"20"},to:{asset:"target",amount:"0.01",notional:"20"}});
-    return Response.json(JSON.parse(init.body).map((call:any)=>({jsonrpc:"2.0",id:call.id,result:["0x2105","0x"+word(8),round(call.params?.[0]?.to?.toLowerCase()==="0x1550207eaeb590d1557a6e6c066d3d57b5a4dc65"?100000000:200000000000),round(0)][call.id-1]})));
+    return Response.json(JSON.parse(init.body).map((call:any)=>({jsonrpc:"2.0",id:call.id,result:["0x2105","0x"+word(8),round(call.params?.[0]?.to?.toLowerCase()==="0x1550207eaeb590d1557a6e6c066d3d57b5a4dc65"?100000000:200000000000),round(0),{number:"0x1234",timestamp:"0x"+(time/1000).toString(16)}][call.id-1]})));
   }});
   const result=await market.refresh();assert.equal(result.source,"CHAINLINK_FLASH");assert.equal(result.stale,false);assert.equal(result.priceUsd,"2000.000000");
-  assert.equal(urls.length,3);assert.ok(urls.every(url=>!url.includes("coinbase")&&!url.includes("candle")));
+  assert.equal(urls.length,5);assert.ok(urls.every(url=>!url.includes("coinbase")&&!url.includes("candle")));
 });
 test("text-to-live-monitor HTTP flow waits without AI, stops, rejects forged data and keeps private modules private",async()=>{
   let price=2500,calls=0;
@@ -70,5 +70,5 @@ test('a failed market refresh returns an error without committing success header
   const {FlashError}=await import('../../src/features/builder/market/flash.ts');
   const server=createDemoServer({market:{read:()=>({}),refresh:async()=>{throw new FlashError('Feed is temporarily unavailable.');}}});
   await new Promise<void>(resolve=>server.listen(0,'127.0.0.1',resolve));
-  try{const address=server.address();assert.ok(address&&typeof address!=='string');const base=`http://127.0.0.1:${address.port}`;const response=await fetch(base+'/api/market');assert.equal(response.status,503);assert.equal((await response.json()).ok,false);assert.equal((await fetch(base+'/')).status,200);}finally{await new Promise<void>(resolve=>server.close(()=>resolve()));}
+  try{const address=server.address();assert.ok(address&&typeof address!=='string');const base=`http://127.0.0.1:${address.port}`;const response=await fetch(base+'/api/market');assert.equal(response.status,503);assert.equal((await response.json()).ok,false);assert.equal((await fetch(base+'/api/monitor')).status,405);}finally{await new Promise<void>(resolve=>server.close(()=>resolve()));}
 });

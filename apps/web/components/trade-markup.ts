@@ -1,34 +1,12 @@
-<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="A local playground for building and validating crypto strategy rules.">
-  <title>Poros · Strategy builder</title>
-  <link rel="icon" href="data:,">
-  <link rel="stylesheet" href="/style.css">
-  <script type="module" src="/app.js"></script>
-</head>
-<body>
-  <header class="topbar">
-    <a class="brand" href="/home" aria-label="Poros Home"><span class="brand-mark">↗</span>Poros</a>
-    <nav class="primary-nav" aria-label="Main navigation"><a href="/home">Home</a><a href="/" aria-current="page">Trade</a><a href="/community">Communities</a><a href="/profile">Profile</a><a href="/0g-pot">0G Pot</a></nav>
-    <span class="demo-label"><span class="status-dot"></span>LOCAL DEMO</span>
-    <button id="wallet-connect" class="button secondary" type="button">Connect wallet</button>
-  </header>
-  <main>
+// Trusted static builder markup. User content is rendered by validated controllers.
+export const tradeMarkup = `
+<main>
     <section class="page-heading">
       <div><p class="eyebrow">YOUR STRATEGY WORKSHOP</p><h1>Run your strategy.</h1><p class="subheading">Load an unlocked strategy, set your limits, and monitor its live price targets.</p></div>
       <div class="heading-actions"><button id="ai-open" class="api-key-button" type="button" aria-label="Add 0G API key" aria-haspopup="dialog" aria-controls="ai-dialog" title="API key and AI tools"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8" cy="8" r="4.5"/><path d="m11.3 11.3 9.2 9.2m-3-3 2.5-2.5m-5 0 2.5-2.5"/></svg></button><button id="load-example" class="button secondary">Load example</button><button id="new-strategy" class="button primary"><span aria-hidden="true">＋</span> New strategy</button></div>
     </section>
     <section class="workspace" aria-label="Strategy builder">
       <aside class="palette panel" aria-label="Block palette">
-
-        <section class="live-prices" aria-labelledby="live-prices-title">
-          <div class="panel-title"><h2 id="live-prices-title">Live prices</h2><span class="small-tag">USD</span></div>
-          <p class="tiny muted">Chainlink USD prices. Flash availability is checked before execution.</p>
-        <div id="live-prices-list" class="price-list" aria-label="Live crypto prices"></div><p id="live-prices-status" class="tiny muted" role="status">Loading live prices…</p>
-        </section>
         <div class="panel-title"><h2>Building blocks</h2><span class="small-tag">3 TYPES</span></div>
         <p class="muted small">Drag onto the canvas, or click to add.</p>
         <button class="palette-block indicator" data-kind="signal.price" draggable="true"><span class="block-icon">∿</span><span><strong>Price range</strong><small>When the market meets a rule</small></span><span class="grip" aria-hidden="true">⠿</span></button>
@@ -39,16 +17,17 @@
       </aside>
       <div class="editor-column">
         <div class="canvas-toolbar"><div><span class="canvas-symbol" aria-hidden="true">⌘</span><strong>Strategy canvas</strong></div><div class="view-switch" role="group" aria-label="View"><button id="canvas-view" class="active" aria-pressed="true">Canvas</button><button id="json-view" aria-pressed="false">JSON</button></div></div>
-        <div class="canvas-runbar"><span id="execution-selected" class="tiny muted">Current draft · live monitoring / paper funds</span><div class="heading-actions"><button id="execution-start" class="button primary compact" type="button" aria-describedby="execution-help">Run strategy</button><button id="execution-stop" class="button secondary compact" type="button" disabled>Stop</button></div></div>
-        <details class="execution-settings"><summary>Run settings <span class="small-tag">CHOOSE EXECUTION MODE</span></summary>
-          <label class="field"><span>Execution mode</span><select id="execution-mode"><option value="LIVE">LIVE · 0G agent + connected wallet (real funds)</option><option value="AI" selected>0G execution agent · virtual funds</option><option value="RULES_ONLY">Local live-price monitor (no AI cost)</option></select></label>
-          <div class="execution-limits">
-            <label class="field"><span>Starting virtual cash / live buy spending cap (USD)</span><input id="execution-capital" type="number" value="1000" min="0.000001" max="1000000" step="0.000001"></label>
-            <label class="field"><span>Total turnover limit, including fees (USD)</span><input id="execution-turnover" type="number" value="2000" min="0.000001" max="1000000" step="0.000001"></label>
-            <label class="field"><span>Simulated fee (basis points)</span><input id="execution-fee" type="number" value="10" min="0" max="1000" step="1"></label>
-            <label class="field"><span>Simulated slippage (basis points)</span><input id="execution-slippage" type="number" value="25" min="0" max="500" step="1"></label>
-          </div><p class="tiny muted">100 basis points = 1%. Slippage must fit the strategy limit. Uses current prices and virtual funds. Each action executes once per run. Fees and fills are simulated.</p>
-        </details>
+        <div class="canvas-runbar"><span id="execution-selected" class="tiny muted">Current draft · live monitoring / paper funds</span><div class="heading-actions"><button id="open-run-settings" class="button secondary compact" type="button" aria-haspopup="dialog" aria-controls="run-settings-dialog">Run settings</button><button id="execution-start" class="button primary compact" type="button" aria-describedby="execution-help">Run strategy</button><button id="execution-stop" class="button secondary compact" type="button" disabled>Stop</button></div></div>
+        <section class="price-ticker" aria-label="Live cryptocurrency prices in USD">
+      <button id="live-prices-pause" class="ticker-pause" type="button" aria-pressed="false">Pause scrolling</button>
+      <div class="ticker-viewport" tabindex="0" aria-label="Scrolling live crypto prices">
+        <div class="ticker-track">
+          <div id="live-prices-list" class="ticker-prices" aria-label="Live crypto prices"></div>
+          <div id="live-prices-copy" class="ticker-prices" aria-hidden="true" inert></div>
+        </div>
+      </div>
+      <p id="live-prices-status" class="ticker-status" role="status">Loading live prices…</p>
+    </section>
 
         <p id="creator-text" class="tiny muted"></p>
         <p id="execution-help" class="run-help tiny muted"></p>
@@ -60,16 +39,7 @@
         </div>
         <div id="json-panel" class="json-panel" hidden><p class="muted small">Strategy rules only. Canvas positions are kept separately.</p><pre id="json-preview" tabindex="0" aria-label="Strategy JSON preview"></pre></div>
         <div class="canvas-footer"><span id="block-count">6 blocks · 4 connections</span><span>Move blocks with drag, or focus a block title and use arrow keys.</span></div>
-        <section class="market-chart" aria-labelledby="market-chart-title">
-          <div class="chart-heading"><div><p class="chart-eyebrow" id="market-chart-title">STRATEGY MARKET</p><h2 id="chart-pair">— / USD</h2><p id="chart-network" class="chart-muted"></p></div><div class="chart-price"><strong id="chart-last-price">—</strong><span id="chart-feed-status" data-state="loading">CONNECTING</span></div></div>
-          <div class="chart-toolbar"><div class="chart-window" role="group" aria-label="Chart time range"><button type="button" data-chart-window="5" aria-pressed="false">5m</button><button type="button" data-chart-window="15" aria-pressed="true">15m</button><button type="button" data-chart-window="60" aria-pressed="false">1h</button></div><span class="chart-muted">Sampled 1m candles · 2s quote checks</span></div>
-          <div id="chart-targets" class="chart-targets" aria-label="Strategy target ranges"></div>
-          <div class="chart-plot"><svg id="market-chart-svg" class="market-chart-svg" viewBox="0 0 1000 360" role="img" aria-label="Live sampled candlestick chart with strategy targets and entry/exit markers"></svg></div>
-          <div class="chart-caption"><span id="chart-hover">Move over the chart to inspect a price</span><span>▥ Sampled candles &nbsp; ▰ Target zone &nbsp; ▲ Entry / ▼ Exit</span></div>
-          <p id="chart-observation" class="chart-muted chart-observation">Recent observations are cached in this browser. Flash quotes refresh in the background with Chainlink fallback.</p>
-          <div class="chart-position-panel"><strong id="chart-position">No active position data</strong><span id="chart-pnl"></span><p id="chart-position-note">Start a strategy to see its position and entry/exit markers.</p></div>
-          <div class="chart-agent"><div class="chart-agent-heading"><strong>Agent activity</strong><span id="chart-ai-count">0 completed AI executions in latest run</span></div><p id="chart-agent-status" role="status" aria-live="polite">Ready · start a strategy to monitor its targets.</p><ol id="chart-activity" class="chart-activity" aria-label="Recent agent activity"></ol></div>
-        </section>
+
         <p id="execution-status" class="small" role="status" aria-live="polite"></p>
         <div id="execution-results" class="execution-results" aria-live="polite" hidden></div>
       </div>
@@ -132,6 +102,18 @@
       </div>
       </details>
     </dialog>
+  <dialog id="run-settings-dialog" class="strategy-dialog run-settings-dialog" aria-labelledby="run-settings-title">
+    <div class="dialog-heading"><h2 id="run-settings-title">Run settings</h2><button id="close-run-settings" class="icon-button" type="button" aria-label="Close run settings">×</button></div>
+        <section class="execution-settings">
+          <label class="field"><span>Execution mode</span><select id="execution-mode"><option value="LIVE">LIVE · 0G agent + connected wallet (real funds)</option><option value="AI" selected>0G execution agent · virtual funds</option><option value="RULES_ONLY">Local live-price monitor (no AI cost)</option></select></label>
+          <div class="execution-limits">
+            <label class="field"><span>Starting virtual cash / live buy spending cap (USD)</span><input id="execution-capital" type="number" value="1000" min="0.000001" max="1000000" step="0.000001"></label>
+            <label class="field"><span>Total turnover limit, including fees (USD)</span><input id="execution-turnover" type="number" value="2000" min="0.000001" max="1000000" step="0.000001"></label>
+            <label class="field"><span>Simulated fee (basis points)</span><input id="execution-fee" type="number" value="10" min="0" max="1000" step="1"></label>
+            <label class="field"><span>Simulated slippage (basis points)</span><input id="execution-slippage" type="number" value="25" min="0" max="500" step="1"></label>
+          </div><p class="tiny muted">100 basis points = 1%. Slippage must fit the strategy limit. Uses current prices and virtual funds. Each action executes once per run. Fees and fills are simulated.</p>
+        </section>
+  </dialog>
   <dialog id="strategy-settings" class="strategy-dialog" aria-labelledby="strategy-settings-title">
     <div class="dialog-heading"><h2 id="strategy-settings-title">Strategy settings</h2><button id="close-strategy-settings" class="icon-button" type="button" aria-label="Close strategy settings">×</button></div>
     <section id="validation" class="validation" aria-labelledby="validation-title" aria-live="polite" hidden>
@@ -162,5 +144,4 @@
       <p id="import-error" class="import-error" role="alert"></p><div class="dialog-actions"><button type="button" id="cancel-import" class="button secondary">Cancel</button><button type="submit" class="button primary">Import strategy</button></div>
     </form>
   </dialog>
-</body>
-</html>
+`;

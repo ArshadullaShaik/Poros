@@ -14,7 +14,7 @@ function mockMarket(count=90,down=false) {
     if(String(url).includes("coinbase"))return Response.json(candles.slice(-count).map(c=>[c.openTimeMs/1000,c.low,c.high,c.open,c.close,10]));
     const price=candles.at(-1)!.close;
     if(String(url).includes("flash"))return Response.json({quoteId:"route-quote",side:"buy",orderType:"market",targetAsset:rsiStrategy.tokenOut,contraAsset:rsiStrategy.tokenIn,from:{asset:"contra",amount:"20"},to:{asset:"target",amount:"0.01",notional:String(price/100)}});
-    return Response.json(JSON.parse(init!.body as string).map((call:any)=>({jsonrpc:"2.0",id:call.id,result:["0x2105","0x"+word(8),round(price*1e8),round(down?1:0)][call.id-1]})));
+    return Response.json(JSON.parse(init!.body as string).map((call:any)=>({jsonrpc:"2.0",id:call.id,result:["0x2105","0x"+word(8),round(price*1e8),round(down?1:0),{number:"0x1234",timestamp:"0x"+(time/1000).toString(16)}][call.id-1]})));
   }});
 }
 const market=mockMarket();
@@ -57,7 +57,7 @@ test("market data is read-only and does not expose Flash implementation or signi
   assert.equal((await fetch(`${base}/api/market`,{method:"POST"})).status,405);
   assert.equal((await fetch(`${base}/api/market`,{headers:{Origin:"https://evil.invalid"}})).status,403);
   assert.equal((await fetch(`${base}/core/market/flash.ts`)).status,404);
-  assert.equal((await fetch(`${base}/core/market/config.ts`)).status,200);
+  assert.equal((await fetch(`${base}/core/market/config.ts`)).status,404);
 });
 
 test("server rejects RSI warm-up before making a paid inference request",async()=>{
@@ -73,8 +73,8 @@ test("server rejects RSI warm-up before making a paid inference request",async()
     assert.equal(inferenceCalls,0);
   } finally {await new Promise<void>(resolve=>coldServer.close(()=>resolve()));}
 });
-test("replay and execution browser modules are served but agent implementation stays private",async()=>{
-  for(const path of ["/replay.js","/execution.js"])assert.equal((await fetch(base+path)).status,200);
+test("API harness does not expose browser or agent source modules",async()=>{
+  for(const path of ["/replay.js","/execution.js"])assert.equal((await fetch(base+path)).status,404);
   assert.equal((await fetch(base+"/core/execution/agent.ts")).status,404);
 });
 

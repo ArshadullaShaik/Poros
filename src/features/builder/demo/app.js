@@ -1,16 +1,17 @@
-import { recordPaperPerformance } from "/community/builder.js";
-import { editStrategy, importStrategyJson, exportStrategyJson } from "/core/adapters/editor.ts";
-import { tradingPairs, pairForStrategy, contextForPair, priceStrategy as defaultStrategy, validatePriceStrategy as validateMarketStrategy } from "/core/market/config.ts";
-import { keepFocus } from "/focus.js";
-import { mountStrategyAi } from "/ai.js";
-import { mountExecution } from "/execution.js";
-import { mountMarketChart, paperPosition } from "/chart.js";
-import { mountLivePrices } from "/prices.js";
-import { mountCommunityLibrary, mountLibraryTabs, mountMemberLibrary } from "/community-library.js";
+import { recordExecutionSnapshot } from "../../../../apps/web/src/builder.ts";
+import { editStrategy, importStrategyJson, exportStrategyJson } from "../adapters/editor.ts";
+import { tradingPairs, pairForStrategy, contextForPair, priceStrategy as defaultStrategy, validatePriceStrategy as validateMarketStrategy } from "../market/config.ts";
+import { keepFocus } from "./focus.js";
+import { mountStrategyAi } from "./ai.js";
+import { mountExecution } from "./execution.js";
+import { mountLivePrices } from "./prices.js";
+import { mountCommunityLibrary, mountLibraryTabs, mountMemberLibrary } from "./community.js";
 
 const $ = selector => document.querySelector(selector);
 const canvas = $("#canvas");
 const dialog = $("#import-dialog");
+$("#open-run-settings").addEventListener("click", () => $("#run-settings-dialog").showModal());
+$("#close-run-settings").addEventListener("click", () => $("#run-settings-dialog").close());
 const kinds = {
   "signal.price": {label: "Price range", className: "indicator", icon: "$"},
   "guard.risk": {label: "Risk limit", className: "guard", icon: "◇"},
@@ -21,10 +22,18 @@ let selected = draft.nodes[0]?.id;
 let positions = new Map();
 let connectFrom;
 let dirty = false;
-let executionUI,pricesUI,communityUI,chartUI;
+let executionUI,pricesUI,communityUI;
 let pricesPairId=pairForStrategy(draft).id;
 let forkSource;
 let strategyLoad=0;
+
+function publishChartContext() {
+  window.dispatchEvent(new CustomEvent('poros:strategy-chart', {detail:{
+    pairId:pairForStrategy(draft).id,
+    ranges:draft.nodes.filter(node=>node.type==='signal.price').map(node=>({type:node.type,minPriceUsd:node.minPriceUsd,maxPriceUsd:node.maxPriceUsd})),
+  }}));
+}
+window.addEventListener('poros:request-strategy-chart',publishChartContext);
 
 function element(tag, className, text) {
   const node = document.createElement(tag);
@@ -263,7 +272,8 @@ function render() {
     $("#json-preview").textContent = JSON.stringify(draft, null, 2);
   });
   executionUI?.draftChanged();
-  chartUI?.draftChanged();
+  try{sessionStorage.setItem('poros.orders.market',pairForStrategy(draft).id);}catch{}
+  publishChartContext();
   const pairId=pairForStrategy(draft).id;
   if(pricesUI&&pairId!==pricesPairId){pricesPairId=pairId;void pricesUI.refresh();void executionUI.refreshMarket();}
 }
@@ -299,6 +309,7 @@ canvas.addEventListener("drop", event => {
   try {
     const data = JSON.parse(event.dataTransfer.getData("text/plain")), rect = canvas.getBoundingClientRect();
     if(data.kind === "public-strategy"){void communityUI.load(data.versionKey);return;}
+    if(data.kind === "public-post"){void communityUI.loadPost(data.communityKey,data.postKey);return;}
     if (data.kind === "palette") addBlock(data.type, {x: event.clientX - rect.left - 105, y: event.clientY - rect.top - 40});
     else if (data.kind === "move" && positions.has(data.id) && Number.isFinite(data.offsetX) && Number.isFinite(data.offsetY)) moveNode(data.id, event.clientX - rect.left - data.offsetX, event.clientY - rect.top - data.offsetY);
   } catch { announce("Drag a block from the palette onto the canvas."); }
@@ -354,25 +365,20 @@ const ai = mountStrategyAi({
     announce("AI proposal accepted. Export JSON to keep this draft.");
   },
 });
-chartUI=mountMarketChart({getPair:()=>pairForStrategy(draft),getDraft:()=>draft});
 executionUI = mountExecution({
   getPair:()=>pairForStrategy(draft),
   getDraft: () => draft,
   mayReplace,
-  applyDraft(next) {replaceDraft(next); dirty = true;},
+  applyDraft(next) {replaceDraft(next); dirty = true;forkSource=undefined;},
   validateDraft: next => validateMarketStrategy(next),
   getApiKey: ai.getKey,
   onActivity:event=>{
-    chartUI.activity(event);
-    if(event.kind==='snapshot' && event.data.mode==='PAPER'){
-      const position=paperPosition(event.data);
-      if(position && event.data.id)void recordPaperPerformance({id:event.data.id,pair:event.data.pair?.label??event.pairId,realizedPnl:position.realizedPnl,fills:event.data.orders.length,updatedAt:event.time}).catch(()=>{
-        announce('Paper results could not be saved to Profile. Trading can continue.');
-      });
-    }
+    if(event.kind==='snapshot')void recordExecutionSnapshot(event.data,event.time).catch(()=>{
+      announce('Order history could not be saved in this browser. Trading can continue.');
+    });
   },
 });
-communityUI=mountCommunityLibrary({onLoad(next,versionKey){
+communityUI=mountCommunityLibrary({onText:entry=>executionUI.openUnlockedStrategy(entry),onLoad(next,versionKey){
   if(!validateMarketStrategy(next).valid)throw new Error("This public strategy uses unsupported rules or a market outside this live-price builder.");
   if(!mayReplace())throw new Error("Your draft was kept.");
   replaceDraft(next);dirty=true;forkSource=versionKey;
@@ -392,11 +398,7 @@ void pricesUI.refresh();
 setInterval(()=>{if(!document.hidden)void pricesUI.refresh();},30000);
 window.addEventListener("pagehide",()=>pricesUI.stop());
 void executionUI.refreshMarket();
-void chartUI.refresh();
 setInterval(() => {void executionUI.refreshMarket();}, 10000);
-setInterval(()=>{if(!document.hidden)void chartUI.refresh();},2000);
-window.addEventListener("pagehide",()=>chartUI.stop());
-document.addEventListener("visibilitychange",()=>{if(!document.hidden)void chartUI.refresh();});
 // The host verifies purchase access before calling this demo handoff; this hook is not authorization.
 export function loadUnlockedStrategy(entry) {executionUI.addUnlockedStrategy(entry);}
 window.addEventListener("strategy:unlocked", event => {
@@ -412,21 +414,21 @@ resetPositions(); render();
 
 async function loadMemberTransfer(raw) {
   try {
-    const {readMemberStrategy} = await import('/community/builder.js');
+    const {readMemberStrategy} = await import('../../../../apps/web/src/builder.ts');
     await executionUI.openUnlockedStrategy(readMemberStrategy(raw));
   } catch (error) { announce(error.message || 'Unable to load this member strategy.'); }
 }
 
 async function loadPublicReference(reference) {
   try {
-    const {strategyReference} = await import('/community/builder.js');
+    const {strategyReference} = await import('../../../../apps/web/src/builder.ts');
     await communityUI.load(strategyReference(reference,location.origin));
   } catch (error) { announce(error.message || 'Unable to read the strategy reference.'); }
 }
 
 $('#publish-community').addEventListener('click',async()=>{
   try {
-    const {builderDocument} = await import('/community/builder.js');
+    const {builderDocument} = await import('../../../../apps/web/src/builder.ts');
     const document = builderDocument(draft);
     sessionStorage.setItem('poros.public-draft',JSON.stringify({document,...forkSource?{sourceVersionKey:forkSource}:{}}));
     dirty = false;
@@ -439,7 +441,7 @@ const membershipDetails = $('#memberships');
 async function openMemberships() {
   if (!membershipDetails.open || membershipWorkspace) return;
   try {
-    const {mountBuilderMemberships} = await import('/community/builder.js');
+    const {mountBuilderMemberships} = await import('../../../../apps/web/src/builder.ts');
     membershipWorkspace = mountBuilderMemberships($('#builder-memberships'),{
       getDraft:()=>structuredClone(draft),
       openStrategy:entry=>executionUI.openUnlockedStrategy(entry),

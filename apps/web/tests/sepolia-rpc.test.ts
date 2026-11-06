@@ -1,6 +1,5 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-// @ts-expect-error The local Node host is JavaScript.
 import { createDemoServer } from '../../../src/features/builder/demo/server.mjs';
 
 test('Sepolia proxy permits bounded reads and rejects signing and foreign origins',async()=>{
@@ -12,13 +11,15 @@ test('Sepolia proxy permits bounded reads and rejects signing and foreign origin
   }});
   await new Promise<void>(resolve=>server.listen(0,'127.0.0.1',resolve));
   try {
-    const url='http://127.0.0.1:'+server.address().port+'/api/sepolia-rpc';
+    const address=server.address();
+    assert.ok(address && typeof address !== 'string');
+    const url='http://127.0.0.1:'+address.port+'/api/sepolia-rpc';
     const call=(method:string,headers={})=>fetch(url,{method:'POST',headers:{'Content-Type':'application/json',...headers},body:JSON.stringify({jsonrpc:'2.0',id:1,method,params:[]})});
     const success=await call('eth_chainId');assert.equal(success.status,200);assert.equal((await success.json()).result,'0xaa36a7');
     assert.equal((await call('eth_sendTransaction')).status,400);
     assert.equal((await call('eth_chainId',{Origin:'https://evil.test'})).status,403);
     assert.equal(requests,1);
-  } finally {await new Promise<void>(resolve=>server.close(resolve));}
+  } finally {await new Promise<void>((resolve,reject)=>server.close(error=>error?reject(error):resolve()));}
 });
 
 
@@ -34,7 +35,9 @@ test('Arkiv proxy forwards read methods and keeps the server access key out of r
   }});
   await new Promise<void>(resolve=>server.listen(0,'127.0.0.1',resolve));
   try {
-    const url='http://127.0.0.1:'+server.address().port+'/api/arkiv-rpc';
+    const address=server.address();
+    assert.ok(address && typeof address !== 'string');
+    const url='http://127.0.0.1:'+address.port+'/api/arkiv-rpc';
     const call=(method:string,params:unknown[]=[],headers={})=>fetch(url,{method:'POST',headers:{'Content-Type':'application/json',...headers},body:JSON.stringify({jsonrpc:'2.0',id:1,method,params})});
     const success=await call('arkiv_query',['SELECT * FROM entities LIMIT 1']);
     assert.equal(success.status,200);
@@ -45,7 +48,7 @@ test('Arkiv proxy forwards read methods and keeps the server access key out of r
     assert.equal(omitted.status,200);
     assert.equal(requests,2);
   } finally {
-    await new Promise<void>(resolve=>server.close(resolve));
+    await new Promise<void>((resolve,reject)=>server.close(error=>error?reject(error):resolve()));
     if(previous===undefined)delete process.env.ARKIV_ACCESS_KEY;else process.env.ARKIV_ACCESS_KEY=previous;
   }
 });
