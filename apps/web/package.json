@@ -10,7 +10,9 @@
     "build": "node tooling/next.mjs build",
     "typecheck": "tsc --noEmit",
     "test": "node --test tests/*.test.ts",
-    "start": "node tooling/next.mjs start"
+    "start": "node tooling/next.mjs start",
+    "trade:worker": "node tooling/trade-worker.mjs",
+    "trade:smoke": "node tooling/trade-smoke.mjs"
   },
   "dependencies": {
     "canonicalize": "5.1.0",

@@ -3,14 +3,14 @@ import {useEffect, useLayoutEffect, useRef, useState} from 'react';
 import Link from 'next/link';
 import {MarketChart} from './market-chart';
 import {createInjectedWallet} from '../src/wallet.ts';
-import {historyOwner, readExecutionRuns, paperTransactions, type ExecutionRecord} from '../src/order-history.ts';
+import {historyOwner, readExecutionRuns, paperTransactions, ledgerOrderRows, type ExecutionRecord} from '../src/order-history.ts';
 import {readPaperRuns, type PaperRun} from '../src/performance.ts';
 import {pairForStrategy, tradingPairs, networks} from '../../../src/features/builder/market/config.ts';
 import {mountMarketChart} from '../../../src/features/builder/demo/chart.js';
 import {connectSolanaWallet} from '../../../src/features/builder/demo/solana-wallet.js';
-import type {summarizeFlashFills} from '../../../src/features/builder/execution/performance.ts';
+import type {TradeReport} from '../../../src/features/builder/execution/trade-report.ts';
 
-type FlashHistory = ReturnType<typeof summarizeFlashFills>;
+type FlashHistory = TradeReport;
 type Chart = ReturnType<typeof mountMarketChart>;
 const number = (value: number | string) => new Intl.NumberFormat('en-US',{maximumFractionDigits:8}).format(Number(value));
 const modeLabel = (mode: string) => mode === 'LIVE' ? 'AI live' : mode === 'AI' ? 'AI paper' : 'Local paper';
@@ -141,12 +141,12 @@ export function OrdersWorkspace() {
       if (pending || document.hidden) return;
       pending=true;setLoading(true);
       try {
-        const response=await fetch('/api/performance?wallet='+encodeURIComponent(owner),{cache:'no-store',signal:AbortSignal.any([controller.signal,AbortSignal.timeout(50000)])});
+        const response=await fetch('/api/trade-history/report?wallet='+encodeURIComponent(owner),{cache:'no-store',signal:AbortSignal.any([controller.signal,AbortSignal.timeout(50000)])});
         const payload=await response.json();
-        if (!response.ok || !payload.ok || !Array.isArray(payload.data?.transactions) || typeof payload.data.complete!=='boolean') throw new Error('Invalid fill history');
+        if (!response.ok || !payload.ok || payload.data?.provenance!=='arkiv' || !Array.isArray(payload.data?.transactions) || typeof payload.data.complete!=='boolean') throw new Error('Invalid fill history');
         if (!controller.signal.aborted) {setLive({owner:ownerKey,data:payload.data});setLiveError('');}
       } catch {
-        if (!controller.signal.aborted) setLiveError('Live fills could not be verified. Refresh to try again.');
+        if (!controller.signal.aborted) setLiveError('Arkiv trade history is unavailable. Check recording setup and linked sources in Profile.');
       } finally {
         if (!controller.signal.aborted) {pending=false;setLoading(false);}
       }
@@ -175,6 +175,7 @@ export function OrdersWorkspace() {
   const detailedIds=new Set(records.map(record=>record.id));
   const legacy=saved.owner===ownerKey?saved.legacy.filter(record=>!detailedIds.has(record.id)):[];
   const rows=[
+    ...ledgerOrderRows(verified?.orders??[],fills),
     ...legacy.map(run=>({key:'legacy:'+run.id,time:run.updatedAt,market:run.pair,chain:'—',side:'—',mode:'Paper run total',quantity:null,value:null,currency:'USD',fee:null,pnl:run.realizedPnl,status:run.fills+' fills · summary',reference:run.id})),
     ...paper.map(fill=>{
       const market=pairForStrategy(fill.pairId);
@@ -215,11 +216,11 @@ export function OrdersWorkspace() {
     <MarketChart/>
     <section className="orders-history" aria-labelledby="orders-history-title">
       <h2 id="orders-history-title">Transaction history</h2>
-      <p className="muted">AI attribution and paper fills use the last 100 runs saved in this browser. Older paper records show run totals. Live P/L uses finalized Flash fills and average cost. Reported live fees are shown separately, and wallet gas is excluded.</p>
+      <p className="muted">AI attribution and paper fills use the last 100 runs saved in this browser. Older paper records show run totals. Live P/L uses verified Arkiv fill records and average cost. Reported live fees are shown separately, and wallet gas is excluded.</p>
       {!owner && <p className="muted">Connect your wallet to read live fills. Paper orders created without a wallet stay in this browser.</p>}
       {cacheError && <p role="alert">{cacheError}</p>}
       {liveError && <p role="alert">{liveError}</p>}
-      {verified && !verified.complete && <p role="status">Older Flash orders exist. Profit and loss is withheld where the cost basis is incomplete.</p>}
+      {verified && !verified.complete && <p role="status">Arkiv history is incomplete, stale or disputed. Profit and loss is withheld where the cost basis is incomplete.</p>}
       {rows.length>100 && <p className="muted">Showing the latest 100 entries.</p>}
       {rows.length ? <div className="orders-table-wrap">
         <table>
@@ -242,7 +243,7 @@ export function OrdersWorkspace() {
             <td><code title={row.reference}>{row.reference.slice(0,8)}…{row.reference.slice(-5)}</code></td>
           </tr>)}</tbody>
         </table>
-      </div> : <p>{loading?'Reading finalized fills…':'Run a strategy on Trade to record orders here.'}</p>}
+      </div> : <p>{loading?'Reading verified Arkiv fills…':'Run a strategy on Trade to record orders here.'}</p>}
     </section>
   </main>;
 }

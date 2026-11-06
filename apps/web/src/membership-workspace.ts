@@ -27,7 +27,7 @@ export function mountMembershipWorkspace(root: HTMLElement, options: WorkspaceOp
   const panel = new CreatorMembershipPanel(options.wallet,options.events,options.accessKey,{
     openStrategy:options.openStrategy,getDraft:options.getDraft,saved:() => { void refreshLists(); },
   });
-  root.innerHTML = `<div class="membership-toolbar"><a class="button secondary" href="/community#/creator">Creator dashboard</a><a class="button secondary" href="/community#/creators">Discover creators & profits</a><button type="button" class="button secondary" data-workspace-action="connect">Connect wallet</button><button type="button" class="button secondary" data-workspace-action="refresh">Refresh memberships</button><button type="button" class="button primary" data-workspace-action="mine">Become a creator / My plan</button></div><p data-workspace-status role="status"></p><section><h3>Your subscriptions</h3><div data-subscriptions-list>Connect your wallet to load saved memberships.</div></section><section><h3>Creator memberships</h3><div data-plan-list>Reading creator plans…</div></section><form data-creator-search><label class="field"><span>Find a creator by handle</span><input name="creator" required placeholder="creator_handle"></label><button class="button secondary">Find creator</button></form><div data-creator-results></div><p class="muted">Names identify profiles. The connected wallet verifies ownership and receives membership payments. You can also search with a full wallet address.</p><div data-creator-panel></div>`;
+  root.innerHTML = `<p data-workspace-status role="status"></p><section><h3>Your subscriptions</h3><div data-subscriptions-list>Connect your wallet to load saved memberships.</div></section><section><h3>Creator memberships</h3><div data-plan-list>Reading creator plans…</div></section><form data-creator-search><label class="field"><span>Find a creator by handle</span><input name="creator" required placeholder="creator_handle"></label><button class="button secondary">Find creator</button></form><div data-creator-results></div><p class="muted">Names identify profiles. The connected wallet verifies ownership and receives membership payments. You can also search with a full wallet address.</p><div data-creator-panel></div>`;
   const status = (message: string) => { root.querySelector('[data-workspace-status]')!.textContent = message; };
   const card = (creator: string, detail: string) => `<button type="button" class="button secondary membership-card" data-creator="${e(creator)}"><strong data-creator-name="${e(creator)}">${e(names.get(creator) ?? short(creator))}</strong><span>${e(detail)}</span></button>`;
 
@@ -70,10 +70,10 @@ export function mountMembershipWorkspace(root: HTMLElement, options: WorkspaceOp
         if (disposed || current !== generation) return;
         root.querySelector('[data-plan-list]')!.innerHTML = rows.length
           ? rows.map(plan => card(plan.actor,formatAmount(String(plan.data.priceWei),18)+' Sepolia ETH / 30 days')).join('')
-          : '<p>No creator has published a membership price yet. Choose Become a creator / My plan to set yours.</p>';
+          : '<p>No creator has published a membership price yet.</p>';
         void loadNames(rows.map(row=>row.actor));
       } catch {
-        if (!disposed && current === generation) root.querySelector('[data-plan-list]')!.textContent = 'Creator plans could not be loaded. Refresh to try again.';
+        if (!disposed && current === generation) root.querySelector('[data-plan-list]')!.textContent = 'Creator plans could not be loaded. Reload this page to try again.';
       }
     };
     const subscriptions = async () => {
@@ -89,7 +89,7 @@ export function mountMembershipWorkspace(root: HTMLElement, options: WorkspaceOp
         options.onCreators?.(active.map(row => ({id:row.creator,name:short(row.creator)})));
         if (active.length) timer = setTimeout(() => { void refreshLists(); },Math.min(...active.map(row=>row.expiresAt-now),2147483647));
       } catch {
-        if (!disposed && current === generation) root.querySelector('[data-subscriptions-list]')!.textContent = 'Membership verification is unavailable. Refresh to try again.';
+        if (!disposed && current === generation) root.querySelector('[data-subscriptions-list]')!.textContent = 'Membership verification is unavailable. Reload this page to try again.';
       }
     };
     await Promise.all([plans(),subscriptions()]);
@@ -103,27 +103,17 @@ export function mountMembershipWorkspace(root: HTMLElement, options: WorkspaceOp
     if (next !== account) {
       panel.lock();
       account = next;
-      root.querySelector('[data-workspace-action="connect"]')!.textContent = account ? short(account) : 'Connect wallet';
       if (selected) selectCreator(selected);
       await refreshLists();
     }
   }
 
   const click = async (event: MouseEvent) => {
-    const target = (event.target as Element).closest<HTMLElement>('[data-workspace-action],[data-creator]');
+    const target = (event.target as Element).closest<HTMLElement>('[data-creator]');
     if (!target) return;
     event.preventDefault(); event.stopPropagation();
     try {
       if (target.dataset.creator) selectCreator(target.dataset.creator);
-      else if (target.dataset.workspaceAction === 'refresh') await refreshLists();
-      else {
-        if (!options.wallet) throw new Error('Open Poros in Chrome with MetaMask to set up or buy a membership.');
-        if (!account || target.dataset.workspaceAction === 'connect') {
-          await options.wallet.connect();
-          await accountChanged();
-        }
-        if (target.dataset.workspaceAction === 'mine' && account) selectCreator(account);
-      }
       if (!disposed) status('');
     } catch (error) { if (!disposed) status(error instanceof Error?error.message:'Unable to open membership.'); }
   };

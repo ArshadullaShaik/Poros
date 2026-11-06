@@ -60,10 +60,19 @@ h1, h2, h3 { font-family: var(--sans); }
 .poros-brand > span:first-child { display: flex; }
 
 html { scroll-behavior: smooth; }
+/* shortcut: cross-page fades require View Transitions support; share a root layout if reload-free navigation is needed. */
+@view-transition { navigation: auto; }
+.poros-header { view-transition-name: poros-header; }
+::view-transition-group(*) {
+  animation-duration: 180ms;
+  animation-timing-function: ease-out;
+}
 #main > main, #main > .trade-page, #content > * { animation: poros-page-in 220ms ease-out; }
 @keyframes poros-page-in { from { opacity: 0; transform: translateY(6px); } }
 @media (prefers-reduced-motion: reduce) {
+  @view-transition { navigation: none; }
   html { scroll-behavior: auto; }
+  ::view-transition-group(*), ::view-transition-old(*), ::view-transition-new(*) { animation: none; }
   #main > main, #main > .trade-page, #content > * { animation: none; }
 }
 

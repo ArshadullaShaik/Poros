@@ -1,3 +1,5 @@
+import {normalizeHandle,resolveProfileReference,profileIdentityPanel,profileEditor,profileSearchForm,profileMatches,publicProfilePage} from './profile-identity.ts';
+import {mountTradeSources} from './trade-history.ts';
 import {readCreatorDirectory,mountCreatorDirectory} from './creator-directory.ts';
 import {strategyQuestions,mountStrategyQuestions,strategyPostBody} from './strategy-post.ts';
 import {zeroGPotPage,mountZeroGPot} from './zero-g-pot.ts';
@@ -61,6 +63,7 @@ class Application {
     strategyCursor: number | null = null;
     communityCursor: number | null = null;
     creatorDirectory?: ReturnType<typeof mountCreatorDirectory>;
+    tradeSources?: ReturnType<typeof mountTradeSources>;
     historyCursor: number | null = null;
     skipped = 0;
     profiles = new Map<string, Profile>();
@@ -83,6 +86,7 @@ class Application {
         this.updateChrome();
     });
     activeCommunity: CommunityDTO | undefined;
+    activeProfileWallet: Hex | undefined;
     activeVersion: VersionDTO | undefined;
     activeListing: Listing | undefined;
     membership: Awaited<ReturnType<typeof this.api.community.getMembership>> | undefined;
@@ -247,6 +251,7 @@ class Application {
         return this.api.community.getVoteSummaries({communityKey:room,contentKeys:rows.map(row=>row.key),...(this.account?{viewer:this.account}:{})});
     }
     async render() {
+        this.tradeSources?.dispose(); this.tradeSources=undefined;
         this.creatorMembership.detach();
         this.creatorDirectory?.dispose();
         this.creatorDirectory = undefined;
@@ -255,9 +260,10 @@ class Application {
         const serial = ++this.pageSerial;
         const generation = this.generation;
         const [route = 'discover', id, thread] = this.route();
-        const page=route==='discover'||route==='strategies'?'/home':route==='dashboard'?'/profile':route==='pot'?'/0g-pot':'/community';
+        const page=route==='discover'||route==='strategies'?'/home':route==='dashboard'||route==='profile'?'/profile':route==='pot'?'/0g-pot':'/community';
         if(location.pathname!==page)history.replaceState(null,'',page+location.search+location.hash);
         this.activeCommunity = undefined;
+        this.activeProfileWallet = undefined;
         this.membership = undefined;
         this.updateChrome();
         const content = document.querySelector<HTMLElement>('#content')!;
@@ -331,14 +337,15 @@ class Application {
                     creator:new URLSearchParams(location.hash.split('?')[1] ?? '').get('creator') ?? undefined});
             }
             const membershipRoot = content.querySelector<HTMLElement>('#creator-membership');
-            const profileWallet = route === 'creator' || id === 'me' ? this.account : id;
+            const sourceRoot=content.querySelector<HTMLElement>('#trade-sources');
+            if(route==='profile'&&sourceRoot&&this.host.wallet&&this.account)this.tradeSources=mountTradeSources(sourceRoot,this.host.wallet,this.account);
+            const profileWallet = route === 'creator' ? this.account : this.activeProfileWallet;
             if (membershipRoot && profileWallet && walletPattern.test(profileWallet))
                 void this.creatorMembership.mount(membershipRoot,profileWallet as Hex,this.account,!!this.preview);
             if (route === 'profile' && profileWallet && walletPattern.test(profileWallet)) {
                 const wallet=profileWallet.toLowerCase() as Hex;
                 void this.mountCreatorReport(content.querySelector<HTMLElement>('#creator-report')!,serial,wallet);
                 void this.mountCreatorStrategies(content.querySelector<HTMLElement>('#creator-strategies')!,serial,wallet);
-                void this.mountCreatorRooms(content,serial,wallet);
             }
             if (changed)
                 content.querySelector<HTMLElement>('h1')?.focus({ preventScroll: true });
@@ -402,13 +409,13 @@ class Application {
     ${this.strategyCursor !== null ? button('more-strategies', 'Load more strategies', 'secondary') : ''}<div class="section-title small-title"><h2>Find a good conversation.</h2><a href="#/communities" class="text-link">All rooms ${icon('arrow')}</a></div><div class="community-grid compact">${communityCards(rooms.slice(0, 3))}</div>${rooms.length ? '' : `<a class="first-room" href="#/communities">${icon('people')}<span><strong>The commons are open.</strong><small>Create a community around your trading thesis.</small></span>${icon('arrow')}</a>`}</section>
     <aside class="field-notes"><div class="field-note"><span class="eyebrow">A NOTE FROM THE COMMONS</span><span class="quote-mark">“</span><h3>Show the thinking.<br>Not just the trade.</h3><p>The best part of an idea is what happens when someone builds on it.</p><a href="#/communities">Join a conversation ${icon('arrow')}</a><span class="note-flower">✳</span></div><div class="connection-card"><span class="eyebrow">YOUR WORKSPACE</span><div><span class="status-dot ${this.preview ? '' : 'live-dot'}"></span>${this.preview ? 'Read-only preview' : 'Public Rabdi reads'}</div><div>${icon('wallet')}${this.host.wallet ? 'Browser wallet available' : 'Open in Chrome with MetaMask'}</div><div>${icon('people')}Anyone can create a community</div><button class="text-link" data-action="setup">Connection details ${icon('arrow')}</button></div></aside></div>`;
     }
-    async communityView(id?: string, thread?: string, chatOnly = false) {
+    async communityView(id?: string, thread?: string) {
         const serial = this.pageSerial;
         if (!id || !keyPattern.test(id))
             failure('INVALID_INPUT');
         const room = await this.getCommunity(id as Hex);
         const [threads,messages,membership] = await Promise.all([
-            chatOnly ? [] : this.getEvents('thread', room.communityKey),
+            this.getEvents('thread', room.communityKey),
             thread ? [] : this.getEvents('message', room.communityKey),
             !this.preview && this.account ? this.api.community.getMembership({ communityKey: room.communityKey, wallet: this.account }) : undefined,
         ]);
@@ -418,7 +425,7 @@ class Application {
         const owner = !!this.account && room.owner === this.account;
         const joined = owner || this.membership?.event?.data.state === 'joined';
         const canPost = joined && !this.membership?.banned && !this.preview;
-        this.votes = chatOnly ? {} : await this.votesFor(room.communityKey,threads);
+        this.votes = await this.votesFor(room.communityKey,threads);
         await this.profilesFor([...threads, ...messages].map(row => row.actor));
         if (serial !== this.pageSerial)
             failure('STALE_VIEW');
@@ -439,7 +446,6 @@ class Application {
             return top + `<div class="thread-detail">${threadRows([parent], w => this.label(w), false,this.votes,canPost)}<h2>Keep the conversation going.</h2>${replies.length ? messageRows(replies, w => this.label(w), false,this.votes,canPost) : '<p class="muted">No replies yet. Add another perspective.</p>'}<form data-form="reply" class="composer">${field('body', 'Your reply', { area: true, required: true, placeholder: 'Build on the idea…', hint: 'Public text · up to 2,000 UTF-8 bytes' })}<button class="button primary" ${canPost ? '' : 'disabled'}>Post reply ${icon('right')}</button>${!canPost ? '<p class="muted">' + (this.preview ? 'Preview conversations are read-only.' : 'Join with a connected wallet to reply.') + '</p>' : ''}</form></div>`;
         }
         const chat = `<aside class="chat-panel"><div class="chat-heading"><h2>${icon('message')} The common room</h2><span class="status-dot"></span></div><p class="chat-disclosure">Public, on-chain messages. Each send uses tGLM gas.</p><div id="chat-error"></div><div id="messages" class="chat-messages">${messages.length ? messageRows(messages, w => this.label(w), false) : '<p class="muted">The room is quiet. Say hello.</p>'}</div><form data-form="message" class="chat-compose"><label class="sr-only" for="chat-body">Your public message</label><textarea id="chat-body" name="body" rows="2" required placeholder="Add to the conversation…" ${canPost ? '' : 'disabled'}></textarea><button class="button primary" ${canPost ? '' : 'disabled'}>Send ${icon('right')}</button></form><small>${this.preview ? 'Read-only illustrative messages.' : canPost ? 'Messages are public. Never share private code.' : 'Join this community to send a message.'}</small></aside>`;
-        if (chatOnly) return `<div class="section-title"><h3>${e(room.name)}</h3>${membershipButton}</div><p><a href="#/community/${room.communityKey}">Open community discussion →</a></p>` + chat;
         return top + `<div class="community-columns"><section><div class="section-title"><h2>The discussion.</h2>${button('new-thread', icon('plus') + ' Start a thread', 'secondary', canPost ? '' : 'disabled')}</div><div class="feed-tabs" role="group" aria-label="Discussion order">${button('sort-new','New','secondary',`aria-pressed="${this.sortOrder==='new'}"`)}${button('sort-top','Top','secondary',`aria-pressed="${this.sortOrder==='top'}"`)}</div><div id="threads">${threads.length ? threadRows(sortThreads(threads,this.votes,this.sortOrder), w => this.label(w), false,this.votes,canPost) : empty('Start with a question', 'Good discussion starts with a clear idea or an honest uncertainty.')}</div></section>${chat}</div>`;
     }
     async strategyView(id?: string) {
@@ -458,18 +464,33 @@ class Application {
         return `<a href="#/discover" class="back-link">← All public strategies</a><p><a class="button secondary strategy-transfer" draggable="true" href="/?strategy=${version.versionKey}">Open in builder · drag to canvas</a> ${this.preview ? '' : button('share-strategy','Share in a community','secondary')}</p>` + heading('PUBLIC STRATEGY', version.document.name, version.document.description, button('fork', icon('fork') + ' Fork this version', 'primary', writable ? '' : 'disabled')) + `<div class="community-meta">${tag(version.document.category)}${tag(version.document.license)}<span>by <a href="#/profile/${version.creator}">${e(this.label(version.creator))}</a></span>${this.account === version.creator ? button('revise', 'Publish a revision', 'secondary', writable && history.complete && history.tipVersionKeys.length === 1 ? '' : 'disabled') : ''}</div>${version.lineageStatus !== 'verified' ? notice('Some ancestors are missing. This is not a fully verified version history.', 'warning') : ''}${!history.complete ? notice('The version history is incomplete. Revision is blocked.', 'warning') : ''}<div class="detail-columns"><section class="paper-panel"><div class="section-title"><h2>${icon('code')} The strategy document</h2>${tag(this.preview ? 'Illustrative' : 'Read-back verified', 'green')}</div><pre class="code-panel">${e(JSON.stringify(version.document, null, 2))}</pre>${notice('A stored strategy is public data. It is not permission to trade.')}</section><aside><div class="paper-panel"><span class="eyebrow">PINNED TO THIS VERSION</span><dl><dt>Version key</dt><dd><code>${e(version.versionKey)}</code></dd><dt>Content hash</dt><dd><code>${e(version.contentHash)}</code></dd><dt>Execution network</dt><dd>Chain ${version.document.executionChainId}</dd><dt>Expiry block</dt><dd>${e(version.expiresAtBlock)}</dd></dl></div><div class="paper-panel"><h2>Version history</h2>${history.versions.map((row, i) => `<a class="history-row ${row.versionKey === version.versionKey ? 'selected' : ''}" href="#/strategies/${row.versionKey}"><span class="version-dot"></span><span>${i === 0 ? 'Root publication' : 'Revision'}<small>${e(short(row.versionKey))}</small></span>${icon('arrow')}</a>`).join('')}${this.historyCursor !== null ? button('more-history', 'Load more versions', 'secondary') : ''}<p class="muted">Forks preserve the selected source, including older versions.</p></div></aside></div>`;
     }
     dashboardView(creator = false) {
-        if(!this.account || this.preview)return heading(creator?'CREATOR DASHBOARD':'YOUR PROFILE',creator?'Become a creator':'Profile',creator?'Anyone can become a creator. Connect your wallet, create a public profile, set up private access, and publish your 30-day membership price.':'Connect your wallet to see membership income and saved trading results.',button('connect','Connect wallet'));
+        if(!this.account || this.preview)return heading(creator?'CREATOR DASHBOARD':'YOUR PROFILE',creator?'Become a creator':'Profile',creator?'Anyone can become a creator. Connect your wallet, create a public profile, set up private access, and publish your 30-day membership price.':'Connect your wallet to see membership income and saved trading results.',button('connect','Connect wallet'))+(!creator?profileSearchForm():'');
         const intro = heading(creator?'CREATOR DASHBOARD':'YOUR PROFILE',creator?'Your creator dashboard':'Your activity',creator?'Set up your creator profile and publish memberships.':'Membership income and trading results, in one place.',button('refresh','Refresh','secondary'))+
             (creator?'<section class="paper-panel"><h2>Build your creator presence</h2><ol><li><a href="/community#/profile/me">Create or edit your public profile</a>.</li><li>Set up your encryption key below and keep its recovery code.</li><li>Publish your 30-day Sepolia ETH membership price below.</li><li><a href="/community#/compose">Post a strategy</a> for everyone or your paid subscribers.</li></ol><p>Memberships are open to everyone. Public strategy activity improves discovery; finalized Flash results determine your <a href="/community#/creators">profit leaderboard</a> position. Profit is never guaranteed.</p></section><section id="creator-membership" class="paper-panel"></section>':'<p><a class="button primary" href="/community#/creator">Become a creator / Dashboard</a></p>');
         if (creator) return intro;
-        return intro +
-            `<div class="profile-panel">${avatar(this.account)}<div><strong>Connected wallet</strong><p><code>${e(this.account)}</code></p></div><a class="button secondary" href="/community#/profile/me">Edit public profile</a></div>`+
-            `<section class="profile-metrics" aria-label="Income and profit summary"><article class="paper-panel"><h2>Membership income</h2><strong class="metric-value" id="membership-income">Loading…</strong><p>Sepolia ETH · testnet</p><small>Verified payments in available Arkiv records. Not lifetime income; expired records may be missing.</small></article><article class="paper-panel"><h2>Paper trading profit</h2><strong class="metric-value" id="paper-profit">—</strong><p>Realized P/L · simulated USD</p><small>After simulated fees. Last 100 runs saved in this browser for this wallet. Open positions excluded.</small></article><article class="paper-panel"><h2>Real trading profit</h2><strong class="metric-value" id="real-profit">Loading…</strong><p>Realized fill P/L · by settlement currency</p><small>Finalized Flash fills only. Reported fees shown separately; excludes external trades, transfers and open-position gains.</small></article></section>`+
-            `<section class="paper-panel"><div class="section-title"><h2>Membership payments</h2><a href="/community#/memberships">Manage memberships →</a></div><div id="income-payments" role="status">Checking payments…</div></section><section class="paper-panel"><h2>Real trading results</h2><div id="real-results" role="status">Reading finalized Flash fills…</div></section><section class="paper-panel"><div class="section-title"><h2>Recent paper runs</h2><a href="/">Open Trade →</a></div><div id="paper-runs"></div></section>`;
+        return intro + '<section id="trade-sources" class="paper-panel" role="region" aria-label="Trading sources">Checking trade recording…</section>' +
+            `<div id="profile-identity">${profileIdentityPanel(null,this.account,true)}</div>`+profileSearchForm()+
+            `<section class="profile-metrics" aria-label="Income and profit summary"><article class="paper-panel"><h2>Membership income</h2><strong class="metric-value" id="membership-income">Loading…</strong><p>Sepolia ETH · testnet</p><small>Verified payments in available Arkiv records. Not lifetime income; expired records may be missing.</small></article><article class="paper-panel"><h2>Paper trading profit</h2><strong class="metric-value" id="paper-profit">—</strong><p>Realized P/L · simulated USD</p><small>After simulated fees. Last 100 runs saved in this browser for this wallet. Open positions excluded.</small></article><article class="paper-panel"><h2>Real trading profit</h2><strong class="metric-value" id="real-profit">Loading…</strong><p>Realized fill P/L · by settlement currency</p><small>Verified Arkiv fill records only. Reported fees shown separately; excludes external trades, transfers and open-position gains.</small></article></section>`+
+            `<section class="paper-panel"><div class="section-title"><h2>Membership payments</h2><a href="/community#/memberships">Manage memberships →</a></div><div id="income-payments" role="status">Checking payments…</div></section><section class="paper-panel"><h2>Real trading results</h2><div id="real-results" role="status">Reading verified Arkiv fills…</div></section><section class="paper-panel"><div class="section-title"><h2>Recent paper runs</h2><a href="/">Open Trade →</a></div><div id="paper-runs"></div></section>`;
+    }
+    async mountProfileIdentity(content:HTMLElement,serial:number,account:Hex){
+        const panel=content.querySelector<HTMLElement>('#profile-identity');
+        if(!panel)return;
+        try{
+            const profile=await this.api.community.getProfile({wallet:account});
+            if(serial!==this.pageSerial||account!==this.account||!panel.isConnected)return;
+            panel.innerHTML=profileIdentityPanel(profile,account,true);
+            if(profile)this.profiles.set(account,profile);
+        }catch{
+            if(serial===this.pageSerial&&account===this.account&&panel.isConnected)panel.insertAdjacentHTML('beforeend','<p role="status">Your saved username could not load. Refresh to try again.</p>');
+        }
     }
     async mountDashboard(content:HTMLElement,serial:number){
         const account=this.account;
         if(!account || this.preview)return;
+        const sources=content.querySelector<HTMLElement>('#trade-sources');
+        if(sources&&this.host.wallet)this.tradeSources=mountTradeSources(sources,this.host.wallet,account);
+        void this.mountProfileIdentity(content,serial,account);
         void this.mountRealPerformance(content,serial,account);
         const money=(value:number)=>new Intl.NumberFormat('en-US',{style:'currency',currency:'USD'}).format(value);
         try{
@@ -493,36 +514,35 @@ class Application {
     }
     async mountRealPerformance(content:HTMLElement,serial:number,account:Hex){
         try{
-            const response=await fetch('/api/performance?wallet='+encodeURIComponent(account),{cache:'no-store',signal:AbortSignal.timeout(50000)});
+            const response=await fetch('/api/trade-history/report?trader='+encodeURIComponent(account),{cache:'no-store',signal:AbortSignal.timeout(50000)});
             if(!response.ok)throw new Error('Unavailable');
             const payload=await response.json();
             const result=payload.data;
-            if(!payload.ok || !Array.isArray(result?.markets) || typeof result.complete!=='boolean')throw new Error('Invalid results');
+            if(!payload.ok || result?.provenance!=='arkiv' || !Array.isArray(result?.markets) || typeof result.complete!=='boolean')throw new Error('Invalid results');
             if(serial!==this.pageSerial || account!==this.account)return;
             const known=result.markets.filter((row:{realizedPnl:string|null})=>row.realizedPnl!==null);
             const summary=content.querySelector('#real-profit')!;
             summary.textContent=!result.fills?'No finalized fills':!result.complete?'History incomplete':!known.length?'Cost basis missing':result.markets.length===1?known[0].realizedPnl+' '+known[0].currency:'See markets below';
-            const body=result.markets.length?`<div class="profile-table-wrap"><table class="profile-table"><thead><tr><th>Market</th><th>Network</th><th>Realized fill P/L</th></tr></thead><tbody>${result.markets.map((row:{market:string;chain:string;realizedPnl:string|null;currency:string})=>`<tr><td>${e(row.market)}</td><td>${e(row.chain)}</td><td>${row.realizedPnl===null?'Unavailable — incomplete cost basis':e(row.realizedPnl)+' '+e(row.currency)}</td></tr>`).join('')}</tbody></table></div>`:'<p>No finalized fills found for this wallet in the available Flash history.</p>';
-            content.querySelector('#real-results')!.innerHTML=body+`<p>Reported fill fees: $${e(result.feesUsd)} USD. Shown separately, not deducted again from fill amounts.</p><p class="muted">Average purchase cost for matched Flash buys and sells. Up to 50 recent orders; ${result.complete?'all available orders were loaded':'older orders exist, so P/L is withheld'}. Wallet gas paid separately and trades outside this Flash history are not included. This is not your total wallet profit.</p>`;
+            content.querySelector('#real-results')!.innerHTML=creatorReport(result)+`<p>Reported fill fees: $${e(result.feesUsd)} USD. Shown separately, not deducted again from fill amounts.</p><p class="muted">Average purchase cost for matched Flash buys and sells. Arkiv-recorded linked-source history; ${result.complete?'all available orders were loaded':'older orders exist, so P/L is withheld'}. Wallet gas paid separately and trades outside this Flash history are not included. This is not your total wallet profit.</p>`;
         }catch{
             if(serial!==this.pageSerial || account!==this.account)return;
             content.querySelector('#real-profit')!.textContent='Unavailable';
-            content.querySelector('#real-results')!.textContent='Flash fill history could not be verified. Use Refresh to try again.';
+            content.querySelector('#real-results')!.textContent='Arkiv trade history is unavailable. Check recording setup and linked sources above, then Refresh.';
         }
     }
     async mountCreatorReport(root:HTMLElement,serial:number,wallet:Hex){
         const generation=this.generation;
-        root.textContent='Reading finalized Flash fills…';
+        root.textContent='Reading verified Arkiv fills…';
         if(this.preview){root.textContent='Live performance is unavailable in preview. No illustrative profits are shown.';return;}
         try{
-            const response=await fetch('/api/performance?wallet='+encodeURIComponent(wallet),{cache:'no-store',signal:AbortSignal.timeout(50000)});
+            const response=await fetch('/api/trade-history/report?trader='+encodeURIComponent(wallet),{cache:'no-store',signal:AbortSignal.timeout(50000)});
             if(!response.ok)throw new Error('Unavailable');
             const payload=await response.json();
             if(!payload.ok)throw new Error('Unavailable');
             const html=creatorReport(payload.data);
             if(serial===this.pageSerial&&generation===this.generation&&root.isConnected)root.innerHTML=html;
         }catch{
-            if(serial===this.pageSerial&&generation===this.generation&&root.isConnected)root.textContent='Flash fill history could not be verified. Refresh the report to try again. No performance values have been estimated.';
+            if(serial===this.pageSerial&&generation===this.generation&&root.isConnected)root.textContent='Verified Arkiv trade history is unavailable. Recording must be configured and this trader must link a source. No performance values have been estimated.';
         }
     }
     async mountCreatorStrategies(root:HTMLElement,serial:number,wallet:Hex,offset=0){
@@ -562,57 +582,20 @@ class Application {
             if(more){more.disabled=false;more.textContent='History unavailable or expired — retry';}
         }
     }
-    async mountCreatorRooms(content:HTMLElement,serial:number,wallet:Hex,offset=0){
-        const generation=this.generation;
-        const current=()=>serial===this.pageSerial&&generation===this.generation&&content.isConnected;
-        const select=content.querySelector<HTMLSelectElement>('#creator-rooms')!;
-        const pages=content.querySelector<HTMLElement>('#creator-room-pages')!;
-        const chat=content.querySelector<HTMLElement>('#creator-chat')!;
-        pages.querySelector('button')?.setAttribute('disabled','');
-        try{
-            const page=this.preview?{items:this.preview.communities,nextOffset:null,skipped:0}:await this.api.strategies.listCommunities({page:{offset}});
-            let failed=0;
-            const associated=await Promise.all(page.items.map(async room=>{
-                if(room.owner===wallet||this.preview)return room.owner===wallet?room:undefined;
-                try{const member=await this.api.community.getMembership({communityKey:room.communityKey,wallet});return !member.banned&&member.event?.data.state==='joined'?room:undefined;}catch{failed++;return undefined;}
-            }));
-            if(!current())return;
-            if(!offset)select.innerHTML='';
-            for(const room of associated){
-                if(room&&!Array.from(select.options).some(option=>option.value===room.communityKey))select.insertAdjacentHTML('beforeend',`<option value="${e(room.communityKey)}">${e(room.name)}</option>`);
-            }
-            pages.innerHTML=(page.skipped||failed?notice('Some community membership records could not be verified. The room list may be incomplete.','warning'):'')+(page.nextOffset!==null?button('creator-more-rooms','Find more creator communities','secondary',`data-offset="${page.nextOffset}"`):'');
-            if(offset)return;
-            const requested=new URLSearchParams(location.hash.split('?')[1]??'').get('room');
-            if(requested&&keyPattern.test(requested)&&!Array.from(select.options).some(option=>option.value===requested)){
-                const room=await this.getCommunity(requested as Hex);
-                const member=room.owner===wallet||this.preview?undefined:await this.api.community.getMembership({communityKey:room.communityKey,wallet});
-                if(!current())return;
-                if(room.owner===wallet||(!member?.banned&&member?.event?.data.state==='joined'))select.insertAdjacentHTML('beforeend',`<option value="${e(room.communityKey)}">${e(room.name)}</option>`);
-            }
-            if(requested&&Array.from(select.options).some(option=>option.value===requested))select.value=requested;
-            if(!select.value){chat.textContent='No creator communities found in this page of public Arkiv records. Load more communities or visit the public community directory.';return;}
-            const html=await this.communityView(select.value,undefined,true);
-            if(current())chat.innerHTML=html;
-        }catch{
-            if(!current())return;
-            pages.innerHTML=button('creator-more-rooms','Retry communities','secondary',`data-offset="${offset}"`);
-            if(!offset)chat.textContent='The creator’s public communities or messages could not be verified. Retry communities to try again.';
-        }
-    }
     async profileView(id?: string) {
         const serial=this.pageSerial;
-        const wallet = (id === 'me' ? this.account : id)?.toLowerCase();
-        if (!wallet)
-            return heading('YOUR WALLET IDENTITY', 'Make yourself at home.', 'Connect a wallet to create your public profile.', button('connect', icon('wallet') + ' Connect wallet'));
-        if (!walletPattern.test(wallet))
-            failure('INVALID_INPUT');
-        const profile = this.preview ? this.preview.profiles.find(row => row.wallet === wallet) ?? null : await this.api.community.getProfile({ wallet: wallet as Hex });
+        const reference=id==='me'?this.account:id;
+        if(!reference)return heading('YOUR WALLET IDENTITY','Make yourself at home.','Connect a wallet to set your username and create a public Arkiv profile.',button('connect','Connect wallet'))+profileSearchForm();
+        const readers=this.preview?{
+            getProfile:async({wallet}:{wallet:Hex})=>this.preview!.profiles.find(row=>row.wallet===wallet)??null,
+            searchProfiles:async({handle}:{handle:string})=>this.preview!.profiles.filter(row=>row.handle===handle),
+        }:this.api.community;
+        const resolved=await resolveProfileReference(reference,readers);
         if(serial!==this.pageSerial)failure('STALE_VIEW');
-        if (profile)
-            this.profiles.set(wallet, profile);
-        const owned = this.account === wallet && !this.preview;
-        return heading('WALLET-OWNED IDENTITY', profile?.displayName ?? 'An unwritten profile.', profile?.bio ?? 'This wallet has not created a public profile yet.', owned ? button('edit-profile', profile ? 'Edit profile' : 'Create profile') : '') + `<div class="profile-panel">${avatar(wallet)}<div><h2>${profile ? '@' + e(profile.handle) : 'Wallet identity'}</h2><code>${e(wallet)}</code><p class="muted">${e(profile?.userId ?? 'eip155:7794095:' + wallet)}</p></div>${tag('Wallet owned', 'green')}</div>` + notice('Handles can be shared by more than one wallet. Check the wallet address to identify a creator.') + `<section class="paper-panel"><div class="section-title"><h2>Live trading report</h2>${button('creator-report-refresh','Refresh report','secondary')}</div><div id="creator-report" role="status">Reading finalized Flash fills…</div></section><section class="paper-panel"><h2>Published strategies and versions</h2><p class="muted">Public Arkiv documents only. Private membership strategies are excluded. Expired records may be absent; this is not lifetime history.</p><div id="creator-strategies" data-wallet="${e(wallet)}" role="status">Reading public publications…</div></section><section class="paper-panel"><h2>Community chat</h2><p>Talk in this creator’s public Arkiv communities. This is a shared room, not a private message to the creator.</p><form data-form="creator-room" class="inline-form"><label class="field"><span>Creator community</span><select name="room" id="creator-rooms"><option value="">Loading public rooms…</option></select></label><button class="button secondary">Open room</button></form><div id="creator-room-pages"></div><div id="creator-chat" role="status">Finding creator communities…</div></section><section id="creator-membership" class="paper-panel"></section><section class="paper-panel"><h2>Find a person.</h2><form data-form="profile-search" class="inline-form">${field('handle', 'Exact handle', { placeholder: 'lowercase_handle', required: true, pattern: '[a-z0-9_]{3,32}' })}<button class="button secondary">Search ${icon('search')}</button></form><div id="profile-results"></div></section>`;
+        if(!resolved.wallet)return profileMatches(resolved.handle,resolved.matches);
+        this.activeProfileWallet=resolved.wallet;
+        if(resolved.profile)this.profiles.set(resolved.wallet,resolved.profile);
+        return publicProfilePage(resolved.wallet,resolved.profile,this.account===resolved.wallet&&!this.preview);
     }
     async publicDraftView() {
         if (this.preview) failure('PREVIEW_ONLY');
@@ -679,7 +662,7 @@ class Application {
         if (!document.hidden && navigator.onLine && !this.busy && !this.preview && this.pending && this.pending.account === this.account) {
             void this.verifyPendingWrite(this.pending.account + ':' + this.pending.requestId);
         }
-        if (document.hidden || !navigator.onLine || this.polling || this.busy || this.dialog?.open || Date.now() < this.nextPoll || !['community','profile'].includes(this.route()[0]??'') || !this.activeCommunity)
+        if (document.hidden || !navigator.onLine || this.polling || this.busy || this.dialog?.open || Date.now() < this.nextPoll || !['community'].includes(this.route()[0]??'') || !this.activeCommunity)
             return;
         const room = this.activeCommunity;
         const serial = this.pageSerial;
@@ -930,14 +913,13 @@ class Application {
         if (action?.startsWith('creator-')) {
             const content=document.querySelector<HTMLElement>('#content')!;
             const id=this.route()[1];
-            const wallet=(id==='me'?this.account:id)?.toLowerCase();
+            const wallet=this.activeProfileWallet;
             if(this.route()[0]!=='profile'||!wallet||!walletPattern.test(wallet))return;
             const offset=Number(target.dataset.offset??0);
             if(!Number.isSafeInteger(offset)||offset<0)return;
             if(action==='creator-report-refresh')await this.mountCreatorReport(content.querySelector<HTMLElement>('#creator-report')!,this.pageSerial,wallet as Hex);
             if(action==='creator-more-strategies')await this.mountCreatorStrategies(content.querySelector<HTMLElement>('#creator-strategies')!,this.pageSerial,wallet as Hex,offset);
             if(action==='creator-more-versions'&&target.dataset.root&&keyPattern.test(target.dataset.root))await this.mountCreatorVersions(target.closest<HTMLElement>('[data-creator-history]')!,this.pageSerial,target.dataset.root as Hex,offset);
-            if(action==='creator-more-rooms')await this.mountCreatorRooms(content,this.pageSerial,wallet as Hex,offset);
             return;
         }
         if (action === 'setup') {
@@ -1095,7 +1077,7 @@ class Application {
         if (action === 'edit-profile') {
             const account = await this.requireAccount();
             const profile = await this.api.community.getProfile({ wallet: account });
-            this.openDialog('A name for your ideas.', `<form data-form="profile" data-previous="${profile?.key ?? ''}">${field('handle', 'Handle', { value: profile?.handle, required: true, pattern: '[a-z0-9_]{3,32}', hint: '3–32 lowercase letters, digits or underscore. Handles are not unique.' })}${field('displayName', 'Display name', { value: profile?.displayName, required: true })}${field('bio', 'A little about you', { value: profile?.bio, area: true })}${notice('Your profile is public and belongs to your connected wallet.')}<button class="button primary">Save profile ${icon('right')}</button></form>`);
+            this.openDialog('Your wallet profile',profileEditor(profile));
             return;
         }
         if (action === 'membership' && this.activeCommunity) {
@@ -1187,12 +1169,6 @@ class Application {
         const data = new FormData(form);
         const value = (key: string) => String(data.get(key) ?? '');
         const kind = form.dataset.form;
-        if (kind === 'creator-room') {
-            const room=value('room');
-            if (!keyPattern.test(room)) return;
-            location.hash='/profile/'+this.route()[1]+'?room='+encodeURIComponent(room);
-            return;
-        }
         if (kind === 'search') {
             location.hash = '/discover?q=' + encodeURIComponent(value('q'));
             return;
@@ -1266,8 +1242,10 @@ class Application {
                 await this.write('community-update', { name, description }, () => this.api.strategies.updateCommunity({ communityKey: room.communityKey, name, description }), room.communityKey);
             }
             else if (kind === 'profile') {
-                const input = { handle: value('handle'), displayName: checkedText(value('displayName'), 1, 80), bio: checkedText(value('bio'), 0, 512) };
-                await this.write('profile', input, requestId => this.api.community.saveProfile({ requestId, ...input, ...(form.dataset.previous ? { previousKey: form.dataset.previous as Hex } : {}) }));
+                const handle=normalizeHandle(value('handle'));
+                const input = {handle,displayName:checkedText(value('displayName').trim()||handle,1,80),bio:checkedText(value('bio'),0,512)};
+                const saved=await this.write('profile', input, requestId => this.api.community.saveProfile({ requestId, ...input, ...(form.dataset.previous ? { previousKey: form.dataset.previous as Hex } : {}) }));
+                if(saved&&this.route()[0]==='profile')location.hash='/profile/'+saved.wallet;
             }
             else if (kind === 'thread' || kind === 'reply' || kind === 'message') {
                 const room = this.activeCommunity!;
@@ -1292,9 +1270,7 @@ class Application {
                 location.hash = '/thread/' + communityKey + '/' + post.key;
             }
             else if (kind === 'profile-search') {
-                const handle = value('handle');
-                const rows = this.preview ? this.preview.profiles.filter(row => row.handle === handle) : await this.api.community.searchProfiles({ handle });
-                document.querySelector('#profile-results')!.innerHTML = rows.map(row => `<a class="profile-result" href="#/profile/${row.wallet}">${avatar(row.wallet)}<span>${e(row.displayName)}<small>@${e(row.handle)} · ${e(short(row.wallet))}</small></span>${icon('arrow')}</a>`).join('') || '<p class="muted">No matching public profiles in this view.</p>';
+                location.hash='/profile/@'+normalizeHandle(value('handle'));
             }
             else if (kind === 'publish') {
                 if (!this.host.validateStrategyDocument)

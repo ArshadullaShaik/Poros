@@ -50,7 +50,7 @@ test('directory waits for an explicit profit request, then ranks verified histor
     return nodes.get(selector);
   }};
   let calls=0,signal:AbortSignal|undefined;
-  t.mock.method(globalThis,'fetch',async(_url:unknown,options:RequestInit)=>{calls++;signal=options.signal??undefined;return Response.json({ok:true,data:result(a,'5')});});
+  t.mock.method(globalThis,'fetch',async(_url:unknown,options:RequestInit)=>{assert.match(String(_url),/\/api\/trade-history\/report\?trader=/);calls++;signal=options.signal??undefined;return Response.json({ok:true,data:{...result(a,'5'),provenance:'arkiv'}});});
   const ui=mountCreatorDirectory(root as any,async()=>({rows:[creator()],partial:false}));
   await new Promise(resolve=>setImmediate(resolve));assert.equal(calls,0);
   await nodes.get('[data-profit-load]').handlers.click();assert.equal(calls,1);

@@ -7,6 +7,8 @@
 /Prompt.MD
 
 /.env.local
+/.data/
+/apps/web/.data/
 
 /apps/web/.next/
 /apps/web/next-env.d.ts

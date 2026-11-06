@@ -9,6 +9,7 @@ import { mountExecution } from "./execution.js";
 import { mountFundsMode } from "./funds-mode.js";
 import { mountLivePrices } from "./prices.js";
 import { mountCommunityLibrary, mountLibraryTabs, mountMemberLibrary } from "./community.js";
+import {readCanvas, saveCanvas} from './canvas-cache.js';
 
 const $ = selector => document.querySelector(selector);
 const canvas = $("#canvas");
@@ -26,14 +27,16 @@ const kinds = {
   "guard.risk": {label: "Risk limit", className: "guard", icon: "◇"},
   "action.intent": {label: "Buy / sell", className: "action", icon: "⇄"},
 };
-let draft = structuredClone(defaultStrategy);
-let selected = draft.nodes[0]?.id;
-let positions = new Map();
+const savedCanvas = readCanvas();
+let draft = savedCanvas?.draft ?? structuredClone(defaultStrategy);
+let selected = savedCanvas?.selected ?? draft.nodes[0]?.id;
+let positions = new Map(savedCanvas?.positions ?? []);
 let connectFrom;
-let dirty = false;
+let dirty = savedCanvas?.dirty ?? false;
+let canvasSaved = Boolean(savedCanvas);
 let executionUI,pricesUI,communityUI,backtestUI;
 let pricesPairId=pairForStrategy(draft).id;
-let forkSource;
+let forkSource = savedCanvas?.forkSource;
 let strategyLoad=0;
 
 function publishChartContext() {
@@ -54,6 +57,9 @@ function element(tag, className, text) {
 function announce(message) { $("#notice").textContent = message; }
 function defaultPosition(index) { return {x: 55 + (index % 3) * 290, y: 75 + Math.floor(index / 3) * 225}; }
 function resetPositions() { positions = new Map(draft.nodes.map((node, i) => [node.id, defaultPosition(i)])); }
+function persistCanvas() {
+  canvasSaved = saveCanvas({draft, positions: [...positions], selected, dirty, forkSource});
+}
 function edit(operation) {
   try {
     draft = editStrategy(draft, operation);
@@ -139,10 +145,12 @@ function drawEdges() {
 function moveNode(id, x, y) {
   const position = {x: Math.max(20, Math.min(canvas.clientWidth - 235, x)), y: Math.max(40, Math.min(3000, y))};
   positions.set(id, position);
+  dirty = true;
   const card = [...canvas.querySelectorAll(".node")].find(item => item.dataset.id === id);
   if (card) { card.style.left = `${position.x}px`; card.style.top = `${position.y}px`; }
   canvas.style.height = `${Math.max(500, ...[...positions.values()].map(point => point.y + 200))}px`;
   drawEdges();
+  persistCanvas();
 }
 
 function renderNodes(result) {
@@ -293,6 +301,7 @@ function render() {
   publishChartContext();
   const pairId=pairForStrategy(draft).id;
   if(pricesUI&&pairId!==pricesPairId){pricesPairId=pairId;void pricesUI.refresh();void executionUI.refreshMarket();}
+  persistCanvas();
 }
 
 function addBlock(type, position) {
@@ -340,6 +349,7 @@ $("#new-strategy").addEventListener("click", () => { if (mayReplace()) { replace
 $("#clear-canvas").addEventListener("click", () => {
   replaceDraft({...draft,nodes:[],edges:[]});
   dirty=true;
+  persistCanvas();
   announce("Canvas cleared. Add blocks or drop a strategy to start again.");
 });
 $("#export").addEventListener("click", () => {
@@ -348,7 +358,7 @@ $("#export").addEventListener("click", () => {
     const url = URL.createObjectURL(new Blob([text], {type: "application/json"}));
     const link = element("a"); link.href = url; link.download = "strategy.json"; link.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
-    dirty = false; announce("Validated strategy JSON downloaded. Canvas positions are not included.");
+    dirty = false; persistCanvas(); announce("Validated strategy JSON downloaded. Canvas positions are not included.");
   } catch (error) { announce(error.message); }
 });
 $("#import").addEventListener("click", () => { $("#import-error").textContent = ""; dialog.showModal(); });
@@ -378,6 +388,7 @@ const ai = mountStrategyAi({
     replaceDraft(next);
     forkSource=undefined;
     dirty = true;
+    persistCanvas();
     announce("AI proposal accepted. Export JSON to keep this draft.");
   },
 });
@@ -385,7 +396,7 @@ executionUI = mountExecution({
   onLoading:setStrategyLoading,
   getPair:()=>pairForStrategy(draft),
   getDraft: () => draft,
-  applyDraft(next) {replaceDraft(next); dirty = true;forkSource=undefined;},
+  applyDraft(next) {replaceDraft(next); dirty = true;forkSource=undefined;persistCanvas();},
   validateDraft: next => validateMarketStrategy(next),
   getApiKey: ai.getKey,
   onText:ai.openText,
@@ -397,7 +408,7 @@ executionUI = mountExecution({
 });
 communityUI=mountCommunityLibrary({onLoading:setStrategyLoading,onText:entry=>executionUI.openUnlockedStrategy(entry),onLoad(next,versionKey){
   if(!validateMarketStrategy(next).valid)throw new Error("This public strategy uses unsupported rules or a market outside this live-price builder.");
-  replaceDraft(next);dirty=true;forkSource=versionKey;
+  replaceDraft(next);dirty=true;forkSource=versionKey;persistCanvas();
 }});
 window.addEventListener("poros:public-data-updated",()=>void communityUI.refresh());
 const memberUI=mountMemberLibrary({
@@ -432,8 +443,8 @@ export function setFollowedCreators(creators) {executionUI.setFollowedCreators(c
 window.addEventListener("creators:updated", event => {
   try {setFollowedCreators(event.detail);} catch (error) {announce(error.message);}
 });
-window.addEventListener("beforeunload", event => { if (dirty) { event.preventDefault(); event.returnValue = ""; } });
-backtestUI=mountBacktest({getDraft:()=>draft,getPair:()=>pairForStrategy(draft),getPairs:()=>tradingPairs,changeMarket(id){if(mayReplace()){replaceDraft(strategyForPair(id,draft),true);dirty=true;}},async loadStrategy(transfer){
+window.addEventListener("beforeunload", event => { persistCanvas(); if (dirty && !canvasSaved) { event.preventDefault(); event.returnValue = ""; } });
+backtestUI=mountBacktest({getDraft:()=>draft,getPair:()=>pairForStrategy(draft),getPairs:()=>tradingPairs,changeMarket(id){if(mayReplace()){replaceDraft(strategyForPair(id,draft),true);dirty=true;persistCanvas();}},async loadStrategy(transfer){
   const member=transfer.getData('application/x-poros-member-strategy');
   if(member){const {readMemberStrategy}=await import('../../../../apps/web/src/builder.ts');return executionUI.openUnlockedStrategy(readMemberStrategy(member));}
   const reference=transfer.getData('text/uri-list')||transfer.getData('text/plain');
@@ -447,7 +458,9 @@ backtestUI=mountBacktest({getDraft:()=>draft,getPair:()=>pairForStrategy(draft),
 window.addEventListener('pagehide',()=>backtestUI.stop());
 const stopFundsMode = mountFundsMode($("#execution-mode"));
 window.addEventListener('pagehide', stopFundsMode, {once:true});
-resetPositions(); render();
+if (!savedCanvas) resetPositions();
+draft.riskPolicy.paperTradingOnly = $("#execution-mode").value !== "LIVE";
+render();
 
 async function loadMemberTransfer(raw) {
   try {

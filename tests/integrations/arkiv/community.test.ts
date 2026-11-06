@@ -51,6 +51,16 @@ test('wallet identity survives profile edits and colliding handles do not impers
   assert.equal((await hub.getProfile({wallet:alice}))?.displayName,'Alice');
   await assert.rejects(hub.saveProfile({requestId:crypto.randomUUID(),handle:'satoshi',displayName:'Impersonator',bio:'',previousKey:profile.key}));
 });
+test('an Arkiv username survives a new hub instance and renaming changes lookup without changing its wallet',async()=>{
+ const {hub,events,store}=await communitySetup();
+ const first=await hub.saveProfile({requestId:crypto.randomUUID(),handle:'first_name',displayName:'Alice',bio:''});
+ await hub.saveProfile({requestId:crypto.randomUUID(),handle:'new_name',displayName:'Alice',bio:'Updated',previousKey:first.key});
+ const reopened=createCommunityHub({events,strategies:store});
+ assert.deepEqual(await reopened.searchProfiles({handle:'first_name'}),[]);
+ const matches=await reopened.searchProfiles({handle:'new_name'});assert.equal(matches.length,1);assert.equal(matches[0]!.wallet,alice);
+ assert.equal((await reopened.getProfile({wallet:alice}))!.handle,'new_name');
+ await assert.rejects(reopened.saveProfile({requestId:crypto.randomUUID(),handle:'Invalid Name',displayName:'Alice',bio:''}));
+});
 test('community membership, threaded discussion, chat and owner moderation cross user boundaries', async () => {
   const {hub,events,communityKey} = await communitySetup();
   events.account = bob;

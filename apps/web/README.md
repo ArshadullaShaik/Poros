@@ -46,6 +46,46 @@ Creator links in Trade open the public profile with finalized Flash fill statist
 
 The 0G inference key is saved in this browser's local storage across reloads and browser restarts. Forget key removes it. Scripts running on the same site can read it; use a dedicated inference key. If storage is blocked, the key remains usable in memory and the settings report that it was not saved.
 
+## Verified live trade recording on Arkiv
+
+Profile also includes **Set username / Edit username** and public username lookup. Saving uses the existing wallet-approved Arkiv profile write, linking the lowercase handle to its author wallet. Open `/profile#/profile/@username` to retrieve the current profile by handle. Existing shared handles show matching wallet choices instead of silently selecting a different trader. Renaming retains the wallet identity; the previous handle stops matching that wallet's current profile. Profile pages no longer embed community chat; community conversations remain in Communities.
+
+Real execution history has a separate Arkiv ledger. Profiles and the profit leaderboard read records from its configured trusted writer; local receipts and trader-supplied profits are not verified history. A trader links a Flash funding wallet or a Definitive portfolio from **Profile → Verified trading history**. Linking publishes executions, including losses. Unlinking retains attributed records and excludes that incomplete source from ranking. Linking a Solana trading wallet requires its message signature as well as the EVM profile signature. Portfolio access additionally checks the profile against the provider's vault signers.
+
+Configure these **server-only** variables in the root `.env.local` or deployment secret store:
+
+| Variable | Value |
+|---|---|
+| `ARKIV_ACCESS_KEY` | Existing Rabdi RPC access key |
+| `ARKIV_TRADE_WRITER_PRIVATE_KEY` | Dedicated storage-writer key, never a trader's wallet key |
+| `ARKIV_TRADE_TRUSTED_WRITER` | That writer's EVM address |
+| `TRADE_LEDGER_DB_PATH` | Absolute path on a persistent local volume, shared by the app and worker |
+| `TRADE_LEDGER_ORIGIN` | Exact app origin, e.g. `http://127.0.0.1:4325` |
+| `FLASH_API_KEY` | Authorized Flash history access; there is no development-key fallback for the ledger |
+| `DEFINITIVE_PORTFOLIO_CREDENTIALS_FILE` | Optional operator-only JSON secret file for portfolio history |
+
+The portfolio secret file maps provider portfolio IDs to `{ "key": "<portfolio API key>", "secret": "<portfolio API secret>" }`. Keep it outside public/static paths with permissions `0600`; no credentials are uploaded through the profile UI. The provider's portfolio metadata must include the selected vault and profile signer. Configure one portfolio API credential pair per portfolio; organization-wide credential routing is not assumed.
+
+Fund the dedicated writer with Rabdi **tGLM** for storage, then restart the app and run a separately supervised worker:
+
+```sh
+npm --prefix apps/web run trade:worker
+# One reconciliation pass for operations/debugging:
+npm --prefix apps/web run trade:worker -- --once
+```
+
+Use Node 24 or newer with built-in SQLite. Keep the app and worker on the same host/persistent volume; this implementation is not a distributed queue. Back up the SQLite database using a consistent SQLite backup or stop both processes before copying its database and WAL. Preserve the database when deploying or restarting. The worker holds an expiring database lease, persists pagination and reconciles uncertain inclusion before attempting another write. A recording error never resubmits a trade. Real app orders require a linked Flash source and a healthy worker before submission; paper trading does not require the ledger.
+
+The worker refreshes linked sources, retains finalized partial fills even for cancelled orders, and renews records with fewer than 30 days remaining to a 180-day expiry. Monitor `/api/trade-history/status?trader=<profile-address>` for worker health, pending records, source errors and renewal failures. Missing/expired previously confirmed entities or unknown inclusion remain explicit gaps. Do not reset the database, change the trusted writer, or clear an uncertain write to hide a gap; reconcile its chain transaction/entity and restore consistent state first. Writer rotation requires preserving trust in prior attestations and is not an automatic key swap.
+
+Reports show gross realized fill P/L with provider-reported USD fees separately; they do not assume a USD conversion for the settlement currency or present net returns. Open gains, external sources and portfolio return/drawdown are not inferred. Pagination and cost basis must be complete; stale, unlinked, disputed or incomplete sources cannot receive a profit rank. Source visibility is limited by the configured Definitive API authorization. A current Arkiv record is an attestation by this app's verifier, not independent transaction verification or proof of a trader's reliability.
+
+Report generation currently fails visibly above 10,000 ledger records instead of returning a truncated ranking. Materialized reports are the upgrade path for larger histories. Mirrored executions from the same funding wallet exposed through both Definitive APIs are deduplicated by their execution identities; contradictory observations remain disputed. Pagination coverage uses the first page's observation time so a long backfill does not claim newer orders were checked at the end.
+
+Deployment is not live-verified until a funded writer has performed an inclusion/read-back check and a linked source's actual executions have been reconciled. Fixture tests and a successful build do not establish that your historical trades have been imported. Never use a real-money test trade merely to test recording.
+
+After explicitly opting in, stop the regular worker and run `npm --prefix apps/web run trade:smoke` with `ARKIV_TRADE_LIVE_SMOKE=1` and `TRADE_LEDGER_SMOKE_TRADER` set to a linked profile. The check imports available real executions, reads a real fill back, repeats its identity without creating another record, and renews its expiry. It spends storage gas and does not place a trade. Restart the regular worker afterwards.
+
 ## Checks
 
     npm --prefix src/integrations/arkiv test

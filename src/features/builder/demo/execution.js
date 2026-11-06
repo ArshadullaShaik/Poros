@@ -129,6 +129,7 @@ export function mountExecution({root=document,getDraft,applyDraft,validateDraft,
     const output=$("execution-results");output.replaceChildren();
     output.append(element("h3",`${data.status} · ${data.mode==="LIVE"?"LIVE Flash orders":`${data.orders.length} paper fills`}`));
     if(data.mode==="LIVE"){
+      output.append(element("p",`Arkiv: ${data.recording?.message??"Not recorded"}`,"small"));
       output.append(element("p",`Remaining run buy budget $${data.cashUsd} · Reserved order notional $${data.turnoverUsd}. Wallet balances and gas are separate.`,"small"));
       for(const order of data.liveOrders??[])output.append(element("p",`${order.side} $${order.notionalUsd} · ${order.orderId} · ${order.status}`,"small"));
       if(data.walletRequest){

@@ -42,7 +42,7 @@ export async function readCreatorDirectory(strategies: Pick<ArkivStore,'listStra
   return {rows,partial:partial||creators.size>rows.length};
 }
 
-type MarketResult = {marketId:string;market:string;chain:string;currency:string;realizedPnl:string|null;sells:number};
+type MarketResult = {marketId:string;market:string;chain:string;currency:string;realizedPnl:string|null;sells:number;eligibleForRanking?:boolean};
 export type CreatorResult = {creator:Creator;complete:boolean;markets:MarketResult[];error?:string};
 function units(value:string) {
   if(!/^-?\d{1,36}(?:\.\d{1,36})?$/.test(value))throw new Error('Invalid profit amount.');
@@ -52,7 +52,7 @@ function units(value:string) {
 export function rankCreators(results:CreatorResult[],marketId:string) {
   return results.flatMap(result=>{
     const market=result.markets.find(row=>row.marketId===marketId);
-    if(result.error||!result.complete||!market||market.realizedPnl===null||market.sells<1)return [];
+    if(result.error||!result.complete||!market||market.realizedPnl===null||market.sells<1||market.eligibleForRanking===false)return [];
     return [{...result.creator,profit:market.realizedPnl,amount:units(market.realizedPnl),sells:market.sells}];
   }).sort((a,b)=>a.amount===b.amount?b.strategies-a.strategies||b.posts-a.posts||a.wallet.localeCompare(b.wallet):a.amount>b.amount?-1:1);
 }
@@ -66,7 +66,7 @@ export function mountCreatorDirectory(root:HTMLElement,load:()=>Promise<Awaited<
   const controller=new AbortController();
   root.innerHTML=compact
     ? `<div class="membership-toolbar compact"><a class="button secondary" href="/community#/creator">Become a creator / Dashboard</a><a class="button secondary" href="/community#/creators">Leaderboard &amp; discovery ↗</a><button type="button" class="button secondary" data-directory-refresh>Refresh list</button></div><p data-directory-status class="small muted" role="status"></p><div data-creator-cards class="creator-directory"></div>`
-    : `<div class="membership-toolbar"><a class="button primary" href="/community#/creator">Become a creator / Dashboard</a><a class="button secondary" href="/community#/memberships">My subscriptions</a><button type="button" class="button secondary" data-directory-refresh>Refresh creators</button></div><p>Anyone can publish a membership. Public strategy activity helps readers discover you; verified results determine profit rank.</p><p data-directory-status role="status"></p><div data-creator-cards class="creator-directory"></div><section class="paper-panel"><h2>Profit leaderboard</h2><p>Finalized Flash fills, ranked separately for each market and network. Higher realized P/L ranks first; public strategy count, then community post count, break ties. Paper results and self-reported profits never count.</p><button type="button" class="button secondary" data-profit-load disabled>Load verified profits</button><p data-profit-status role="status">Load on demand to keep browsing fast.</p><label class="field"><span>Compare a market</span><select data-profit-market disabled><option>No verified results loaded</option></select></label><div data-profit-table></div><p class="muted">Ranks compare only verified creators loaded in this directory. Up to 50 recent Flash orders per wallet; incomplete history or missing cost basis is unranked. Fees are reported separately in profiles; gas, external trades and open-position gains are excluded. Results cover available history, not a fixed contest period or proof that a posted strategy caused the profit.</p></section>`;
+    : `<div class="membership-toolbar"><a class="button primary" href="/community#/creator">Become a creator / Dashboard</a><a class="button secondary" href="/community#/memberships">My subscriptions</a><button type="button" class="button secondary" data-directory-refresh>Refresh creators</button></div><p>Anyone can publish a membership. Public strategy activity helps readers discover you; verified results determine profit rank.</p><p data-directory-status role="status"></p><div data-creator-cards class="creator-directory"></div><section class="paper-panel"><h2>Profit leaderboard</h2><p>Verified Arkiv fills, ranked separately for each market and network. Higher gross realized P/L ranks first; public strategy count, then community post count, break ties. Paper results and self-reported profits never count.</p><button type="button" class="button secondary" data-profit-load disabled>Load verified profits</button><p data-profit-status role="status">Load on demand to keep browsing fast.</p><label class="field"><span>Compare a market</span><select data-profit-market disabled><option>No verified results loaded</option></select></label><div data-profit-table></div><p class="muted">Ranks compare only verified creators loaded in this directory. Linked-source Arkiv history; incomplete history or missing cost basis is unranked. Fees are reported separately in profiles; gas, external trades and open-position gains are excluded. Results cover available history, not a fixed contest period or proof that a posted strategy caused the profit.</p></section>`;
   const status=root.querySelector<HTMLElement>('[data-directory-status]')!;
   const refresh=root.querySelector<HTMLButtonElement>('[data-directory-refresh]')!;
   const profit=root.querySelector<HTMLButtonElement>('[data-profit-load]');
@@ -99,10 +99,10 @@ export function mountCreatorDirectory(root:HTMLElement,load:()=>Promise<Awaited<
       if(signal.aborted)break;
       profitStatus.textContent=`Checking ${results.length+1} of ${rows.length}: ${creator.name}…`;
       try {
-        const response=await fetch('/api/performance?wallet='+encodeURIComponent(creator.wallet),{cache:'no-store',signal});
+        const response=await fetch('/api/trade-history/report?trader='+encodeURIComponent(creator.wallet),{cache:'no-store',signal});
         if(!response.ok)throw new Error('History unavailable');
         const payload=await response.json(),data=payload.data;
-        if(!payload.ok||typeof data?.complete!=='boolean'||!Array.isArray(data.markets)||data.markets.some((row:MarketResult)=>typeof row.marketId!=='string'||typeof row.market!=='string'||typeof row.chain!=='string'||typeof row.currency!=='string'||!Number.isSafeInteger(row.sells)||row.sells<0||row.realizedPnl!==null&&typeof row.realizedPnl!=='string'))throw new Error('Invalid history');
+        if(!payload.ok||data?.provenance!=='arkiv'||typeof data?.complete!=='boolean'||!Array.isArray(data.markets)||data.markets.some((row:MarketResult)=>typeof row.marketId!=='string'||typeof row.market!=='string'||typeof row.chain!=='string'||typeof row.currency!=='string'||!Number.isSafeInteger(row.sells)||row.sells<0||row.realizedPnl!==null&&typeof row.realizedPnl!=='string'))throw new Error('Invalid history');
         for(const row of data.markets)if(row.realizedPnl!==null)units(row.realizedPnl);
         results.push({creator,complete:data.complete,markets:data.markets});
       } catch {results.push({creator,complete:false,markets:[],error:'History unavailable'});}

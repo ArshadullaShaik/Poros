@@ -1,5 +1,12 @@
 import {pairForStrategy} from '../../../src/features/builder/market/config.ts';
 import {paperPosition} from '../../../src/features/builder/demo/chart.js';
+import type {TradeReport} from '../../../src/features/builder/execution/trade-report.ts';
+
+export function ledgerOrderRows(orders:TradeReport['orders'],fills:TradeReport['transactions']) {
+  return orders.filter(row=>row.data.status!=='ORDER_STATUS_FILLED'||!fills.some(fill=>fill.orderId===row.data.orderId&&fill.sourceWallet===row.source.wallet)).map(row=>({
+    key:'ledger-order:'+row.source.sourceId+':'+row.source.wallet+':'+row.data.orderId,time:row.observedAt,market:row.data.market??'Recorded order',chain:row.data.chain??row.source.chainFamily,side:row.data.side??'—',mode:'Verified live',quantity:null,value:null,currency:row.data.currency??'',fee:null,pnl:null,status:'Order · '+row.data.status.replace('ORDER_STATUS_','').toLowerCase(),reference:row.data.orderId,
+  }));
+}
 
 export interface PaperFill {
   actionId: string;

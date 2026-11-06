@@ -1,4 +1,6 @@
 import {createFlashPerformance,validHistoryWallet} from "../execution/performance.ts";
+import {createTradeHistoryHandler} from './trade-history.mjs';
+import {getTradeRuntime} from './trade-runtime.ts';
 import { Readable } from "node:stream";
 import { AgentError, readBoundedJson, runStrategyAgent, validateInferenceKey } from "../ai/zero-g.ts";
 import { marketContext, marketStrategy, pairForStrategy } from "../market/config.ts";
@@ -18,9 +20,10 @@ export function createApiHandler({fetcher = fetch, market = createLiveMarkets({f
   const handleArkiv = createArkivProxy(fetcher);
   const chartHistory = createChartHistory({fetcher});
   const performance=createFlashPerformance({fetcher});
+  const tradeHistory=createTradeHistoryHandler();
   let aiBusy = false;
   let backtestBusy = false;
-  const monitor = createPriceMonitor({market,fetcher,invoke:async(options)=>{
+  const monitor = createPriceMonitor({market,fetcher,tradeLedger:()=>getTradeRuntime()?.ledger,invoke:async(options)=>{
     if(aiBusy)throw new AgentError("RATE_LIMITED");
     aiBusy=true;try{return await invokePriceExecution(options,fetcher);}finally{aiBusy=false;}
   }});
@@ -125,6 +128,7 @@ export function createApiHandler({fetcher = fetch, market = createLiveMarkets({f
     let pathname;
     try { pathname = new URL(request.url ?? "/", "http://127.0.0.1").pathname; }
     catch { response.writeHead(400).end("Malformed request target."); return; }
+    if (pathname.startsWith('/api/trade-history/')) return tradeHistory(request,response);
     if (pathname === "/api/performance") {
       if(request.method!=="GET"){response.setHeader("Allow","GET");response.writeHead(405).end();return;}
       if((request.headers.origin && request.headers.origin!==`http://${request.headers.host}`)||
