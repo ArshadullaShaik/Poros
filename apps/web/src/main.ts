@@ -355,7 +355,7 @@ class Application {
                 return;
             content.removeAttribute('aria-busy');
             const code = errorCode(error);
-            const warning = `<div class="route-error" role="alert">${notice(errors[code] ?? 'This page could not be loaded. Your last view has been preserved.', 'warning')}${button('refresh', icon('refresh') + ' Try again', 'secondary')}</div>`;
+            const warning = `<div class="route-error" role="alert">${notice(errors[code] ?? 'This page could not be loaded. Your last view has been preserved.', 'warning')}<div class="route-error-actions" style="margin-top:12px;display:flex;gap:8px;">${button('refresh', icon('refresh') + ' Try again', 'secondary')}${button('preview', 'Explore design preview', 'secondary')}</div></div>`;
             if (content.querySelector('.loading-view'))
                 content.innerHTML = heading('A connection needs attention', 'Let’s try that again.', 'No sample data has replaced this live request.') + warning;
             else {

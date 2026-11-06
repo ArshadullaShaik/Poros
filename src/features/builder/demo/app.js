@@ -6,6 +6,7 @@ import { keepFocus } from "./focus.js";
 import { mountCanvasDragTarget } from "./drag-target.js";
 import { mountStrategyAi } from "./ai.js";
 import { mountExecution } from "./execution.js";
+import { mountFundsMode } from "./funds-mode.js";
 import { mountLivePrices } from "./prices.js";
 import { mountCommunityLibrary, mountLibraryTabs, mountMemberLibrary } from "./community.js";
 
@@ -59,7 +60,7 @@ function select(id) { selected = id; render(); $("#strategy-settings").showModal
 function replaceDraft(next,preserveMode=false) {
   forkSource = undefined;
   draft = structuredClone(next);
-  if(!preserveMode)$("#execution-mode").value = draft.riskPolicy.paperTradingOnly ? "AI" : "LIVE";
+  draft.riskPolicy.paperTradingOnly = $("#execution-mode").value !== "LIVE";
   selected = draft.nodes[0]?.id;
   connectFrom = undefined;
   resetPositions();
@@ -434,6 +435,8 @@ backtestUI=mountBacktest({getDraft:()=>draft,getPair:()=>pairForStrategy(draft),
   throw new Error('Drop a strategy card from Community or Unlocked.');
 }});
 window.addEventListener('pagehide',()=>backtestUI.stop());
+const stopFundsMode = mountFundsMode($("#execution-mode"));
+window.addEventListener('pagehide', stopFundsMode, {once:true});
 resetPositions(); render();
 
 async function loadMemberTransfer(raw) {

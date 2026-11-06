@@ -25,7 +25,7 @@ export function mapError(error: unknown, writing = false): StorageError {
     if (e.code === 4001 || /userrejected/i.test(String(e.name))) code = 'USER_REJECTED';
     else if (e.name === 'NoEntityFoundError') code = 'NOT_FOUND_OR_EXPIRED';
     else if (/insufficient funds|insufficient balance/.test(text)) code ??= 'INSUFFICIENT_GAS';
-    else if (e.status === 429 || e.code === 429 || /rate.limit|too many requests/.test(text)) code ??= 'RATE_LIMITED';
+    else if (e.status === 429 || e.code === 429 || /rate.limit|too many requests|budget exhausted|anon_cost_limited/i.test(text)) code ??= 'RATE_LIMITED';
     else if (/\breverted\b/.test(text)) code ??= 'TRANSACTION_FAILED';
     if (typeof e.txHash === 'string' && /^0x[\da-f]{64}$/i.test(e.txHash)) txHash = e.txHash as Hex;
     item = e.cause;

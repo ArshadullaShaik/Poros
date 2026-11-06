@@ -36,9 +36,22 @@ function createReadProxy(fetcher, network) {
       if (url.protocol !== 'https:') throw new Error('HTTPS required');
       const upstream = await fetcher(url, { method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ jsonrpc: '2.0', id: body.id, method: body.method, params: body.params }), signal: abort.signal });
+      if (upstream.status === 429) {
+        json(429, { jsonrpc: '2.0', id: body.id, error: { code: 429, message: 'Arkiv public query budget exhausted (429 Rate Limited).' } });
+        return;
+      }
       if (!upstream.ok) throw new Error('RPC unavailable');
       const result = await readBoundedJson(upstream, 1048576, 'UNAVAILABLE', abort.signal);
-      if (network === 'arkiv' && result?.error) { json(200,{jsonrpc:'2.0',id:body.id,error:{code:result.error.code,message:'Arkiv read failed'}}); return; }
+      if (network === 'arkiv' && result?.error) {
+        if (result.error === 'ANON_COST_LIMITED' || String(result.message).includes('budget exhausted')) {
+          json(429, { jsonrpc: '2.0', id: body.id, error: { code: 429, message: 'Arkiv public query budget exhausted. Get an API key at https://hub.arkiv.network or switch to preview.' } });
+          return;
+        }
+        const code = typeof result.error === 'object' ? result.error.code : -32000;
+        const msg = (typeof result.error === 'object' ? result.error.message : result.message) || String(result.error) || 'Arkiv read failed';
+        json(200, { jsonrpc: '2.0', id: body.id, error: { code, message: msg } });
+        return;
+      }
       if (result?.error || result?.jsonrpc !== '2.0' || result?.id !== body.id || !Object.hasOwn(result, 'result')) throw new Error('RPC unavailable');
       json(200, result);
     } catch { json(503, { error: network === 'arkiv' ? 'ARKIV_UNAVAILABLE' : 'SEPOLIA_UNAVAILABLE' }); }

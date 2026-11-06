@@ -122,7 +122,7 @@ export function mountExecution({root=document,getDraft,applyDraft,validateDraft,
   function settings() {
     return {mode:$("execution-mode").value,initialCashUsd:Number($("execution-capital").value),maxTurnoverUsd:Number($("execution-turnover").value),feeBps:Number($("execution-fee").value),slippageBps:Number($("execution-slippage").value)};
   }
-  for(const id of ["execution-mode","execution-capital","execution-turnover","execution-fee","execution-slippage"])$(id).addEventListener("change",()=>invalidate("Execution settings changed. Start a new paper run to use them."));
+  for(const id of ["execution-mode","execution-capital","execution-turnover","execution-fee","execution-slippage"])$(id).addEventListener("change",()=>invalidate("Execution settings changed. Start a new run to use them. Submitted live orders remain active."));
   $("execution-stop").addEventListener("click",()=>invalidate("Stopped. Pending AI may still be charged. Submitted Flash orders may still fill; their IDs remain below.",true));
   function renderResults(data) {
     notify({kind:"snapshot",data:{...data,wallet:data.wallet??(walletNetwork===getPair().network?.id?wallet:undefined)}});

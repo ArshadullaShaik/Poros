@@ -193,3 +193,12 @@ test("a chart observer failure cannot interrupt monitor execution",async()=>{
  const ui=await setup(undefined,()=>true,undefined,undefined,()=>{throw new Error("Chart failed");});
  await ui.event("execution-start");assert.equal(ui.sent.length,2);assert.equal(ui.controls.get("#execution-stop")!.disabled,true);
 });
+
+test('changing funds mode stops the current monitor before another run can start',async()=>{
+  const ui=await setup(async()=>Response.json({ok:true,data:{id:'waiting-session',status:'WAITING',message:'Waiting for target',mode:'PAPER',orders:[],cashUsd:'1000.000000',baseQuantity:'0.00000000',turnoverUsd:'0.000000',inference:[]}}));await ui.event('execution-start');
+  ui.controls.get('#execution-mode')!.value='LIVE';ui.event('execution-mode','change');
+  assert.ok(ui.sent.some(item=>JSON.parse(item.init.body as string).action==='stop'));
+  assert.equal(ui.controls.get('#execution-results')!.hidden,true);
+  assert.match(ui.controls.get('#execution-status')!.textContent,/Submitted live orders remain active/);
+  assert.match(ui.controls.get('#execution-help')!.textContent,/Real funds/);
+});

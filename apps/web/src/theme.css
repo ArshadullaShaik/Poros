@@ -417,3 +417,12 @@ body{background:var(--paper);color:var(--ink)}
 }
 
 
+
+.poros-header-actions{display:flex;align-items:center;justify-self:end;gap:12px;min-width:0}
+.poros-funds-toggle{display:inline-flex;padding:3px;border:1px solid var(--line);border-radius:5px;background:var(--white);flex-shrink:0}
+.poros-funds-toggle button{border:0;background:transparent;color:var(--muted);font:600 11px/1.4 var(--mono);padding:7px 11px;border-radius:3px;cursor:pointer;min-height:32px}
+.poros-funds-toggle button[aria-pressed=true]{background:var(--ink);color:var(--white)}
+.poros-funds-toggle button:last-child[aria-pressed=true]{background:var(--blue);color:#fff}
+.poros-funds-toggle button:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+@media(max-width:1250px){.poros-header{display:flex;flex-wrap:wrap}.poros-header-actions{margin-left:auto}.poros-nav{order:3;max-width:100%;margin-inline:auto}}
+@media(max-width:480px){.poros-header-actions{gap:7px}.poros-funds-toggle button{padding-inline:8px}.poros-header-actions .poros-wallet{font-size:10px;padding-inline:10px}}
