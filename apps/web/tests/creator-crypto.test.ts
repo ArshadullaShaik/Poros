@@ -7,7 +7,7 @@ test('signal encryption restores from Arkiv backup and rejects wrong recipients,
   const alice = await createEncryptionIdentity('alice');
   const bob = await createEncryptionIdentity('bob');
   const context = 'alice:publication-id';
-  const content = { title: 'Reviewed signal', body: 'Private rules and trade idea.' };
+  const content = { title: 'Reviewed signal', body: 'Private rules and trade idea.', source: 'manual' as const };
   const encrypted = await encryptSignal(content, context);
   const box = await sealContentKey(encrypted.key, bob.identity.publicKey, context + ':bob');
   const restored = await restoreEncryptionIdentity('bob', bob.identity, bob.recoveryCode);

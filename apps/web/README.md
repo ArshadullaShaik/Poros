@@ -18,13 +18,40 @@ The source community and Arkiv modules were imported from surana-rishabh/holyfuc
 
 ## Creator memberships
 
-Open Your profile in Chrome with MetaMask. Create an encryption key, save its recovery code privately, and approve registration of its encrypted backup on Rabdi. Then publish a positive Sepolia ETH price for a 30-day membership. Public profiles show verified active subscriber counts.
+Open Your profile in Chrome with MetaMask and publish a positive Sepolia ETH price for a 30-day membership. No encryption identity or recovery code is needed for new messages. Public profiles show verified active subscriber counts.
 
-A subscriber connects their own wallet, registers and unlocks their encryption key, and reviews the creator, exact price, and Sepolia network before sending payment. After two confirmations, Verify payment and activate checks the original receipt and asks for an Arkiv claim transaction. Access starts with that claim. An early renewal extends from the existing expiry. Interrupted payments stay in local recovery storage until their original transaction is verified. Keep the original transaction hash when recovering on a different browser.
+Subscribers review the creator, exact price, and Sepolia network before paying. After two confirmations, Verify payment and activate verifies the original receipt and asks for an Arkiv claim transaction. Access starts with that claim. An early renewal extends the existing term. Interrupted payments retain the original transaction for recovery; do not send another payment to fix an uncertain one.
 
-Creators review a signal, encrypt it, and approve its Arkiv publication. Each eligible subscriber then needs a separate recipient-envelope transaction from the creator. Complete delivery resumes an interrupted delivery. A pending write has its own recovery action. Subscribers receive posts published after their membership claim, with same-block claims conservatively excluded. Received information can be copied. The app hides the feed after membership expiry.
+Creators publish exclusive messages through the existing composer. The backend uploads the message and optional paper-strategy JSON to Bee with Swarm encryption, reads it back, and returns a public pointer for the creator's wallet-signed Arkiv publication. Titles and bodies stay off Arkiv. The backend retains the full secret reference encrypted at rest. A wallet signature confirms access when opening a feed (up to 20 eligible posts per signature); it is not another payment. There are no recipient-delivery transactions.
 
-Private keys and recovery codes stay in browser memory. Reloading requires the recovery code to unlock the Arkiv backup. Losing that code can make received signals unreadable. Record lifetime remains 180 days. The app checks that the plan, key history, and renewal evidence have enough remaining lifetime before offering payment.
+Members must be active both now and when the message was published. Same-block claims do not establish eligibility. New subscribers do not receive the earlier archive, and renewing after a gap does not unlock posts from the unpaid period. Creators can read and publish without self-subscribing. Expiry clears in-app messages; previously received content can be copied and cannot be revoked. Older encrypted posts show a legacy-access explanation and are not automatically migrated. Old interrupted writes are retained for the previous recovery flow.
+
+### Encrypted Swarm message setup
+
+Set these server-only variables in the deployment secret store or root `.env.local`, then restart the app:
+
+| Variable | Value |
+|---|---|
+| `SWARM_BEE_URL` | Trusted Bee API URL; loopback HTTP or remote HTTPS |
+| `SWARM_POSTAGE_BATCH_ID` | Funded Bee batch ID: 64 lowercase hex characters, without `0x` |
+| `MEMBERSHIP_DB_PATH` | Absolute path to a dedicated SQLite file on a persistent volume, separate from the trade ledger |
+| `MEMBERSHIP_MASTER_KEY` | Base64 encoding of a random 32-byte key; retain it across restarts |
+| `MEMBERSHIP_ORIGIN` | Exact browser origin, e.g. `http://127.0.0.1:4325`; HTTPS for a remote origin |
+| `SWARM_BEE_AUTHORIZATION` | Optional Authorization header value for a protected Bee deployment |
+
+Before the first start, run `npm --prefix apps/web run membership:init` once to create an empty custody database. This does not upload or spend funds. Normal startup refuses a missing database, and initialization refuses to overwrite an existing one. If an existing volume is lost, restore its backup rather than initializing a replacement.
+
+The existing `ARKIV_ACCESS_KEY` and optional `SEPOLIA_RPC_URL` configure server verification. Trade-writer credentials and the trade worker are not required for member messages. Bee's `POST /bytes` encrypted upload and `GET /bytes/<full-reference>` are used directly; no extra npm package is needed.
+
+Only the address portion of a reference goes into Arkiv. The full encrypted reference contains a decryption key: never publish it, log it, or put it in a public URL. The backend retrieves through the configured trusted Bee node and returns verified plaintext to an authenticated member over HTTPS. This is operator-managed encryption, not end-to-end encryption; the operator and trusted Bee node can access content. Public payload hashes are integrity commitments and do not hide guessable content.
+
+Back up the membership SQLite database consistently (including SQLite WAL semantics) and retain its master key separately. Missing custody state or a wrong key fails closed. Do not replace the database/key on deployment. One server process owns the database; multi-replica coordination and key rotation are not implemented. Both creator and subscriber must use the same membership backend, including when testing on two laptops; separate local databases cannot open each other's posts.
+
+Uploads are journaled. A returned Swarm reference survives a failed read-back or rejected Arkiv transaction, so recovery can reuse it. Recover uncertain Arkiv writes with the original request ID. Recovery checks the original entity/request and never resubmits an unresolved transaction. A new attempt is allowed only after a known wallet rejection or a canonically confirmed failed transaction; an unknown transaction without a hash may need operator reconciliation. An upload that times out before its reference is saved may leave an orphan; only the explicit Retry upload action can spend postage again. There is no plaintext fallback. Keep postage funded; expired batches can make content unavailable.
+
+Limits per running process: four concurrent Bee operations, 30 challenge requests/minute/IP, 10 uploads/minute/wallet, and 60 read requests/minute/wallet. Individual requests are at most 64 KiB; canonical message content is at most 8,800 bytes, with a 100-byte title and 4,096-byte body. The sidebar shows the newest 20 eligible posts; the member feed provides Older messages and Newer messages when needed. Public deployment of the rest of the app still needs its existing localhost-only API rules addressed separately.
+
+For an explicitly authorized live demo, use a funded Bee batch and an existing eligible membership. Publish a distinctive exclusive message, verify the creator-signed Arkiv pointer has no key or plaintext, open it as creator and subscriber, and confirm a non-member cannot retrieve it. Restart the backend using the same database/key and repeat the read. No live upload, extra payment, or trade is performed by the fixture tests. A successful build alone does not establish that the Bee deployment works.
 
 The default Sepolia read service is exposed through the local /api/sepolia-rpc endpoint. Set SEPOLIA_RPC_URL in the server environment to use a different HTTPS provider. RPC credentials stay on the server. The Rabdi public endpoint can rate-limit reads.
 
@@ -36,7 +63,7 @@ The real builder validator checks the graph, envelope, network, and token regist
 
 ## Two-laptop walkthrough
 
-Run this branch locally on both laptops with Node 24 or newer. Each laptop uses its own MetaMask account and saved encryption recovery code. Both read the same public Arkiv records. Use the creator's complete profile URL on the subscriber laptop, changing only the local port if needed. Both wallets need Rabdi tGLM, and the subscriber needs Sepolia ETH. The local server binds to loopback.
+Run this branch locally on both laptops with Node 24 or newer. Each laptop uses its own MetaMask account. Both read the same public Arkiv records. New exclusive messages additionally require both browsers to use the same configured membership backend, as described above. Use the creator's complete profile URL on the subscriber laptop, changing only the local port if needed. Both wallets need Rabdi tGLM, and the subscriber needs Sepolia ETH. The local server binds to loopback.
 
 The builder offers virtual-fund modes and separately wallet-authorized live execution. Live AI requests require the user's 0G key. Private keys and API secrets must stay out of the repository. A failed live read remains an error. Preview content never replaces a failed network request.
 

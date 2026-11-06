@@ -6,7 +6,7 @@ import { readMembershipPayment, sendMembershipPayment, type MembershipPayment } 
 
 const buyer = ('0x'+'a'.repeat(40)) as Hex, creator = ('0x'+'b'.repeat(40)) as Hex;
 const hash = ('0x'+'1'.repeat(64)) as Hex;
-const payment: MembershipPayment = {buyer,creator,planKey:hash,keyRecord:hash,priceWei:'100000000000000',requestId:crypto.randomUUID(),attempted:false};
+const payment: MembershipPayment = {buyer,creator,planKey:hash,priceWei:'100000000000000',requestId:crypto.randomUUID(),attempted:false};
 function setup(send:()=>Promise<Hex> = async()=>hash) {
   const records = new Map<string,string>();
   const storage = {getItem:(key:string)=>records.get(key)??null,setItem:(key:string,value:string)=>{records.set(key,value);},removeItem:(key:string)=>{records.delete(key);}};

@@ -1,7 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {readMemberLibrary,readCommunityStrategies,readCommunityPost} from '../src/builder-library.ts';
-import {createEncryptionIdentity,encryptSignal,sealContentKey} from '../src/creator-crypto.ts';
 const account='0x1111111111111111111111111111111111111111',creator='0x2222222222222222222222222222222222222222';
 
 test('community library merges visible shared versions with original publications and paginates without duplicates',async()=>{
@@ -24,16 +23,38 @@ test('written community posts are draggable candidates and are rechecked for vis
  const entry=await readCommunityPost(community,communityKey,postKey);assert.equal(entry.text,'buy eth at 2109 $ and sell at 3000$');assert.equal(entry.versionId,postKey);
  visible=false;await assert.rejects(readCommunityPost(community,communityKey,postKey),/no longer available/);
 });
-test('personal library uses verified active memberships and decrypts only envelopes for the current key',async()=>{
- const identity=await createEncryptionIdentity(account),now=Date.now(),context=creator+':publication';
- const encrypted=await encryptSignal({title:'Creator price rules',body:'Buy $20 of WETH using USDC on Base between $2000 and $2100 USD.'},context);
- const box=await sealContentKey(encrypted.key,identity.identity.publicKey,context+':'+account);
- let signals=0,active=true,delivered=true,time=now;
- const options:any={account,events:{scan:async(input:any)=>{assert.equal(input.actor,account);return [{subject:creator},{subject:creator}];}},readers:{now:async()=>time},getProfile:async()=>({displayName:'Creator'}),service:{members:async()=>[{wallet:account,expiresAt:active?now+100000:now-1}],getKey:async()=>({key:'key',data:identity.identity}),signals:async()=>{signals++;return [{key:'0x'+'a'.repeat(64),actor:creator,requestId:'publication',data:encrypted}];},getEnvelope:async()=>delivered?{data:{keyRecord:'key',box}}:undefined}};
- const locked=await readMemberLibrary(options);assert.equal(locked.creators.length,1);assert.equal(locked.locked,true);assert.equal(signals,0);
- const unlocked=await readMemberLibrary({...options,recoveryCode:identity.recoveryCode});assert.equal(unlocked.entries[0]!.text,'Buy $20 of WETH using USDC on Base between $2000 and $2100 USD.');assert.equal(unlocked.locked,false);
- await assert.rejects(readMemberLibrary({...options,recoveryCode:'wrong-code'}));
- delivered=false;assert.equal((await readMemberLibrary({...options,recoveryCode:identity.recoveryCode})).entries.length,0);
- active=false;assert.equal((await readMemberLibrary(options)).creators.length,0);
- active=true;let reads=0;options.readers.now=async()=>++reads===1?now:now+100001;await assert.rejects(readMemberLibrary({...options,recoveryCode:identity.recoveryCode}),/expired/);
+test('personal library uses verified active memberships and loads member signals through authenticated retrieval',async()=>{
+  const now=Date.now();
+  let active=true;
+  const signalData={title:'Creator price rules',body:'Buy $20 of WETH using USDC on Base between $2000 and $2100 USD.',source:'manual' as const};
+  const options:any={
+    account,
+    events:{scan:async()=>[{subject:creator},{subject:creator}]},
+    readers:{now:async()=>now},
+    getProfile:async()=>({displayName:'Creator'}),
+    readMessages:async(keys:string[])=>keys.map(signalKey=>({signalKey,content:signalData,expiresAt:now+100000})),
+    service:{
+      canReadSignal:async()=>true,
+      members:async()=>[{wallet:account,expiresAt:active?now+100000:now-1}],
+      signals:async()=>[{key:'0x'+'a'.repeat(64),actor:creator,requestId:'publication',createdAtBlock:'0',data:{format:"swarm-message/1"}}],
+    },
+  };
+  const result=await readMemberLibrary(options);
+  assert.equal(result.creators.length,1);
+  assert.equal(result.entries.length,1);
+  assert.equal(result.entries[0]!.text,'Buy $20 of WETH using USDC on Base between $2000 and $2100 USD.');
+  active=false;
+  assert.equal((await readMemberLibrary(options)).creators.length,0);
+  active=true;
+  let reads=0;
+  options.readers.now=async()=>++reads===1?now:now+100001;
+  await assert.rejects(readMemberLibrary(options),/expired/);
+});
+
+test('more than 20 member messages keeps the newest 20 available',async()=>{
+ const expiresAt=Date.now()+100000;
+ const result=await readMemberLibrary({account,events:{scan:async()=>[{subject:creator}] as any},readers:{now:async()=>Date.now()},getProfile:async()=>({displayName:'Creator'}),
+ service:{members:async()=>[{wallet:account,expiresAt}],canReadSignal:async()=>true,signals:async()=>Array.from({length:25},(_,i)=>({key:('0x'+(i+1).toString(16).padStart(64,'0')),createdAtBlock:String(i+1),data:{format:'swarm-message/1'}}))} as any,
+ readMessages:async keys=>keys.map(signalKey=>({signalKey,content:{title:signalKey,body:'Rules',source:'manual'},expiresAt}))});
+ assert.equal(result.entries.length,20);assert.equal(result.entries[0]!.versionId,'0x'+(25).toString(16).padStart(64,'0'));
 });

@@ -18,9 +18,15 @@ export function memberStrategy(content: SignalContent, versionId: string) {
   return {id:versionId, versionId, name:content.title, text:content.body};
 }
 
-export function readMemberStrategy(raw: string) {
+export function readMemberStrategy(raw:string):ReturnType<typeof memberStrategy>;
+export function readMemberStrategy(raw:string,access:{wallet:string;now?:number}):ReturnType<typeof memberStrategy>&{memberWallet:string;expiresAt:number|null};
+export function readMemberStrategy(raw: string, access?:{wallet:string;now?:number}) {
   if (raw.length > 16000) throw new Error('The member strategy is too large.');
   const value = JSON.parse(raw);
   if (!value || typeof value !== 'object') throw new Error('Drop a member strategy card.');
-  return memberStrategy(value.content, value.versionId);
+  const entry=memberStrategy(value.content, value.versionId);
+  if(!access)return entry;
+  if(value.memberWallet!==access.wallet||(!Number.isFinite(value.expiresAt)&&value.expiresAt!==null)||
+    (value.expiresAt!==null&&value.expiresAt<=(access.now??Date.now())))throw new Error('Member access expired or the wallet changed. Refresh your messages.');
+  return {...entry,memberWallet:value.memberWallet,expiresAt:value.expiresAt as number|null};
 }

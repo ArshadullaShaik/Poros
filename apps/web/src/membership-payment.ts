@@ -6,7 +6,6 @@ export interface MembershipPayment {
   buyer: Hex;
   creator: Hex;
   planKey: Hex;
-  keyRecord: Hex;
   priceWei: string;
   requestId: string;
   attempted: boolean;
@@ -20,7 +19,7 @@ export function readMembershipPayment(storage: Journal, buyer: Hex): MembershipP
   if (!raw) return;
   const value = JSON.parse(raw) as MembershipPayment;
   if (value.buyer !== buyer || !walletPattern.test(value.creator) || value.creator === buyer ||
-      !keyPattern.test(value.planKey) || !keyPattern.test(value.keyRecord) ||
+      !keyPattern.test(value.planKey) ||
       !/^[1-9][0-9]{0,77}$/.test(value.priceWei) || BigInt(value.priceWei) >= 2n ** 256n ||
       !/^[0-9a-f-]{36}$/.test(value.requestId) || typeof value.attempted !== 'boolean' ||
       (value.hash !== undefined && !keyPattern.test(value.hash))) failure('INVALID_INPUT');

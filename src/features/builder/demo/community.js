@@ -80,17 +80,17 @@ export function mountMemberLibrary({root=document,loadApi=()=>import('../../../.
   let generation=0,expiryTimer,unsubscribe,stopped=false;
   const status=message=>{for(const id of ['unlocked-status','creators-status'])$(id).textContent=message;};
   function lock(message='Private library locked. Refresh to verify memberships.'){
-    generation++;clearTimeout(expiryTimer);onEntries([]);onCreators([]);$('library-recovery').value='';status(message);onReset();
+    generation++;clearTimeout(expiryTimer);onEntries([]);onCreators([]);status(message);onReset();
   }
-  async function refresh(recoveryCode){
+  async function refresh(){
     const current=++generation;clearTimeout(expiryTimer);onEntries([]);onCreators([]);
     status('Verifying wallet memberships…');
     try{
       const api=await loadApi();
-      const result=await api.readPersonalLibrary(recoveryCode);
+      const result=await api.readPersonalLibrary();
       if(current!==generation)return;
       onCreators(result.creators);onEntries(result.entries);
-      $('unlocked-status').textContent=result.locked?'Enter your community recovery code to decrypt purchased creator strategies.':result.entries.length?'Drag an unlocked creator strategy onto the canvas.':'No delivered strategies for your active memberships yet.';
+      $('unlocked-status').textContent=result.entries.length?'Drag an unlocked creator strategy onto the canvas.':'No messages for your active memberships yet.';
       $('creators-status').textContent=result.creators.length?'Creators with verified active paid memberships.':'No active paid creator memberships.';
       if(result.creators.length)expiryTimer=setTimeout(()=>lock('Membership expired. Refresh to verify access.'),Math.max(0,Math.min(2147483647,Math.min(...result.creators.map(row=>row.expiresAt))-Date.now())));
     }catch(error){
@@ -102,7 +102,6 @@ export function mountMemberLibrary({root=document,loadApi=()=>import('../../../.
       }
     }
   }
-  $('unlock-library-form').addEventListener('submit',event=>{event.preventDefault();const code=$('library-recovery').value;$('library-recovery').value='';void refresh(code);});
   $('lock-library').addEventListener('click',()=>lock());
   for(const id of ['refresh-member-library','refresh-creator-library'])$(id).addEventListener('click',()=>refresh());
   void loadApi().then(api=>{if(stopped)return;unsubscribe=api.subscribeLibraryWallet(()=>lock('Wallet changed. Refresh to load this account’s library.'));}).catch(()=>{});

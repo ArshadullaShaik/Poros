@@ -6,6 +6,7 @@ import {createPublicReadCache,browserStorage,cachedPublicLists} from './public-c
 import {compose} from './integration.ts';
 import {createInjectedWallet} from './wallet.ts';
 import {createCreatorMemberships,createMembershipReaders} from '../../../src/integrations/arkiv/community/index.ts';
+import {createMemberContentClient} from './member-content.ts';
 import {readMemberLibrary,readCommunityStrategies,readCommunityPost} from './builder-library.ts';
 import { validateBuilderDocument } from './strategy-document.ts';
 export { builderDocument, validateBuilderDocument } from './strategy-document.ts';
@@ -19,12 +20,22 @@ export function mountTradeCreators(root:HTMLElement){
 export const listCommunityStrategies=(input:Parameters<typeof readCommunityStrategies>[2])=>readCommunityStrategies(api.strategies,api.community,input);
 export const readPublicPost=(communityKey:`0x${string}`,postKey:`0x${string}`)=>readCommunityPost(api.community,communityKey,postKey);
 export const publicLists=cachedPublicLists(api.strategies,createPublicReadCache({storage:browserStorage(),onRefresh:(_key,changed)=>{if(changed&&typeof window!=='undefined')window.dispatchEvent(new Event('poros:public-data-updated'));}}));
-export { MEMBER_STRATEGY_TYPE, readMemberStrategy } from './member-strategy.ts';
-export async function readPersonalLibrary(recoveryCode?:string){
+export { MEMBER_STRATEGY_TYPE } from './member-strategy.ts';
+import {readMemberStrategy as parseMemberStrategy} from './member-strategy.ts';
+export async function assertMemberAccess(entry:{memberWallet?:string;expiresAt?:number|null}){
+  if(entry.memberWallet&&(!wallet||(await wallet.getContext()).account.toLowerCase()!==entry.memberWallet))throw new Error('Wallet changed. Refresh your member messages.');
+  if(entry.expiresAt!==undefined&&entry.expiresAt!==null&&entry.expiresAt<=Date.now())throw new Error('Membership expired. Refresh your member messages.');
+}
+export async function readMemberStrategy(raw:string){
+  if(!wallet)throw new Error('Connect your membership wallet first.');
+  const account=(await wallet.getContext()).account.toLowerCase();
+  return parseMemberStrategy(raw,{wallet:account});
+}
+export async function readPersonalLibrary(){
   if(!wallet)throw new Error('Connect a browser wallet to read your memberships.');
   const account=(await wallet.getContext()).account.toLowerCase() as `0x${string}`;
   const readers=createMembershipReaders(integration?.accessKey);
-  const result=await readMemberLibrary({account,events:api.events,service:createCreatorMemberships(api.events,readers),readers,getProfile:wallet=>api.community.getProfile({wallet}),recoveryCode});
+  const result=await readMemberLibrary({account,events:api.events,service:createCreatorMemberships(api.events,readers),readers,getProfile:wallet=>api.community.getProfile({wallet}),readMessages:createMemberContentClient({wallet}).readMany});
   if((await wallet.getContext()).account.toLowerCase()!==account)throw new Error('Wallet account changed. Refresh your library.');
   return {...result,account};
 }

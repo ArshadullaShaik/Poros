@@ -27,8 +27,11 @@ const shapes = {
   delisted:z.strictObject({listingKey:key}),
   'creator-plan':z.strictObject({priceWei:z.string().regex(/^[1-9][0-9]{0,77}$/).refine(value=>BigInt(value)<2n**256n),termDays:z.literal(30),...predecessor}),
   'encryption-key':z.strictObject({publicKey:encoded(43),backup:z.strictObject({iv:encoded(16),ciphertext:encoded(512)}),...predecessor}),
-  subscription:z.strictObject({planKey:key,transactionHash:key,keyRecord:key}),
-  'private-signal':z.strictObject({iv:encoded(16),ciphertext:encoded(12000),creatorKey:key,creatorBox:sealedKey,source:z.enum(['ai-proposal','rule-engine','manual']),sourceVersionKey:key.optional()}),
+  subscription:z.strictObject({planKey:key,transactionHash:key,keyRecord:key.optional()}),
+  'private-signal':z.union([
+    z.strictObject({iv:encoded(16),ciphertext:encoded(12000),creatorKey:key,creatorBox:sealedKey,source:z.enum(['ai-proposal','rule-engine','manual']),sourceVersionKey:key.optional()}),
+    z.strictObject({format:z.literal('swarm-message/1'),publicationId:z.string().uuid(),swarmAddress:z.string().regex(/^[a-f0-9]{64}$/),payloadHash:key,source:z.enum(['ai-proposal','rule-engine','manual'])}),
+  ]),
   'signal-envelope':z.strictObject({keyRecord:key,box:sealedKey}),
 };
 export function buildEvent(input: EventInput): EventRecord {
@@ -36,6 +39,7 @@ export function buildEvent(input: EventInput): EventRecord {
   if (Object.keys(input).sort().join(',') !== 'actor,data,requestId,scope,subject,type' || !Object.hasOwn(shapes,input.type)) fail('INVALID_INPUT');
   const parsed = shapes[input.type].safeParse(input.data);
   if (!parsed.success) fail('INVALID_INPUT','Invalid social event');
+  if(input.type==='private-signal'&&input.data.format==='swarm-message/1'&&input.data.publicationId!==input.requestId)fail('INVALID_INPUT');
   if(['profile','membership','creator-plan','encryption-key','private-signal'].includes(input.type)&&input.subject!==address(input.actor))fail('INVALID_INPUT');
   if(['profile','listing','delisted','creator-plan','encryption-key','subscription','private-signal'].includes(input.type)){if(input.scope!=='global')fail('INVALID_INPUT');}
   else entityKey(input.scope);

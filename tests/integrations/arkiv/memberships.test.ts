@@ -102,11 +102,14 @@ test('private delivery includes only members active before publication and recov
   env.account(alice);
   const box={publicKey:'a'.repeat(43),salt:'a'.repeat(43),iv:'a'.repeat(16),ciphertext:'b'.repeat(64)};
   const encrypted={iv:'a'.repeat(16),ciphertext:'b'.repeat(80),creatorKey:creatorKey.key,creatorBox:box,source:'manual' as const};
-  const oldSignal=await env.service.publishSignal({encrypted,requestId:crypto.randomUUID()});
+  const oldId=crypto.randomUUID();
+  const pointer=(id:string)=>({format:"swarm-message/1" as const,publicationId:id,swarmAddress:"a".repeat(64),payloadHash:hash(1),source:"manual" as const});
+  const oldSignal=await env.service.publishSignal({pointer:pointer(oldId),requestId:oldId});
   env.account(bob);
   const claim=await env.service.claim({planKey:plan.key,keyRecord:buyerKey.key,transactionHash:hash(8),requestId:crypto.randomUUID()});
   env.account(alice);
-  const signal=await env.service.publishSignal({encrypted,requestId:crypto.randomUUID()});
+  const id=crypto.randomUUID();
+  const signal=await env.service.publishSignal({pointer:pointer(id),requestId:id});
   assert.deepEqual(await env.service.recipients(oldSignal),[]);
   assert.deepEqual((await env.service.recipients(signal)).map(row=>row.wallet),[bob]);
   const input={signal,recipient:bob,keyRecord:buyerKey.key,box};
@@ -152,4 +155,25 @@ test('creator earnings count verified payments once and retain historical plan p
   assert.equal((await env.service.earnings(alice)).totalWei,'0');
   env.client.getTransaction=async()=>{throw new Error('offline');};
   await assert.rejects(env.service.earnings(alice),{code:'NETWORK_UNAVAILABLE'});
+});
+
+
+test('read eligibility requires current and publication-time membership with owner bypass',async()=>{
+ const env=setup(),plan=await env.service.publishPlan({priceWei:'100',requestId:crypto.randomUUID()});
+ const publish=async()=>{env.account(alice);const id=crypto.randomUUID();return env.service.publishSignal({requestId:id,pointer:{format:'swarm-message/1',publicationId:id,swarmAddress:'a'.repeat(64),payloadHash:hash(1),source:'manual'}});};
+ const old=await publish();
+ assert.equal(await env.service.canReadSignal({signal:old,wallet:alice,now:99999999999}),true);
+ env.account(bob);const claim=await env.service.claim({planKey:plan.key,transactionHash:hash(9),requestId:crypto.randomUUID()});
+ const signal=await publish();const now=Number(signal.createdAtBlock)*100000;
+ assert.equal(await env.service.canReadSignal({signal:old,wallet:bob,now}),false);
+ assert.equal(await env.service.canReadSignal({signal,wallet:bob,now}),true);
+ assert.equal(await env.service.canReadSignal({signal,wallet:bob,now:now+2*MEMBERSHIP_MS}),false);
+ const same={...signal,createdAtBlock:claim.createdAtBlock};
+ assert.equal(await env.service.canReadSignal({signal:same,wallet:bob,now}),false);
+ // A late renewal cannot unlock a post from the unpaid gap.
+ env.rows.push({...signal,key:hash(30000),createdAtBlock:'30000'});
+ env.account(bob);const late=await env.service.claim({planKey:plan.key,transactionHash:hash(10),requestId:crypto.randomUUID()});
+ late.createdAtBlock='40000';
+ const gap={...signal,key:hash(31000),createdAtBlock:'31000'};
+ assert.equal(await env.service.canReadSignal({signal:gap,wallet:bob,now:4000000001}),false);
 });

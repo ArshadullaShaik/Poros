@@ -163,17 +163,17 @@ test("paid AI mode uses the tab key; provider errors leave controls usable",asyn
   assert.equal(ui.controls.get("#execution-status")!.textContent,previousStatus);
 });
 
-test("creator text opens the shared interpreter without spending or replacing the canvas on drop",async()=>{
-  const ui=await setup();
+test("creator text uses the existing interpreter and inserts validated rules",async()=>{
+  const ui=await setup(async()=>Response.json({ok:true,data:{status:"READY",strategy:rsiStrategy}}));
   ui.module.addUnlockedStrategy({id:"text-1",name:"Creator text",text:"Buy $20 once in the target range.",versionId:"v1"});
   await ui.controls.get("#execution-library")!.children[0].handlers.click();
-  assert.equal(ui.applied,0);assert.equal(ui.sent.length,0);assert.equal(ui.textEntry.text,"Buy $20 once in the target range.");
+  assert.equal(ui.applied,1);assert.equal(ui.sent.length,1);assert.equal(JSON.parse(ui.sent[0].init.body).text,"Buy $20 once in the target range.");
 });
-test("ambiguous creator instructions stay available for editing in the shared interpreter",async()=>{
-  const ui=await setup();
+test("ambiguous creator instructions request clarification without changing the canvas",async()=>{
+  const ui=await setup(async()=>Response.json({ok:true,data:{status:"NEEDS_CLARIFICATION",questions:["Which price?"]}}));
   ui.module.addUnlockedStrategy({id:"text-1",name:"Ambiguous",text:"Buy when cheap",versionId:"v1"});
   await ui.controls.get("#execution-library")!.children[0].handlers.click();
-  assert.equal(ui.applied,0);assert.equal(ui.textEntry.text,"Buy when cheap");assert.equal(ui.sent.length,0);
+  assert.equal(ui.applied,0);assert.equal(ui.sent.length,1);assert.match(ui.controls.get("#execution-status")!.textContent,/Which price/);
 });
 
 test("an ETH feed cannot enable Run for a selected BTC pair",async()=>{
@@ -246,4 +246,16 @@ test('live targets automatically request a wallet signature, and confirmation or
       ui.module.invalidate();
     }
   } finally {(globalThis as any).ethereum=previous;}
+});
+
+test('member strategy expiry during interpretation prevents final canvas insertion',async()=>{
+ const original=Date.now;let now=1000;Date.now=()=>now;
+ try{
+  let finish!:(response:Response)=>void;
+  const ui=await setup(async()=>new Promise<Response>(resolve=>{finish=resolve;}));
+  const pending=ui.module.openUnlockedStrategy({id:'private',versionId:'v1',name:'Private',text:'Buy WETH at 2100',expiresAt:2000});
+  assert.equal(ui.applied,0);now=2000;
+  finish(Response.json({ok:true,data:{status:'READY',strategy:rsiStrategy}}));await pending;
+  assert.equal(ui.applied,0);assert.match(ui.controls.get('#execution-status')!.textContent,/expired/i);
+ }finally{Date.now=original;}
 });

@@ -1,7 +1,7 @@
 import type {Hex} from 'viem';
 import type {EventRepository} from '../../../src/integrations/arkiv/community/contracts.ts';
-import type {CreatorMemberships,EncryptionIdentity,KeyBox} from '../../../src/integrations/arkiv/community/memberships.ts';
-import {restoreEncryptionIdentity,openContentKey,decryptSignal} from './creator-crypto.ts';
+import type {CreatorMemberships} from '../../../src/integrations/arkiv/community/memberships.ts';
+import type {SignalContent} from '../../../src/integrations/arkiv/community/memberships.ts';
 import {memberStrategy} from './member-strategy.ts';
 import type {ArkivStore} from '../../../src/integrations/arkiv/contracts.ts';
 import type {CommunityHub} from '../../../src/integrations/arkiv/community/service.ts';
@@ -38,10 +38,10 @@ export async function readCommunityPost(community:Pick<CommunityHub,'listThreads
 }
 
 type Readers={now:()=>Promise<number>};
-export async function readMemberLibrary({account,events,service,readers,getProfile,recoveryCode}: {
+export async function readMemberLibrary({account,events,service,readers,getProfile,readMessages}: {
   account:Hex;events:Pick<EventRepository,'scan'>;service:CreatorMemberships;readers:Readers;
-  getProfile:(wallet:Hex)=>Promise<{displayName:string}|null>;recoveryCode?:string;
-}){
+  getProfile:(wallet:Hex)=>Promise<{displayName:string}|null>;
+  readMessages:(keys:Hex[])=>Promise<{signalKey:Hex;content:SignalContent;expiresAt:number|null}[]>;}){
   const claims=await events.scan({type:'subscription',actor:account,scope:'global'});
   const ids=[...new Set(claims.map(row=>row.subject))];
   if(ids.length>100)throw new Error('Too many creator memberships to load in this sidebar. Open your community profile.');
@@ -51,24 +51,24 @@ export async function readMemberLibrary({account,events,service,readers,getProfi
     const member=(await service.members(id as Hex)).find(row=>row.wallet===account&&row.expiresAt>now);
     if(member){const profile=await getProfile(id as Hex);creators.push({id:id as Hex,name:profile?.displayName??id,expiresAt:member.expiresAt});}
   }
-  const entries:(ReturnType<typeof memberStrategy> & {expiresAt:number})[]=[];
-  if(!recoveryCode)return {creators,entries,locked:true};
-  const record=await service.getKey(account);
-  if(!record)throw new Error('Set up private access on the community page first.');
-  const privateKey=await restoreEncryptionIdentity(account,record.data as unknown as EncryptionIdentity,recoveryCode);
+  const candidates:{key:Hex;expiresAt:number;block:bigint}[]=[];
   for(const creator of creators){
     for(const signal of await service.signals(creator.id)){
-      const envelope=await service.getEnvelope(signal,account);
-      if(!envelope||envelope.data.keyRecord!==record.key)continue;
-      const context=signal.actor+':'+signal.requestId;
-      const key=await openContentKey(envelope.data.box as unknown as KeyBox,privateKey,context+':'+account);
-      const content=await decryptSignal({iv:String(signal.data.iv),ciphertext:String(signal.data.ciphertext)},key,context);
-      if(content.body.length>4000)throw new Error('A creator strategy exceeds the interpreter limit. Open it on the community page.');
-      entries.push({...memberStrategy(content,signal.key),expiresAt:creator.expiresAt});
-      if(entries.length>20)throw new Error('More than 20 unlocked strategies are available. Open the community page.');
+      if(signal.data.format!=='swarm-message/1'||!await service.canReadSignal({signal,wallet:account,now}))continue;
+      candidates.push({key:signal.key,expiresAt:creator.expiresAt,block:BigInt(signal.createdAtBlock)});
     }
   }
+  candidates.sort((a,b)=>a.block>b.block?-1:a.block<b.block?1:a.key.localeCompare(b.key));
+  candidates.splice(20);
+  const messages=candidates.length?await readMessages(candidates.map(row=>row.key)):[];
+  if(messages.length!==candidates.length)throw new Error('Member messages could not be verified.');
+  const entries=messages.map((message,index)=>{
+    const expected=candidates[index]!;
+    if(message.signalKey!==expected.key||message.expiresAt===null)throw new Error('Member messages could not be verified.');
+    if(message.content.body.length>4000&&!message.content.strategy)throw new Error('A creator strategy exceeds the interpreter limit. Open it on the community page.');
+    return {...memberStrategy(message.content,message.signalKey),expiresAt:Math.min(expected.expiresAt,message.expiresAt),memberWallet:account};
+  });
   const finishedAt=await readers.now();
-  if(creators.some(row=>row.expiresAt<=finishedAt))throw new Error('Membership expired. Refresh your library.');
+  if(creators.some(row=>row.expiresAt<=finishedAt)||entries.some(row=>row.expiresAt<=finishedAt))throw new Error('Membership expired. Refresh your library.');
   return {creators,entries,locked:false};
 }

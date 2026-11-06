@@ -10,6 +10,7 @@ import {archiveUnsubmittedWrite,createPendingWriteChecker} from './pending-write
 import {createPublicReadCache,browserStorage,cachedPublicLists,validProfile} from './public-cache.ts';
 import { keccak256, toBytes, type Hex } from 'viem';
 import type { CommunityDTO, StrategySummaryDTO, VersionDTO, Json, StrategyDocumentV1 } from '../../../src/integrations/arkiv/index.ts';
+import {StorageError} from '../../../src/integrations/arkiv/errors.ts';
 import type { EventDTO, Listing, Profile, VoteSummary } from '../../../src/integrations/arkiv/community/index.ts';
 import type { Order } from '../../../src/integrations/arkiv/marketplace/contracts.ts';
 import { compose, type AppIntegration } from './integration.ts';
@@ -374,7 +375,7 @@ class Application {
             privateRoot.hidden = !exclusive;
             form.querySelector<HTMLElement>('[data-public-attachment]')!.hidden = exclusive;
             form.querySelector<HTMLElement>('[data-exclusive-attachment]')!.hidden = !exclusive;
-            form.querySelector('[data-composer-help]')!.textContent = exclusive ? 'Unlock your private access below before publishing. Your current paid members receive the encrypted post.' : 'Join the community before posting. Public posts are visible to everyone.';
+            form.querySelector('[data-composer-help]')!.textContent = exclusive ? 'Publish an exclusive message for your current paid members.' : 'Join the community before posting. Public posts are visible to everyone.';
             if(exclusive && this.account && !mounted) {
                 mounted = true;
                 void this.creatorMembership.mount(privateRoot,this.account,this.account,!!this.preview);
@@ -717,7 +718,7 @@ class Application {
     toast(message: string) { const zone = document.querySelector<HTMLElement>('#notifications')!; zone.textContent = message; zone.classList.add('visible'); setTimeout(() => zone.classList.remove('visible'), 6000); }
     report(error: unknown) {
         const code = errorCode(error);
-        const message = errors[code] ?? 'This action could not be completed. Check the connection and try again.';
+        const message = error instanceof StorageError && code==='WRITE_STATUS_UNKNOWN' && error.message!==code ? error.message : errors[code] ?? 'This action could not be completed. Check the connection and try again.';
         const slot = this.dialog?.querySelector('.form-error') ?? document.querySelector('#content .form-error');
         if (slot)
             slot.textContent = message;
@@ -1196,10 +1197,10 @@ class Application {
                     const [room,membership] = await Promise.all([this.getCommunity(communityKey),this.api.community.getMembership({communityKey,wallet:account})]);
                     if(membership.banned || (room.owner!==account && membership.event?.data.state!=='joined'))failure('NOT_OWNER');
                     const strategy = value('strategy').trim();
-                    await this.creatorMembership.publishPost({title,body,communityKey,...(strategy?{strategy:JSON.parse(strategy)}:{})});
+                    await this.creatorMembership.publishPost({title,body,source:'manual' as const,communityKey,...(strategy?{strategy:JSON.parse(strategy)}:{})});
                     form.reset();
                     form.querySelector('select[name=audience]')!.dispatchEvent(new Event('change'));
-                    this.toast('Exclusive post saved and delivered to eligible subscribers.');
+                    this.toast('Exclusive post saved for eligible subscribers.');
                 } else {
                     const version = value('version').trim();
                     if(version && !keyPattern.test(version))failure('INVALID_INPUT');

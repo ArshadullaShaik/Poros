@@ -1,6 +1,6 @@
 import {connectSolanaWallet,signSolanaSetup,signSolanaOrderMessage} from "./solana-wallet.js";
 import {connectBrowserWallet,signFlashOrder} from "./wallet.js";
-export function mountExecution({root=document,getDraft,applyDraft,validateDraft,getApiKey,mayReplace=()=>true,request=fetch,onLoading=()=>{},onActivity=()=>{},getPair=()=>({id:"eth-usdc",base:{symbol:"WETH",reference:"ETH"},quote:{symbol:"USDC"}})}) {
+export function mountExecution({root=document,getDraft,applyDraft,validateDraft,getApiKey,mayReplace=()=>true,request=fetch,onLoading=()=>{},onActivity=()=>{},checkMemberAccess=async()=>{},getPair=()=>({id:"eth-usdc",base:{symbol:"WETH",reference:"ETH"},quote:{symbol:"USDC"}})}) {
   const $=id=>root.querySelector(`#${id}`);
   const setText=(id,text)=>{const node=$(id);if(node)node.textContent=text;};
   const entries=new Map();
@@ -53,6 +53,8 @@ export function mountExecution({root=document,getDraft,applyDraft,validateDraft,
     const current=sequence,snapshot=JSON.stringify(getDraft());
     onLoading(true);
     try {
+      if(entry.expiresAt!==undefined&&entry.expiresAt!==null&&entry.expiresAt<=Date.now())throw new Error('Membership expired. Refresh your member messages.');
+      if(entry.memberWallet)await checkMemberAccess(entry);
       let strategy=entry.strategy;
       if(!strategy){
         const apiKey=getApiKey();
@@ -66,6 +68,8 @@ export function mountExecution({root=document,getDraft,applyDraft,validateDraft,
         if(payload.data.status!=="READY")throw new Error(`Creator must clarify: ${(payload.data.questions??[]).join(" ")}`);
         strategy=payload.data.strategy;
       }
+      if(entry.expiresAt!==undefined&&entry.expiresAt!==null&&entry.expiresAt<=Date.now())throw new Error('Membership expired. Refresh your member messages.');
+      if(entry.memberWallet)await checkMemberAccess(entry);
       if(current!==sequence||JSON.stringify(getDraft())!==snapshot)return;
       if(!validateDraft(strategy).valid)throw new Error("The interpreter returned unsupported rules. Current canvas is unchanged.");
       lastDraft=JSON.stringify(strategy);applyDraft(structuredClone(strategy));

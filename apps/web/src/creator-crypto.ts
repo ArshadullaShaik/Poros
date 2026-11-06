@@ -79,7 +79,7 @@ export async function openContentKey(box: KeyBox, privateKey: CryptoKey, context
 function validateContent(input: unknown): SignalContent {
   if (!input || typeof input !== 'object' || Array.isArray(input)) failure('Enter a signal title and body.');
   const value = input as Record<string, unknown>;
-  if (Object.keys(value).some(key => !['title','body','strategy','communityKey'].includes(key)) || typeof value.title !== 'string' || !value.title.trim() ||
+  if (Object.keys(value).some(key => !['title','body','source','strategy','communityKey'].includes(key)) || typeof value.title !== 'string' || !value.title.trim() ||
       typeof value.body !== 'string' || !value.body.trim() || encoder.encode(value.title).length > 100 || encoder.encode(value.body).length > 4096) failure('Signal title must fit 100 bytes and body 4,096 bytes.');
   if (value.communityKey !== undefined && (typeof value.communityKey !== 'string' || !/^0x[0-9a-f]{64}$/.test(value.communityKey))) failure('Choose a valid community.');
   if (value.strategy !== undefined) {
@@ -87,7 +87,7 @@ function validateContent(input: unknown): SignalContent {
     if (!checked.valid || !checked.strategy.riskPolicy.paperTradingOnly) failure('Attach valid strategy JSON configured for virtual funds.');
   }
   if (encoder.encode(JSON.stringify(value)).length > 8800) failure('The signal and strategy together must fit 8,800 bytes.');
-  return { title: value.title, body: value.body, ...(value.communityKey ? {communityKey:value.communityKey as `0x${string}`} : {}), ...(value.strategy === undefined ? {} : {strategy:value.strategy as SignalContent['strategy']}) };
+  return { title: value.title, body: value.body, source: value.source as 'ai-proposal'|'rule-engine'|'manual', ...(value.communityKey ? {communityKey:value.communityKey as `0x${string}`} : {}), ...(value.strategy === undefined ? {} : {strategy:value.strategy as SignalContent['strategy']}) };
 }
 export async function encryptSignal(content: SignalContent, context: string) {
   const checked = validateContent(content);

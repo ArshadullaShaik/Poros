@@ -57,9 +57,8 @@ export const tradeMarkup = `
         <div class="panel-title"><h2>Unlocked strategies</h2><span class="small-tag">YOUR LIBRARY</span></div>
         <p class="small muted">Drag onto the canvas, or click to load.</p><a class="button secondary" href="/community#/creators">Find a creator to subscribe to</a>
         <div id="execution-library" class="unlocked-cards"></div>
-        <form id="unlock-library-form" autocomplete="off"><label class="field"><span>Community recovery code</span><input id="library-recovery" type="password" required autocomplete="off"></label><button class="button secondary" type="submit">Unlock strategies</button></form>
-        <button id="refresh-member-library" class="button secondary" type="button">Refresh memberships</button><button id="lock-library" class="button secondary" type="button">Lock</button>
-        <p id="unlocked-status" class="small muted" role="status">Connect your community wallet to load purchased strategies.</p>
+        <button id="refresh-member-library" class="button secondary" type="button">Refresh memberships</button><button id="lock-library" class="button secondary" type="button">Clear messages</button>
+        <p id="unlocked-status" class="small muted" role="status">Connect your community wallet to open member strategies.</p>
         </section>
         <section id="library-creators" role="tabpanel" aria-labelledby="tab-creators" tabindex="0" hidden>
         <div class="panel-title"><h2>Discover creators</h2><span class="small-tag">COMMUNITY</span></div>

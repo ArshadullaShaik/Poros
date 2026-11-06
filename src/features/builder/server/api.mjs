@@ -1,5 +1,6 @@
 import {createFlashPerformance,validHistoryWallet} from "../execution/performance.ts";
 import {createTradeHistoryHandler} from './trade-history.mjs';
+import {createMemberContentHandler} from './member-content-api.mjs';
 import {getTradeRuntime} from './trade-runtime.ts';
 import { Readable } from "node:stream";
 import { AgentError, readBoundedJson, runStrategyAgent, validateInferenceKey } from "../ai/zero-g.ts";
@@ -21,6 +22,7 @@ export function createApiHandler({fetcher = fetch, market = createLiveMarkets({f
   const chartHistory = createChartHistory({fetcher});
   const performance=createFlashPerformance({fetcher});
   const tradeHistory=createTradeHistoryHandler();
+  const memberContent=createMemberContentHandler();
   let aiBusy = false;
   let backtestBusy = false;
   const monitor = createPriceMonitor({market,fetcher,tradeLedger:()=>getTradeRuntime()?.ledger,invoke:async(options)=>{
@@ -121,6 +123,7 @@ export function createApiHandler({fetcher = fetch, market = createLiveMarkets({f
     response.setHeader("X-Content-Type-Options", "nosniff");
     response.setHeader("Cache-Control", "no-store");
     response.setHeader("Content-Security-Policy", "default-src 'self'; connect-src 'self' https://rpc.rabdi.db-chain.testnet.arkiv.network; style-src 'self' 'unsafe-inline'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'");
+    if ((request.url??'').split('?')[0].startsWith('/api/member-content/')) return memberContent(request,response);
     if (!/^(127\.0\.0\.1|localhost)(:\d+)?$/.test(request.headers.host ?? "")) {
       response.writeHead(403).end("Local requests only.");
       return;

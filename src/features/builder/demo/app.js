@@ -394,6 +394,7 @@ const ai = mountStrategyAi({
 });
 executionUI = mountExecution({
   onLoading:setStrategyLoading,
+  checkMemberAccess:async entry=>{const {assertMemberAccess}=await import('../../../../apps/web/src/builder.ts');await assertMemberAccess(entry);},
   getPair:()=>pairForStrategy(draft),
   getDraft: () => draft,
   applyDraft(next) {replaceDraft(next); dirty = true;forkSource=undefined;persistCanvas();},
@@ -446,7 +447,7 @@ window.addEventListener("creators:updated", event => {
 window.addEventListener("beforeunload", event => { persistCanvas(); if (dirty && !canvasSaved) { event.preventDefault(); event.returnValue = ""; } });
 backtestUI=mountBacktest({getDraft:()=>draft,getPair:()=>pairForStrategy(draft),getPairs:()=>tradingPairs,changeMarket(id){if(mayReplace()){replaceDraft(strategyForPair(id,draft),true);dirty=true;persistCanvas();}},async loadStrategy(transfer){
   const member=transfer.getData('application/x-poros-member-strategy');
-  if(member){const {readMemberStrategy}=await import('../../../../apps/web/src/builder.ts');return executionUI.openUnlockedStrategy(readMemberStrategy(member));}
+  if(member){const {readMemberStrategy}=await import('../../../../apps/web/src/builder.ts');return executionUI.openUnlockedStrategy(await readMemberStrategy(member));}
   const reference=transfer.getData('text/uri-list')||transfer.getData('text/plain');
   if(reference.startsWith(location.origin+'/?strategy=')){const {strategyReference}=await import('../../../../apps/web/src/builder.ts');return communityUI.load(strategyReference(reference,location.origin));}
   const data=JSON.parse(transfer.getData('text/plain'));
@@ -465,7 +466,7 @@ render();
 async function loadMemberTransfer(raw) {
   try {
     const {readMemberStrategy} = await import('../../../../apps/web/src/builder.ts');
-    await executionUI.openUnlockedStrategy(readMemberStrategy(raw));
+    await executionUI.openUnlockedStrategy(await readMemberStrategy(raw));
   } catch (error) { announce(error.message || 'Unable to load this member strategy.'); }
 }
 

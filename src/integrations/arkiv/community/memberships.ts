@@ -5,14 +5,14 @@ import { fail, StorageError } from '../errors.ts';
 import type { EventDTO, EventRepository } from './contracts.ts';
 import { latestEvent } from './state.ts';
 import { verifyMembershipPayment, type PaymentClient } from './sepolia.ts';
+import {validateSwarmPointer,type SwarmMessagePointer} from './member-content.ts';
 
 export const MEMBERSHIP_MS = 30 * 24 * 60 * 60 * 1000;
 export interface KeyBox { publicKey: string; salt: string; iv: string; ciphertext: string }
 export interface EncryptionIdentity { publicKey: string; backup: { iv: string; ciphertext: string } }
-export interface SignalContent { title: string; body: string; strategy?: Json; communityKey?: Hex }
+export interface SignalContent { title: string; body: string; source: 'ai-proposal' | 'rule-engine' | 'manual'; strategy?: Json; communityKey?: Hex }
 export interface EncryptedSignal {
-  iv: string; ciphertext: string; creatorKey: Hex; creatorBox: KeyBox;
-  source: 'ai-proposal' | 'rule-engine' | 'manual'; sourceVersionKey?: Hex;
+  title: string; body: string; source: 'ai-proposal' | 'rule-engine' | 'manual'; sourceVersionKey?: Hex;
 }
 export interface PaidMember { wallet: Hex; expiresAt: number; lastClaim: Hex }
 
@@ -49,8 +49,7 @@ export function createCreatorMemberships(events: EventRepository, readers: {
   async function verifyClaim(claim: EventDTO) {
     const plan = await typed(entityKey(claim.data.planKey), 'creator-plan');
     if (plan.actor !== claim.subject || claim.actor === plan.actor) fail('UNTRUSTED_RECORD');
-    const key = await typed(entityKey(claim.data.keyRecord), 'encryption-key');
-    if (key.actor !== claim.actor || BigInt(key.createdAtBlock) > BigInt(claim.createdAtBlock)) fail('UNTRUSTED_RECORD');
+    if(claim.data.keyRecord){const key=await typed(entityKey(claim.data.keyRecord),'encryption-key');if(key.actor!==claim.actor||BigInt(key.createdAtBlock)>BigInt(claim.createdAtBlock))fail('UNTRUSTED_RECORD');}
     const [paidAt, activatedAt, planCreatedAt] = await Promise.all([
       verifyMembershipPayment(readers.payments, { transactionHash: entityKey(claim.data.transactionHash),
         buyer: claim.actor, creator: plan.actor, priceWei: String(plan.data.priceWei) }),
@@ -143,11 +142,10 @@ export function createCreatorMemberships(events: EventRepository, readers: {
         .filter(row => beforeBlock === undefined || BigInt(row.createdAtBlock) <= beforeBlock);
       return (await resolveClaims(rows)).map(({wallet,expiresAt,lastClaim}) => ({wallet,expiresAt,lastClaim}));
     },
-    async claim(input: { planKey: Hex; transactionHash: Hex; keyRecord: Hex; requestId: string }) {
+    async claim(input: { planKey: Hex; transactionHash: Hex; requestId: string; keyRecord?:Hex }) {
       const buyer = await events.actor();
       const plan = await typed(input.planKey, 'creator-plan');
-      const key = await typed(input.keyRecord, 'encryption-key');
-      if (key.actor !== buyer) fail('KEY_REQUIRED');
+      if(input.keyRecord&&(await typed(input.keyRecord,'encryption-key')).actor!==buyer)fail('KEY_REQUIRED');
       const prior = (await events.scan({ type: 'subscription', actor: buyer })).filter(row => row.data.transactionHash === input.transactionHash);
       if (prior.length) {
         if (prior.some(row => row.data.planKey !== plan.key || row.subject !== plan.actor)) fail('PAYMENT_REUSED');
@@ -156,7 +154,7 @@ export function createCreatorMemberships(events: EventRepository, readers: {
       const paidAt = await verifyMembershipPayment(readers.payments, { transactionHash: input.transactionHash, buyer, creator: plan.actor, priceWei: String(plan.data.priceWei) });
       if (paidAt < await readers.blockTimestamp(BigInt(plan.createdAtBlock))) fail('PAYMENT_UNVERIFIED');
       return events.append({ type: 'subscription', actor: buyer, subject: plan.actor, scope: 'global', requestId: input.requestId,
-        data: { planKey: plan.key, transactionHash: entityKey(input.transactionHash), keyRecord: key.key } });
+        data: { planKey: plan.key, transactionHash: entityKey(input.transactionHash),...(input.keyRecord?{keyRecord:input.keyRecord}:{}) } });
     },
     async renewalEvidence(creator: Hex, buyer: Hex, now: number) {
       let expiresAt = 0;
@@ -174,34 +172,36 @@ export function createCreatorMemberships(events: EventRepository, readers: {
         }
         seen.add(hash);
         if (activatedAt >= expiresAt) records = [];
-        records.push(claim, await typed(entityKey(claim.data.planKey),'creator-plan'), await typed(entityKey(claim.data.keyRecord),'encryption-key'));
+        records.push(claim, await typed(entityKey(claim.data.planKey),'creator-plan'));
+        if(claim.data.keyRecord)records.push(await typed(entityKey(claim.data.keyRecord),'encryption-key'));
         expiresAt = Math.max(expiresAt,activatedAt) + MEMBERSHIP_MS;
       }
       return {expiresAt:Math.max(now,expiresAt)+MEMBERSHIP_MS,records:expiresAt > now ? records : []};
     },
-    async publishSignal(input: { encrypted: EncryptedSignal; requestId: string }) {
+    async publishSignal(input: { pointer: SwarmMessagePointer; requestId: string }) {
       const creator = await events.actor();
-      const key = await typed(input.encrypted.creatorKey, 'encryption-key');
-      if (key.actor !== creator) fail('NOT_OWNER');
+      const pointer=validateSwarmPointer(input.pointer);
       return events.append({ type: 'private-signal', actor: creator, subject: creator, scope: 'global', requestId: input.requestId,
-        data: input.encrypted as unknown as Record<string, Json> });
+        data: { ...pointer } });
     },
     async signals(creator: Hex) {
       return ordered(await events.scan({ type: 'private-signal', actor: address(creator), subject: address(creator), scope: 'global' })).reverse();
     },
     readSignal: (key: Hex) => typed(key, 'private-signal'),
+    async canReadSignal({signal,wallet,now}:{signal:EventDTO;wallet:Hex;now:number}) {
+      if(signal.type!=='private-signal'||signal.source!=='arkiv'||signal.subject!==signal.actor)fail('UNTRUSTED_RECORD');
+      if(address(wallet)===signal.actor)return true;
+      const current=(await service.members(signal.actor)).find(member=>member.wallet===address(wallet));
+      if(!current||current.expiresAt<=now)return false;
+      const publishedAt=await readers.blockTimestamp(BigInt(signal.createdAtBlock));
+      const historical=(await service.members(signal.actor,BigInt(signal.createdAtBlock)-1n)).find(member=>member.wallet===address(wallet));
+      return Boolean(historical&&historical.expiresAt>publishedAt);
+    },
     async recipients(signal: EventDTO) {
       const at = await readers.blockTimestamp(BigInt(signal.createdAtBlock));
-      // Claims in the same block have no reliable transaction ordering in this event model.
       const before = BigInt(signal.createdAtBlock) - 1n;
       const members = await service.members(signal.actor, before);
-      const recipients: { wallet: Hex; key: EventDTO }[] = [];
-      for (const member of members.filter(member => member.expiresAt > at)) {
-        const key = await service.getKey(member.wallet, before);
-        if (!key) fail('KEY_REQUIRED', 'A subscriber encryption key is unavailable. Delivery remains pending.');
-        recipients.push({ wallet: member.wallet, key });
-      }
-      return recipients;
+      return members.filter(member => member.expiresAt > at).map(member => ({ wallet: member.wallet }));
     },
     async getEnvelope(signal: EventDTO, recipient: Hex) {
       const rows = await events.scan({ type: 'signal-envelope', actor: signal.actor, subject: address(recipient), scope: signal.key });
@@ -211,12 +211,10 @@ export function createCreatorMemberships(events: EventRepository, readers: {
       const creator = await events.actor();
       const signal = await typed(input.signal.key, 'private-signal');
       if (creator !== signal.actor) fail('NOT_OWNER');
-      const key = await typed(input.keyRecord, 'encryption-key');
-      if (key.actor !== address(input.recipient) || BigInt(key.createdAtBlock) > BigInt(signal.createdAtBlock)) fail('KEY_REQUIRED');
-      const recipient = (await service.recipients(signal)).find(row => row.wallet === key.actor);
-      if (!recipient || recipient.key.key !== key.key) fail('NOT_OWNER');
-      return events.append({ type: 'signal-envelope', actor: creator, subject: key.actor, scope: signal.key,
-        requestId: envelopeRequestId(signal.key, key.actor), data: { keyRecord: key.key, box: input.box as unknown as Json } });
+      const recipients = await service.recipients(signal);
+      if (!recipients.find(row => row.wallet === input.recipient)) fail('NOT_OWNER');
+      return events.append({ type: 'signal-envelope', actor: creator, subject: input.recipient, scope: signal.key,
+        requestId: envelopeRequestId(signal.key, input.recipient), data: {keyRecord:input.keyRecord,box:input.box as unknown as Json} });
     },
   };
   return service;
