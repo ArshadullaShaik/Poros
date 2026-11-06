@@ -309,6 +309,7 @@ canvas.addEventListener("drop", event => {
   try {
     const data = JSON.parse(event.dataTransfer.getData("text/plain")), rect = canvas.getBoundingClientRect();
     if(data.kind === "public-strategy"){void communityUI.load(data.versionKey);return;}
+    if(data.kind === "public-post"){void communityUI.loadPost(data.communityKey,data.postKey);return;}
     if (data.kind === "palette") addBlock(data.type, {x: event.clientX - rect.left - 105, y: event.clientY - rect.top - 40});
     else if (data.kind === "move" && positions.has(data.id) && Number.isFinite(data.offsetX) && Number.isFinite(data.offsetY)) moveNode(data.id, event.clientX - rect.left - data.offsetX, event.clientY - rect.top - data.offsetY);
   } catch { announce("Drag a block from the palette onto the canvas."); }
@@ -368,7 +369,7 @@ executionUI = mountExecution({
   getPair:()=>pairForStrategy(draft),
   getDraft: () => draft,
   mayReplace,
-  applyDraft(next) {replaceDraft(next); dirty = true;},
+  applyDraft(next) {replaceDraft(next); dirty = true;forkSource=undefined;},
   validateDraft: next => validateMarketStrategy(next),
   getApiKey: ai.getKey,
   onActivity:event=>{
@@ -377,7 +378,7 @@ executionUI = mountExecution({
     });
   },
 });
-communityUI=mountCommunityLibrary({onLoad(next,versionKey){
+communityUI=mountCommunityLibrary({onText:entry=>executionUI.openUnlockedStrategy(entry),onLoad(next,versionKey){
   if(!validateMarketStrategy(next).valid)throw new Error("This public strategy uses unsupported rules or a market outside this live-price builder.");
   if(!mayReplace())throw new Error("Your draft was kept.");
   replaceDraft(next);dirty=true;forkSource=versionKey;

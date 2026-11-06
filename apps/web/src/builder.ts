@@ -5,7 +5,7 @@ import {createPublicReadCache,browserStorage,cachedPublicLists} from './public-c
 import {compose} from './integration.ts';
 import {createInjectedWallet} from './wallet.ts';
 import {createCreatorMemberships,createMembershipReaders} from '../../../src/integrations/arkiv/community/index.ts';
-import {readMemberLibrary} from './builder-library.ts';
+import {readMemberLibrary,readCommunityStrategies,readCommunityPost} from './builder-library.ts';
 import { validateBuilderDocument } from './strategy-document.ts';
 import { mountMembershipWorkspace } from './membership-workspace.ts';
 import type { memberStrategy } from './member-strategy.ts';
@@ -14,6 +14,8 @@ const integration=typeof window==='undefined'?{}:window.__COMMON_GROUND__;
 const wallet=typeof window==='undefined'?undefined:integration?.wallet??createInjectedWallet();
 const api=compose({...integration,...(wallet?{wallet}:{}),validateStrategyDocument:validateBuilderDocument});
 export const publicStrategies=api.strategies;
+export const listCommunityStrategies=(input:Parameters<typeof readCommunityStrategies>[2])=>readCommunityStrategies(api.strategies,api.community,input);
+export const readPublicPost=(communityKey:`0x${string}`,postKey:`0x${string}`)=>readCommunityPost(api.community,communityKey,postKey);
 export const publicLists=cachedPublicLists(api.strategies,createPublicReadCache({storage:browserStorage(),onRefresh:(_key,changed)=>{if(changed&&typeof window!=='undefined')window.dispatchEvent(new Event('poros:public-data-updated'));}}));
 export { MEMBER_STRATEGY_TYPE, readMemberStrategy } from './member-strategy.ts';
 export async function readPersonalLibrary(recoveryCode?:string){
