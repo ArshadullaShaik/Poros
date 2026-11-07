@@ -4,6 +4,7 @@ import {strategyQuestions,mountStrategyQuestions,strategyPostBody} from './strat
 import {zeroGPotPage,mountZeroGPot} from './zero-g-pot.ts';
 import {creatorReport,creatorVersions} from './creator-report.ts';
 import {readPaperRuns} from './performance.ts';
+import {mountTradeSources} from './trade-history.ts';
 import {publicStrategyDrag} from './strategy-drag.ts';
 import serialize from 'canonicalize';
 import {archiveUnsubmittedWrite,createPendingWriteChecker} from './pending-write.ts';
@@ -63,6 +64,7 @@ class Application {
     strategyCursor: number | null = null;
     communityCursor: number | null = null;
     creatorDirectory?: ReturnType<typeof mountCreatorDirectory>;
+    tradeSources?: ReturnType<typeof mountTradeSources>;
     historyCursor: number | null = null;
     skipped = 0;
     profiles = new Map<string, Profile>();
@@ -250,6 +252,8 @@ class Application {
         return this.api.community.getVoteSummaries({communityKey:room,contentKeys:rows.map(row=>row.key),...(this.account?{viewer:this.account}:{})});
     }
     async render() {
+        this.tradeSources?.dispose();
+        this.tradeSources = undefined;
         this.creatorMembership.detach();
         this.creatorDirectory?.dispose();
         this.creatorDirectory = undefined;
@@ -483,6 +487,10 @@ class Application {
     async mountDashboard(content:HTMLElement,serial:number){
         const account=this.account;
         if(!account || this.preview)return;
+        const sources=document.createElement('section');
+        sources.className='paper-panel';
+        content.append(sources);
+        this.tradeSources=mountTradeSources(sources,this.host.wallet!,account);
         void this.mountProfileIdentity(content,serial,account);
         void this.mountRealPerformance(content,serial,account);
         const money=(value:number)=>new Intl.NumberFormat('en-US',{style:'currency',currency:'USD'}).format(value);

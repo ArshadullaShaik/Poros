@@ -9,6 +9,7 @@ export function startBackendProcesses({env=process.env,spawn=nodeSpawn,onFailure
  for(const [command,args]of [
   ['/usr/local/bin/bee',['start']],
   [process.execPath,[fileURLToPath(new URL('./membership-worker.mjs',import.meta.url))]],
+  ...(env.ARKIV_TRADE_WRITER_PRIVATE_KEY?[[process.execPath,[fileURLToPath(new URL('./trade-worker.mjs',import.meta.url))]]]:[]),
  ]){
   const child=spawn(command,args,{env:{...env,BEE_API_ADDR:'127.0.0.1:1633'},stdio:'inherit',windowsHide:true});children.push(child);
   finished.push(new Promise(resolve=>{

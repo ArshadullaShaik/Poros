@@ -80,6 +80,8 @@ Reports read a separate Arkiv ledger from a configured trusted writer. Browser r
 
 Linking a source publishes executions including losses. Unlinking retains records but excludes incomplete sources from ranking. Solana linking requires both Solana and EVM profile signatures; portfolio access checks provider vault signers.
 
+Connect your wallet on Profile and use **Verified trading history → Link and record trades** to register its Flash source. Bundled Railway backends automatically supervise the trade worker when `ARKIV_TRADE_WRITER_PRIVATE_KEY` is configured.
+
 | Server variable | Value |
 |---|---|
 | `ARKIV_ACCESS_KEY` | Rabdi query access. |

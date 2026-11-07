@@ -18,3 +18,14 @@ test('standalone API does not start extra processes and unsafe bundled Bee setti
  startBackendProcesses({env:{NODE_ENV:'test'},spawn:(()=>{spawned++;}) as any,onFailure:()=>{}})();assert.equal(spawned,0);
  assert.throws(()=>startBackendProcesses({env:{NODE_ENV:'test',POROS_BUNDLED_SERVICES:'1',BEE_DATA_DIR:'/state/bee',SWARM_BEE_URL:'https://external.example'},spawn:(()=>{}) as any,onFailure:()=>{}}));
 });
+test('configured bundled backend supervises the trade worker alongside existing services',()=>{
+ const children:any[]=[],commands:string[][]=[];let failed=0;
+ const spawn:any=(_command:string,args:string[])=>{commands.push(args);const child:any=new EventEmitter();child.kills=[];child.kill=(signal:string)=>child.kills.push(signal);children.push(child);return child;};
+ startBackendProcesses({env:{NODE_ENV:'test',POROS_BUNDLED_SERVICES:'1',BEE_DATA_DIR:'/state/bee',SWARM_BEE_URL:'http://127.0.0.1:1633',ARKIV_TRADE_WRITER_PRIVATE_KEY:'configured'},spawn,onFailure:()=>{failed++;}});
+ assert.equal(commands.length,3);
+ assert.ok(commands[2]![0]!.endsWith('trade-worker.mjs'));
+ children[2].emit('exit',1);
+ assert.equal(failed,1);
+ assert.deepEqual(children[0].kills,['SIGTERM']);
+ assert.deepEqual(children[1].kills,['SIGTERM']);
+});
