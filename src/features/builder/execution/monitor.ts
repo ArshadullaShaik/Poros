@@ -9,6 +9,7 @@ type Limits={initialCashUsd:number;maxTurnoverUsd:number;feeBps:number;slippageB
 type Fill={actionId:string;side:string;notionalUsd:string;baseQuantity:string;feeUsd:string;priceUsd:string;filledAtMs:number;mode:"PAPER"};
 function micros(value:number){return BigInt(Math.round(value*1e6));}
 const money=(value:bigint)=>(Number(value)/1e6).toFixed(6);
+const recordingSetupMessage="Live trading is unavailable because Arkiv trade recording is not configured. Set ARKIV_TRADE_WRITER_PRIVATE_KEY, ARKIV_TRADE_TRUSTED_WRITER, TRADE_LEDGER_DB_PATH, TRADE_LEDGER_ORIGIN and ARKIV_ACCESS_KEY on the server, then restart the app. A funded writer, linked Flash source and running trade worker are required. Paper trading is available without this setup.";
 function validMoney(value:unknown):value is number{return typeof value==="number"&&Number.isFinite(value)&&value>0&&value<=1000000&&Math.abs(value*1e6-Math.round(value*1e6))<0.001;}
 
 export async function invokePriceExecution({apiKey,rule,marketData,execute,signal,live=false}:any,fetcher=fetch) {
@@ -31,6 +32,7 @@ export function createPriceMonitor({market,now=Date.now,invoke=invokePriceExecut
   function get(id:string){const run=runs.get(id);if(!run)throw new PaperError("Unknown or expired monitor. Start a new run.");if(now()-run.touched>(run.status==="AWAITING_WALLET"?300000:60000)){run.abort.abort();runs.delete(id);throw new PaperError("Monitor expired after losing contact with this tab. Start a new run.");}run.touched=now();return run;}
   function start(input:any){
     if(!input||!validatePriceStrategy(input.strategy).valid||!["AI","RULES_ONLY","LIVE"].includes(input.mode)||(input.mode==="LIVE"?input.strategy?.riskPolicy?.paperTradingOnly!==false||typeof input.wallet!=="string"||!(pairForStrategy(input.strategy).network.family==="solana"?/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(input.wallet):/^0x[0-9a-fA-F]{40}$/.test(input.wallet)):input.strategy?.riskPolicy?.paperTradingOnly!==true)||!validMoney(input.initialCashUsd)||!validMoney(input.maxTurnoverUsd)||![input.feeBps,input.slippageBps].every(value=>Number.isInteger(value)&&value>=0)||input.feeBps>1000||input.slippageBps>input.strategy.riskPolicy.maxSlippageBps||input.strategy.nodes.some((node:any)=>node.type==="action.intent"&&!validMoney(node.notionalUsd)))throw new PaperError("Use valid price rules, a connected wallet for live mode, positive limits and slippage within the strategy cap.");
+    if(input.mode==="LIVE"&&tradeLedger&&!(typeof tradeLedger==="function"?tradeLedger():tradeLedger))throw new PaperError(recordingSetupMessage);
     for(const [id,run]of runs)if(now()-run.touched>60000){run.abort.abort();runs.delete(id);}
     if(runs.size>=20)throw new PaperError("Too many active monitor sessions. Stop an existing run first.");
     const run:Run={id:crypto.randomUUID(),strategy:structuredClone(input.strategy),mode:input.mode,limits:{initialCashUsd:input.initialCashUsd,maxTurnoverUsd:input.maxTurnoverUsd,feeBps:input.feeBps,slippageBps:input.slippageBps},cash:micros(input.initialCashUsd),base:0n,turnover:0n,orders:[],inference:[],done:new Set(),status:"WAITING",message:"Monitoring live price. Each action executes at most once per run.",touched:now(),lastCheck:-Infinity,pending:false,abort:new AbortController(),wallet:input.wallet,liveOrders:[]};
@@ -129,7 +131,7 @@ export function createPriceMonitor({market,now=Date.now,invoke=invokePriceExecut
       if(!validMoney(quotePrice)||quotePrice<condition.minPriceUsd||quotePrice>condition.maxPriceUsd)throw new PaperError("Fresh Flash price is outside the creator’s target range.");
       await orders.revalidate(prepared,condition,activeSignal,fresh.quotePriceUsd??"1.000000",fresh.priceUsd);activeSignal.throwIfAborted();
       const recorder=typeof tradeLedger==="function"?tradeLedger():tradeLedger;
-      if(tradeLedger&&!recorder)throw new PaperError("Trade recording needs a configured writer and a registered trading source before real orders can be submitted.");
+      if(tradeLedger&&!recorder)throw new PaperError(recordingSetupMessage);
       const intent={wallet:run.wallet!,chainFamily:pairForStrategy(run.strategy).network.family,runId:run.id,actionId:action.id,quoteId:prepared.quoteId,createdAt:now()};
       if(recorder)run.recordingIntent=recorder.trackSubmission(intent);
       run.status="SUBMITTING";run.done.add(action.id);
