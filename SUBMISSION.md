@@ -16,7 +16,7 @@ The team reports the main project submission is complete and confirms applicatio
 | AI attribution | The README explains where AI assisted and what the team did. Confirm that any other tools and contributions are included. |
 | Spec-driven artifacts, if applicable | **Needs review.** Local planning and context notes are ignored by Git. Identify any required original specs or prompts and remove secrets before sharing them. |
 | Dashboard details and partner selections | Main submission complete; Arkiv, 0G, and Definitive selected, as confirmed by the team. |
-| Demo recording | Team confirms submission on ETHGlobal: Swarm publishing at `1:30–2:15`, 0G interpretation at `2:35–3:15`. Shareable URL pending. A separate 0G cut must be under three minutes; the recording has not been independently viewed. |
+| Demo recording | [Project Submission.mp4](https://drive.google.com/file/d/1r3lqRVqUpi-3--zr1bCQRdSJWsFJZvdL/view?usp=drive_link); Drive confirms anyone-with-link viewing access. Team-reported sections: Swarm publishing `1:30–2:15`, 0G interpretation `2:35–3:15`. A separate 0G cut must be under three minutes; video content has not been independently reviewed. |
 | Team details | Four team members and their supplied public contacts are listed below. |
 | Finalist judging, if selected | Check the assigned session in the dashboard. |
 
@@ -39,7 +39,7 @@ Public names and handles supplied by the team for this submission:
 | [Definitive: Social App](https://ethglobal.com/events/mumbai/prizes/definitive) | Social flow and [filled Base market-order screenshots](definitive/submission.md#submitted-market-order-evidence), including a full buy order ID. | Genuine advanced-order implementation/evidence, onchain execution link, and X demo tagging `@DefinitiveFi`. |
 | [0G: Private Computer](https://ethglobal.com/events/mumbai/prizes/0g) | Inference integration, [model/activity screenshots](0g/submission.md#submitted-usage-evidence), setup links, and team contacts. | Real request ID tied to strategy input/result, and an under-three-minute demo link. |
 
-The 0G credit pool remains a mock. For the Arkiv + Swarm bonus, [integration evidence](arkiv/swarm.md), a public Arkiv pointer, verified postage-batch purchase provenance, and the team-reported publishing timestamp (`1:30–2:15`) are recorded. The final video URL, eligible-subscriber read evidence, and bonus-track selection confirmation remain pending.
+The 0G credit pool remains a mock. For the Arkiv + Swarm bonus, [integration evidence](arkiv/swarm.md), a public Arkiv pointer, verified postage-batch purchase provenance, and the team-reported publishing timestamp (`1:30–2:15`) are recorded. The [main demo](https://drive.google.com/file/d/1r3lqRVqUpi-3--zr1bCQRdSJWsFJZvdL/view?usp=drive_link) is linked. Eligible-subscriber read evidence and bonus-track selection confirmation remain pending.
 
 ## What to show in the demo
 
@@ -53,4 +53,4 @@ Follow one strategy through the product so the explanation is easy to follow:
 
 The validated rules, wallet checks, read-back verification, and recovery behavior explain the technical work. Keeping a discussion linked to an exact strategy version explains the product's value. Make the distinction between reviewing, testing, and trading visible throughout the recording.
 
-Remaining evidence: shareable demo URL, eligible-subscriber read evidence, an under-three-minute 0G cut and real request ID tied to its input/result, and Definitive advanced-order execution and X-post links. The team will supply the 0G ID later and reports the X post is being prepared. This update records supplied evidence; it does not submit dashboard changes or publish on X.
+Remaining evidence: eligible-subscriber read evidence, an under-three-minute 0G cut and real request ID tied to its input/result, and Definitive advanced-order execution and X-post links. The team will supply the 0G ID later and reports the X post is being prepared. This update records supplied evidence; it does not submit dashboard changes or publish on X.

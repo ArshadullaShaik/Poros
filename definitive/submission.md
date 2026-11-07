@@ -4,7 +4,7 @@
 
 The social trading flow is implemented, but the advanced-order integration is not complete. Our current adapters submit Flash market orders.
 
-[Live app](https://poros-theta.vercel.app/) · [Repository](https://github.com/ArshadullaShaik/Poros) · [Setup](../README.md#run-locally) · [Requirements](https://ethglobal.com/events/mumbai/prizes/definitive)
+[Live app](https://poros-theta.vercel.app/) · [Main demo](https://drive.google.com/file/d/1r3lqRVqUpi-3--zr1bCQRdSJWsFJZvdL/view?usp=drive_link) · [Repository](https://github.com/ArshadullaShaik/Poros) · [Setup](../README.md#run-locally) · [Requirements](https://ethglobal.com/events/mumbai/prizes/definitive)
 
 ## How Definitive fits into Poros
 

@@ -2,9 +2,9 @@
 
 **Track:** Build with 0G Private Computer
 
-The inference integration is implemented, with team-supplied usage screenshots below. A real request ID, its strategy input/result, and the demo link remain to be attached. [Team contacts](../SUBMISSION.md#team) are recorded.
+The inference integration is implemented, with team-supplied usage screenshots below. A real request ID, its strategy input/result, and a dedicated demo cut under three minutes remain to be attached. [Team contacts](../SUBMISSION.md#team) are recorded.
 
-[Live app](https://poros-theta.vercel.app/) · [Repository](https://github.com/ArshadullaShaik/Poros) · [Setup](../README.md#run-locally) · [Requirements](https://ethglobal.com/events/mumbai/prizes/0g)
+[Live app](https://poros-theta.vercel.app/) · [Main demo](https://drive.google.com/file/d/1r3lqRVqUpi-3--zr1bCQRdSJWsFJZvdL/view?usp=drive_link) · [Repository](https://github.com/ArshadullaShaik/Poros) · [Setup](../README.md#run-locally) · [Requirements](https://ethglobal.com/events/mumbai/prizes/0g)
 
 ## What we built
 
@@ -58,7 +58,7 @@ These are separate dashboard views with different key labels. They show recorded
 
 ![0G usage summary](evidence/usage-summary.jpg)
 
-The team reports that **0G interpretation appears at `2:35–3:15`** in the demo submitted on ETHGlobal. The shareable URL remains pending; the recording has not been independently viewed. A separate cut under three minutes is needed for the 0G submission.
+The team reports that **0G interpretation appears at `2:35–3:15`** in the [main demo](https://drive.google.com/file/d/1r3lqRVqUpi-3--zr1bCQRdSJWsFJZvdL/view?usp=drive_link) submitted on ETHGlobal. Drive metadata confirms anyone-with-link viewing access. The content has not been independently reviewed; a separate cut under three minutes is still needed for the 0G submission.
 
 ## Where unused credits fit
 

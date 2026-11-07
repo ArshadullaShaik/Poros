@@ -2,7 +2,7 @@
 
 Poros uses Swarm to store encrypted creator messages and attached strategy documents. Arkiv Rabdi stores the public records that connect those publications to creators and membership eligibility. Subscribers open the content through the application after proving wallet ownership; the backend checks access before retrieving and returning the message.
 
-[Live application](https://poros-theta.vercel.app/) · [Membership workspace](https://poros-theta.vercel.app/community#/memberships) · [Arkiv schema](schema.md) · [Bonus requirements](https://ethglobal.com/events/mumbai/prizes/arkiv)
+[Live application](https://poros-theta.vercel.app/) · [Main demo](https://drive.google.com/file/d/1r3lqRVqUpi-3--zr1bCQRdSJWsFJZvdL/view?usp=drive_link) · [Membership workspace](https://poros-theta.vercel.app/community#/memberships) · [Arkiv schema](schema.md) · [Bonus requirements](https://ethglobal.com/events/mumbai/prizes/arkiv)
 
 ## What each system stores
 
@@ -102,7 +102,7 @@ Publishing consumes Swarm postage and Arkiv testnet storage gas. Membership purc
 
 ## Demo evidence to finish
 
-The team confirms that the demo submitted on ETHGlobal shows **Swarm publishing at `1:30–2:15`**. The shareable URL remains pending, and the recording has not been independently viewed. Evidence of an eligible member reading the published content, together with the public Arkiv pointer, still needs confirmation. The public address omits the decryption key.
+The team confirms that the [main demo](https://drive.google.com/file/d/1r3lqRVqUpi-3--zr1bCQRdSJWsFJZvdL/view?usp=drive_link) submitted on ETHGlobal shows **Swarm publishing at `1:30–2:15`**. Drive metadata confirms anyone-with-link viewing access; the content has not been independently reviewed. Evidence of an eligible member reading the published content, together with the public Arkiv pointer, still needs confirmation. The public address omits the decryption key.
 
 ## Friction and limits
 
