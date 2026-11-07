@@ -216,7 +216,8 @@ test('strategy loading state lasts through interpretation and clears after succe
 });
 
 
-test('live targets automatically request a wallet signature, and confirmation or Stop still controls submission',async()=>{
+test('live targets automatically request a wallet signature, and confirmation or Stop still controls submission',async(t)=>{
+  t.mock.timers.enable({apis:['setTimeout']});
   const wallet='0x1111111111111111111111111111111111111111';
   const previous=(globalThis as any).ethereum;
   try {
@@ -238,6 +239,9 @@ test('live targets automatically request a wallet signature, and confirmation or
       await ui.event('execution-start');await new Promise(resolve=>setImmediate(resolve));
       assert.equal(signatures,1);assert.equal(submits,0);
       const button=ui.controls.get('#execution-results')!.children.find(item=>item instanceof Control&&item.textContent.includes('wallet'));
+      t.mock.timers.tick(10000);
+      await new Promise(resolve=>setImmediate(resolve));
+      assert.ok(ui.controls.get('#execution-results')!.children.includes(button),'polling must preserve the active wallet approval control');
       await button.handlers.click();assert.equal(signatures,1);
       if(outcome==='stop')ui.event('execution-stop');
       if(outcome==='decline')decline(Object.assign(new Error('Declined'),{code:4001}));else finish('0x'+'a'.repeat(130));

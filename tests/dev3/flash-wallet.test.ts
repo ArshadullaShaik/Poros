@@ -6,6 +6,17 @@ import {createPriceMonitor} from "../../src/features/builder/execution/monitor.t
 import {priceStrategy} from "../../src/features/builder/market/config.ts";
 const wallet="0x1111111111111111111111111111111111111111",time=1800000000000;
 const order={side:"buy",qty:"20.000000",funderAddress:wallet};
+test('zero live slippage is rejected before requesting a balance or quote',async()=>{
+ let calls=0;
+ const orders=createFlashOrders({fetcher:async()=>{calls++;return Response.json({});}});
+ await assert.rejects(orders.prepare({action:{side:'BUY',notionalUsd:20},condition:{minPriceUsd:1900,maxPriceUsd:2100},funderAddress:wallet,priceUsd:'2000',maxSlippageBps:0}),/positive.*slippage/i);
+ assert.equal(calls,0);
+});
+test('out-of-range wallet quote reports the executable price and order size',async()=>{
+ const q=quote();q.to.amount='0.005';
+ const orders=createFlashOrders({now:()=>time,fetcher:async(url)=>String(url).includes('/quote')?Response.json(q):Response.json({jsonrpc:'2.0',id:1,result:'0x100000000'})});
+ await assert.rejects(orders.prepare({action:{side:'BUY',notionalUsd:20},condition:{minPriceUsd:1900,maxPriceUsd:2100},funderAddress:wallet,priceUsd:'2000',maxSlippageBps:25}),/outside the creator’s price range.*4000\.000000.*20\.000000/);
+});
 function quote(){
   const typed={types:{EIP712Domain:[{name:"name",type:"string"},{name:"version",type:"string"},{name:"chainId",type:"uint256"},{name:"verifyingContract",type:"address"}],FlashOrder:[{name:"swapper",type:"address"},{name:"vault",type:"address"},{name:"recipient",type:"address"},{name:"fromToken",type:"address"},{name:"toToken",type:"address"},{name:"fromAmount",type:"uint256"},{name:"salt",type:"uint256"},{name:"deadline",type:"uint256"}]},primaryType:"FlashOrder",domain:{name:"DefinitiveFlashAllowance",version:"1",chainId:"8453",verifyingContract:FLASH_ALLOWANCE},message:{swapper:wallet,vault:"0xA181CAcfb2222eCc930dD05B43F07BA772d28034",recipient:wallet,fromToken:priceStrategy.tokenIn,toToken:priceStrategy.tokenOut,fromAmount:"20000000",salt:"1",deadline:String(time/1000+300)}};
   return {quoteId:"quote-wallet",side:"buy",orderType:"market",targetAsset:priceStrategy.tokenOut,contraAsset:priceStrategy.tokenIn,from:{asset:"contra",amount:"20"},to:{asset:"target",amount:"0.01"},evm:{permitTypedData:"",orderTypedData:JSON.stringify(typed),approveTx:{to:priceStrategy.tokenIn,data:"0x095ea7b3"+FLASH_ALLOWANCE.slice(2).toLowerCase().padStart(64,"0")+(20000000).toString(16).padStart(64,"0")}}};

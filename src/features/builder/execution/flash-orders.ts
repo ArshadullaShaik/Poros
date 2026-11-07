@@ -44,6 +44,7 @@ export function createFlashOrders({fetcher=fetch,now=Date.now,apiKey=process.env
     try{return await readBoundedJson(response,262144,"INVALID_OUTPUT",active);}catch{throw new FlashError(path==="/order"?"Order response was invalid; submission outcome is unknown. Check wallet orders before retrying.":"Flash returned an invalid response.");}
   }
   async function prepare({action,condition,funderAddress,priceUsd,quotePriceUsd="1.000000",maxSlippageBps,pairId="eth-usdc"}:any,signal?:AbortSignal){
+    if(!Number.isInteger(maxSlippageBps)||maxSlippageBps<=0||maxSlippageBps>500)throw new FlashError("Use a positive live slippage tolerance between 1 and 500 basis points, within the strategy cap.");
     if(pairForStrategy(pairId).network.family==="solana")return solana.prepare({action,condition,funderAddress,priceUsd,quotePriceUsd,maxSlippageBps,pairId},signal);
     if(!address(funderAddress))throw new FlashError("Connect a browser wallet before live execution.");
     const pair=pairForStrategy(pairId),buy=action.side==="BUY",price=Number(priceUsd),quoteUsd=Number(quotePriceUsd),notional=Number(action.notionalUsd);
@@ -65,7 +66,7 @@ export function createFlashOrders({fetcher=fetch,now=Date.now,apiKey=process.env
     if(useNative&&!quote.wrap)throw new FlashError("Flash did not return the required native wrapping transaction.");
     const signing=validateWalletQuote(quote,{...order,pairId:pair.id},now());
     const received=Number(quote.to.amount),spent=Number(quote.from.amount),effectivePrice=(buy?spent/received:received/spent)*quoteUsd;
-    if(!Number.isFinite(effectivePrice)||effectivePrice<condition.minPriceUsd||effectivePrice>condition.maxPriceUsd)throw new FlashError("The executable Flash quote is outside the creator’s price range.");
+    if(!Number.isFinite(effectivePrice)||effectivePrice<condition.minPriceUsd||effectivePrice>condition.maxPriceUsd)throw new FlashError(`The executable Flash quote is outside the creator’s price range: $${effectivePrice.toFixed(6)} per ${pair.base.reference} for a $${notional.toFixed(6)} order; allowed $${condition.minPriceUsd}–$${condition.maxPriceUsd}. Small orders can have a much worse effective price than the market price. No order was submitted.`);
     return {...signing,order,pairId:pair.id,notionalUsd:notional.toFixed(6),side:action.side,baseSymbol:pair.base.native?"W"+pair.base.reference:pair.base.symbol,quoteSymbol:pair.quote.symbol,quotePriceUsd:quoteUsd.toFixed(6),basePriceUsd:price.toFixed(6),expectedReceive:quote.to.amount,effectivePriceUsd:effectivePrice.toFixed(6)};
   }
   async function revalidate(prepared:any,condition:any,signal?:AbortSignal,quotePriceUsd=prepared.quotePriceUsd??"1.000000",basePriceUsd=prepared.basePriceUsd){

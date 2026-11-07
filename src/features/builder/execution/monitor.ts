@@ -32,6 +32,7 @@ export function createPriceMonitor({market,now=Date.now,invoke=invokePriceExecut
   function get(id:string){const run=runs.get(id);if(!run)throw new PaperError("Unknown or expired monitor. Start a new run.");if(now()-run.touched>(run.status==="AWAITING_WALLET"?300000:60000)){run.abort.abort();runs.delete(id);throw new PaperError("Monitor expired after losing contact with this tab. Start a new run.");}run.touched=now();return run;}
   function start(input:any){
     if(!input||!validatePriceStrategy(input.strategy).valid||!["AI","RULES_ONLY","LIVE"].includes(input.mode)||(input.mode==="LIVE"?input.strategy?.riskPolicy?.paperTradingOnly!==false||typeof input.wallet!=="string"||!(pairForStrategy(input.strategy).network.family==="solana"?/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(input.wallet):/^0x[0-9a-fA-F]{40}$/.test(input.wallet)):input.strategy?.riskPolicy?.paperTradingOnly!==true)||!validMoney(input.initialCashUsd)||!validMoney(input.maxTurnoverUsd)||![input.feeBps,input.slippageBps].every(value=>Number.isInteger(value)&&value>=0)||input.feeBps>1000||input.slippageBps>input.strategy.riskPolicy.maxSlippageBps||input.strategy.nodes.some((node:any)=>node.type==="action.intent"&&!validMoney(node.notionalUsd)))throw new PaperError("Use valid price rules, a connected wallet for live mode, positive limits and slippage within the strategy cap.");
+    if(input.mode==="LIVE"&&input.slippageBps===0)throw new PaperError("Use a positive live slippage tolerance within the strategy cap. Flash does not accept zero slippage.");
     if(input.mode==="LIVE"&&tradeLedger&&!(typeof tradeLedger==="function"?tradeLedger():tradeLedger))throw new PaperError(recordingSetupMessage);
     for(const [id,run]of runs)if(now()-run.touched>60000){run.abort.abort();runs.delete(id);}
     if(runs.size>=20)throw new PaperError("Too many active monitor sessions. Stop an existing run first.");
@@ -81,7 +82,7 @@ export function createPriceMonitor({market,now=Date.now,invoke=invokePriceExecut
       let preparedLive:any;
       if(run.mode==="LIVE"){
         try{preparedLive=await orders.prepare({action,condition,funderAddress:run.wallet,priceUsd:data.priceUsd,quotePriceUsd:data.quotePriceUsd??"1.000000",pairId:pairForStrategy(run.strategy).id,maxSlippageBps:run.limits.slippageBps},activeSignal);}
-        catch(error){if(error instanceof FlashError&&error.message.includes("outside the creator’s price range")){run.status="WAITING";run.message="Waiting: the executable Flash quote is outside the target range.";return view(run);}throw error;}
+        catch(error){if(error instanceof FlashError&&error.message.includes("outside the creator’s price range")){run.status="WAITING";run.message=`Waiting: ${error.message}`;return view(run);}throw error;}
       }
       activeSignal.throwIfAborted();
       run.status="EXECUTING";run.message="Target reached. Executing the captured rule.";

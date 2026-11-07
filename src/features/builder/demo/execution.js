@@ -189,7 +189,7 @@ export function mountExecution({root=document,getDraft,applyDraft,validateDraft,
       try{
         const data=await postMonitor({action:"check",id:sessionId},signal());
         if(current!==sequence)return;
-        renderResults(data);status(data.message);
+        if(!walletBusy){renderResults(data);if(!walletBusy)status(data.message);}
         if(["STOPPED","ERROR","COMPLETED"].includes(data.status)){busy=false;sessionId=undefined;refresh();return;}
         timer=setTimeout(()=>{void tick();},10000);timer.unref?.();
       }catch(error){if(current===sequence){invalidate(error.message??"Monitor stopped. Check 0G usage before restarting.");}}

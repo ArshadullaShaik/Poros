@@ -3,6 +3,7 @@ import {test} from "node:test";
 import {createPriceMonitor} from "../../src/features/builder/execution/monitor.ts";
 import {marketStrategy,marketContext} from "../../src/features/builder/market/config.ts";
 import {validateStrategy} from "../../src/features/builder/validation/strategy.ts";
+import {FlashError} from '../../src/features/builder/market/flash.ts';
 const strategy=()=>({...structuredClone(marketStrategy),nodes:[{id:"price",type:"signal.price" as const,minPriceUsd:1900,maxPriceUsd:2100},{id:"risk",type:"guard.risk" as const},{id:"buy",type:"action.intent" as const,side:"BUY" as const,notionalUsd:20}],edges:[{id:"a",source:"price",target:"risk"},{id:"b",source:"risk",target:"buy"}]});
 const limits={initialCashUsd:1000,maxTurnoverUsd:2000,feeBps:10,slippageBps:25};
 function fixture() {
@@ -36,4 +37,17 @@ test("balances, fees, turnover and slippage are checked before an agent call",as
     try {const run=f.monitor.start({strategy:strategy(),...limits,...patch,mode:"AI"});await f.monitor.check(run.id,"sk-test-only-key");}catch{}
     assert.equal(f.calls,0);
   }
+});
+test('live runs reject zero slippage while paper runs allow it',()=>{
+ const f=fixture();const input={strategy:{...strategy(),riskPolicy:{...strategy().riskPolicy,paperTradingOnly:false}},...limits,slippageBps:0,mode:'LIVE',wallet:'0x'+'a'.repeat(40)};
+ assert.throws(()=>f.monitor.start(input),/positive.*slippage/i);
+ assert.equal(f.monitor.start({...input,strategy:strategy(),mode:'RULES_ONLY'}).mode,'PAPER');
+});
+test('a rejected executable quote remains waiting with its actual price and never invokes the agent',async()=>{
+ let invoked=0;
+ const message='The executable Flash quote is outside the creator’s price range: $3378.980726 for a $0.200000 order.';
+ const monitor=createPriceMonitor({market:{refresh:async()=>({priceUsd:'2000.000000',stale:false}),read:()=>({})},invoke:async()=>{invoked++;},orders:{prepare:async()=>{throw new FlashError(message);}}});
+ const run=monitor.start({strategy:{...strategy(),riskPolicy:{...strategy().riskPolicy,paperTradingOnly:false}},...limits,mode:'LIVE',wallet:'0x'+'a'.repeat(40)});
+ const result=await monitor.check(run.id,'sk-test-only-key');
+ assert.equal(result.status,'WAITING');assert.equal(result.message,'Waiting: '+message);assert.equal(result.walletRequest,null);assert.equal(invoked,0);
 });
