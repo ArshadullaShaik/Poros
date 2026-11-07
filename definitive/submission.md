@@ -2,23 +2,33 @@
 
 **Track:** Best Use of Flash Advanced Orders in a Social App
 
-**Status:** incomplete. Current adapters submit market orders, not qualifying Flash advanced orders.
+The social trading flow is implemented, but the advanced-order integration is not complete. Our current adapters submit Flash market orders.
 
 [Live app](https://poros-theta.vercel.app/) · [Repository](https://github.com/ArshadullaShaik/Poros) · [Setup](../README.md#run-locally) · [Requirements](https://ethglobal.com/events/mumbai/prizes/definitive)
 
-## Social trading flow
+## How Definitive fits into Poros
 
-| Step | Current behavior |
-|---|---|
-| Discover | Browse community strategies and creators. |
-| Review | Import a published graph or interpret a written post, then inspect its canvas rules. |
-| Authorize | Approve the required wallet actions; validate network, recipient, amount, quote, and signing data. |
-| Execute | Local monitoring checks the condition and submits a Flash **market** order. |
-| Inspect | Follow order status and available execution history, separately from paper results. |
+Poros connects community discussion to strategies people can review and use. Someone can discover a creator's idea, inspect the rules, and decide whether to run it. Definitive handles order submission in the live execution flow.
 
-Reading a post, importing a strategy, or subscribing to a creator never authorizes copy trading.
+The current path is:
 
-## Code and limits
+1. Find a strategy in a community or on a creator's profile.
+2. Import its published graph, or interpret a written post, and review the rules on the canvas.
+3. Start a live run. Poros monitors the price condition locally and checks the network, recipient, amount, quote, and signing data before submission.
+4. Approve the required wallet actions. The adapter submits a Flash market order once the checks pass.
+5. Follow the order's status and available execution history. Paper results are shown separately.
+
+Reading a post, importing a strategy, or subscribing to a creator does not authorize a trade.
+
+## What is still missing
+
+Both adapters currently send `orderType: "market"`. Poros checks the price condition locally; it does not create a provider-managed Limit, DCA, Stop, Take Profit, or TWAP order. Unexpected order types and attached brackets are rejected.
+
+That distinction matters for this track. We still need to implement and demonstrate a genuine Flash advanced order. The existing price-triggered market-order flow does not meet that requirement.
+
+If a submission has an unknown outcome, we do not retry it automatically. Stopping Poros's local monitor also does not cancel an order that Flash has already accepted.
+
+## Code and tests
 
 | Area | Source and tests |
 |---|---|
@@ -27,18 +37,13 @@ Reading a post, importing a strategy, or subscribing to a creator never authoriz
 | Local monitoring | [Monitor](../src/features/builder/execution/monitor.ts), [tests](../tests/dev3/price-monitor.test.ts) |
 | Community handoff | [Controller](../src/features/builder/demo/community.js), [tests](../tests/dev3/text-live-flow.test.ts) |
 
-Both adapters use `orderType: "market"`. Local price triggers are not provider-managed Limit, DCA, Stop, Take Profit, or TWAP orders. Unexpected types and brackets are rejected. Supporting an advanced order requires implementation, not relabelling.
+## Evidence still needed
 
-Unknown submission outcomes are not automatically retried. Stopping local monitoring does not cancel an accepted Flash order.
+The app is [deployed](https://poros-theta.vercel.app/), and the team reports successful deployment testing. To complete this track's evidence, we still need:
 
-## Qualification evidence
+- A working Flash advanced-order flow.
+- A real advanced order's ID, type, network, and final status.
+- Its onchain execution and Explorer link shown in the demo. An accepted order or a paper fill is not execution evidence.
+- A short product video posted on X with `@DefinitiveFi` tagged, and the public post URL.
 
-| Requirement | Status |
-|---|---|
-| Working social application | [Deployment](https://poros-theta.vercel.app/); team reports successful testing. |
-| Genuine Flash advanced-order flow | **Pending implementation.** |
-| Actual advanced order ID, type, network, and final status | **Pending.** Fixture values do not count. |
-| Onchain execution and Explorer link shown in demo | **Pending.** Acceptance or paper fills are insufficient. |
-| Short product video on X tagging `@DefinitiveFi` | **Pending public post URL.** |
-
-Record a shared 2–under-3-minute demo: discover an idea, interpret and review it, authorize a genuine advanced order, then show its execution. Until that flow is implemented and verified, the current app is a product preview for this track, not a completed qualifying demo.
+Once the advanced-order flow is ready, the demo should follow one idea from community discovery through review, wallet approval, and execution. A recording lasting at least two minutes and less than three can also cover the shared project demo. Until then, this is a preview of the social trading product, not a completed advanced-order submission.

@@ -2,30 +2,36 @@
 
 **Track:** Build with 0G Private Computer
 
-**Status:** inference integration implemented; live request evidence and submission assets pending.
+The inference integration is implemented. We still need to attach evidence from a successful live request, the demo video, and public team details.
 
 [Live app](https://poros-theta.vercel.app/) · [Repository](https://github.com/ArshadullaShaik/Poros) · [Setup](../README.md#run-locally) · [Requirements](https://ethglobal.com/events/mumbai/prizes/0g)
 
-## What users do
+## What we built
 
-Bring a written community strategy, interpret it through 0G, and review the validated price/risk/action graph. Ambiguity produces questions rather than invented rules. Users return to evaluate new ideas and revisions.
+Poros helps trading communities turn written ideas into rules they can inspect and test. A user brings in a creator's strategy, opens it in the builder, and uses 0G inference to translate the text into price conditions, risk checks, and buy or sell actions.
 
-**Without 0G, written strategies cannot be automatically interpreted into reviewed canvas rules; manual building remains available.**
+We check the result with the builder's validator before loading it onto the canvas for review. The user can then change the rules or test them with virtual funds. Interpretation itself never places a trade.
 
-Interpretation never places a trade. The interpreter supports registered markets, inclusive USD price ranges or explicit market-price behavior, and explicit amounts within the current $20 order cap.
+0G handles the translation from written instructions to structured rules. Without it, users can still build strategies by dragging blocks onto the canvas, but they have to translate the text themselves.
 
-## Integration
+The interpreter is limited to registered markets, inclusive USD price ranges or explicitly requested market-price behavior, and specified trade amounts within the current $20 order cap. It is instructed to ask for clarification when a strategy is ambiguous or unsupported. Those questions are returned to the user without a proposed graph.
+
+## How we use 0G
 
 | Detail | Implementation |
 |---|---|
 | Catalog | `GET https://router-api.0g.ai/v1/models` |
 | Inference | `POST https://router-api.0g.ai/v1/chat/completions` |
-| Model selection | Lowest estimated-cost eligible `qwen3.7-flash` or `qwen-flash`; requires pricing, a provider, text I/O, OpenAI format, tool support, and sufficient context. |
-| Cost controls | Catalog-derived price caps, price-based provider choice, disabled fallback, and 2,048 maximum output tokens. Estimates are not exact bills. |
-| Evidence | Returned model and latency; optional `x_0g_trace.request_id`, provider, and billing metadata. Missing IDs stay missing. |
-| Failures | Reject malformed output/model mismatches; report authentication, balance, rate-limit, and provider errors. A 30-second timeout does not trigger an automatic paid retry. |
+| Model selection | We choose the lowest estimated-cost eligible `qwen3.7-flash` or `qwen-flash` model. It must have pricing, an available provider, text input/output, OpenAI format, tool support, and enough context. |
+| Cost controls | Price caps come from the catalog. Providers are selected by price, fallback is disabled, and output is capped at 2,048 tokens. The estimate is not a billing quote. |
+| Request details | We return the model and latency, plus `x_0g_trace.request_id`, provider, and billing metadata when 0G supplies them. |
+| Error handling | Malformed output and model mismatches are rejected. Authentication, balance, rate-limit, and provider errors are reported to the user. Requests time out after 30 seconds without an automatic paid retry. |
 
-The key is stored in the browser when available and sent to the backend for the requested inference. Same-origin scripts can read it: use a dedicated key and Forget key when finished. Do not publish raw network exports or authorization headers. We do not claim independently verified confidential-execution proofs.
+Users provide their own inference key. It is saved in browser storage when available and sent to our backend for the requested inference. Since scripts on the same origin can read that storage, use a dedicated key and the **Forget key** control when finished. API keys and authorization headers should be removed from any shared request evidence.
+
+We have not independently verified confidential-execution proofs for this integration.
+
+## Code and tests
 
 | Area | Source and tests |
 |---|---|
@@ -34,18 +40,18 @@ The key is stored in the browser when available and sent to the backend for the 
 | Review and clarification | [Interface](../src/features/builder/demo/ai.js), [UI tests](../tests/dev3/ai-ui.test.ts) |
 | API | [Handler](../src/features/builder/server/api.mjs), [route tests](../tests/dev3/ai-route.test.ts) |
 
-## Evidence to attach
+The tests cover model selection, response validation, clarification, and the API and UI flows using controlled responses. They do not establish that a paid request succeeded on the deployed app.
 
-| Item | Status |
-|---|---|
-| Project | **Poros:** social strategy creation with AI interpretation and user review. |
-| Public code, setup, live app | Linked above. |
-| Successful real request ID | **Pending.** Reuse an existing authorized run if available; never use a fixture ID. |
-| Corresponding model and run context | **Pending.** Include time, input, and reviewed result. |
-| Video under three minutes | **Pending.** Use 2–under-3 minutes to also fit ETHGlobal's video length. |
-| Team names and Telegram/X contacts | **Pending approved public details.** |
-| Contract addresses | Not applicable to this inference path; list verified addresses if the team submits other deployed contracts. |
+## Where unused credits fit
 
-Show interpretation, the real request ID/model, and canvas review. Definitive's advanced-order work is not required to demonstrate this flow. Tests validate controlled responses, not a successful paid deployment run.
+We have also discussed an idea with 0G developers: use a person's remaining daily compute credits for agentic trading before they expire. The credits would pay for inference, with the user's permission. They would not become trading capital or authorize a trade.
 
-The [0G Pot](../apps/web/ZERO-G-POT.md) is a mock. This submission does not claim iAI sign-in, real credit deductions, or autonomous revenue-to-compute funding.
+The [0G Pot](../apps/web/ZERO-G-POT.md) demonstrates that idea with simulated donations and claims. It does not read real balances, transfer credits, or run inference. Real credit reuse is future work; this submission does not claim iAI sign-in, real credit deductions, or autonomous revenue-to-compute funding.
+
+## What we still need to attach
+
+- A successful real request ID and its model, timestamp, input, and reviewed result. An existing authorized run can supply this evidence; a test fixture cannot.
+- A demo lasting at least two minutes and less than three, showing the written strategy, interpretation, real request details, and canvas review.
+- Approved public team names and Telegram/X contacts.
+
+The app, repository, and setup links are above. This inference path does not deploy a contract; verified contract addresses are only needed if we include other deployed contracts in the submission. The 0G demo can be recorded independently of the unfinished Definitive advanced-order work.

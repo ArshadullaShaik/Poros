@@ -1,36 +1,37 @@
 # Why Arkiv
 
-On chat and social platforms, a trader can share a strategy, delete it when it fails, and leave only successful calls visible. People considering that trader's advice or membership then see an incomplete history.
+A trading screenshot shows an outcome. It rarely shows the rules behind it, who changed them, or which version someone actually tested.
 
-Poros uses Arkiv to publish wallet-authored strategy versions with links to their revisions and forks. Community members can inspect the published rules and query retained records independently of the creator's feed or the Poros website.
+Poros turns those ideas into strategies people can inspect, discuss, and build on. Arkiv gives each published version a wallet author, a checked content hash, and links to its revisions and forks. The strategy becomes a shared record, not just another post in a feed.
 
-This gives communities a shared history to evaluate before trusting a creator. Strategy records default to 180 days; Arkiv storage has expiration and owner-authorized deletion, so Poros does not promise an undeletable track record.
+## Clear rules before execution
 
-| User need | What Arkiv provides | What a private database alone would lose |
-|---|---|---|
-| Inspect the discussed strategy | Version key, checked content hash, and author wallet | Readers depend on our API or export. |
-| Preserve attribution when forking | Parent and fork-source references | Lineage remains controlled by our service. |
-| Build another community client | Public schemas and direct queries | Developers need our permission or maintained API. |
-| Identify the publisher of evidence | Native creator/owner metadata | Readers must trust our identity labels. |
-| Understand availability | Explicit expiration block | Retention is only a backend policy. |
+Users drag blocks onto a canvas to define price conditions, risk limits, and buy or sell actions. For written strategies, 0G inference helps translate the text into supported rules. The builder validates the result before presenting it for review.
 
-Postgres can store these fields. The difference is independent access to the public record and its native authorship metadata. Arkiv does not prove a strategy is profitable or that a later trade followed its rules.
+The AI proposes. The user decides what to keep, change, or test. Publishing a strategy, importing it, and authorizing a trade are separate actions.
 
-## Why expiration fits
+## Why a shared record matters
 
-Trading ideas age. Strategy and durable community records default to 180 days; public chat uses 45 days. Communities can select and extend their lifetime, and the trade worker renews its evidence. Expired dependencies remain gaps, not a fabricated lifetime track record. Storage expiry cannot delete copies already downloaded.
+A community can open the exact version being discussed, compare a revision with its parent, or fork a strategy while preserving its source. Developers can query those same public records to build another client without relying on Poros's API.
 
-## What stays off Arkiv
+A private database could store identical fields. Arkiv's value is independent access and native authorship metadata: readers can inspect the retained record themselves instead of relying solely on the history our website chooses to display.
 
-| Data | Storage | Reason |
-|---|---|---|
-| Exclusive messages and private strategy attachments | Encrypted Swarm content | Member content must not become public text. |
-| Full Swarm references containing decryption material | Encrypted backend SQLite custody | Publishing the full reference would disclose access. |
-| Pending jobs, leases, and recovery state | Persistent SQLite | Workers must recover uncertain transactions without duplicate actions. |
-| Drafts and paper-run history | Browser state | Editing and simulation do not require public writes. |
-| Credentials | Wallet, operator secrets, or browser storage for the user's inference key | Credentials authorize actions; they are not public records. |
-| Quotes and historical candles | Market providers | We do not copy every price tick into Arkiv. |
+Arkiv also holds community activity, membership records, and execution evidence from the configured trade writer. A stored strategy is not proof of profit, and a trade record does not establish that it followed a particular strategy without an execution link.
 
-Private delivery still depends on our backend and trusted Bee node. This is operator-managed encryption, not end-to-end encryption. Public hashes provide integrity, not secrecy for guessable content.
+## Retention is explicit
 
-[Schema](schema.md) · [Integration](how-you-use-arkiv.md) · [Runnable query](../README.md#verify-the-public-data) · [Track criteria](https://ethglobal.com/events/mumbai/prizes/arkiv)
+Strategy and durable community records default to 180 days; chat defaults to 45 days. Communities support lifetime extensions, and the trade worker renews its evidence. Records can still expire or be deleted by their owners, so this is inspectable retained history, not a permanent or complete track record.
+
+## Public strategies, private member content
+
+Published strategies and community records belong on Arkiv. Exclusive messages and private strategy attachments stay encrypted on Swarm, with decryption material held by the backend. That delivery is operator-managed, not end-to-end encrypted.
+
+Drafts and paper-run history stay in the browser. Credentials, recovery jobs, and market feeds stay outside the public record. Arkiv stores what the community needs to inspect, not every piece of application state.
+
+## Where unused 0G credits fit
+
+Our proposed next step, discussed with 0G developers, is to use a person's remaining daily compute allowance for agentic trading before it expires. With the user's permission, those credits would pay for inference; they are not trading capital or permission to move funds.
+
+The [0G Pot](../apps/web/ZERO-G-POT.md) currently simulates credit donations and claims. Real credit reuse remains proposed. Arkiv's role in that future flow would be to make the associated strategy versions and run evidence inspectable, while 0G supplies the compute.
+
+[How the integration works](how-you-use-arkiv.md) · [Record schema](schema.md) · [Query the public data](../README.md#verify-the-public-data)
