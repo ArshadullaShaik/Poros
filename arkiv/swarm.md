@@ -102,7 +102,7 @@ Publishing consumes Swarm postage and Arkiv testnet storage gas. Membership purc
 
 ## Demo evidence to finish
 
-The team confirms a demo was submitted on ETHGlobal and supplied `2:35–3:15` as an evidence reference. The shareable URL and confirmation that this section shows Swarm remain pending. The Swarm segment should show the creator publishing, an eligible member reading the same message, and the public Arkiv pointer, explaining that the public address omits the decryption key.
+The team confirms that the demo submitted on ETHGlobal shows **Swarm publishing at `1:30–2:15`**. The shareable URL remains pending, and the recording has not been independently viewed. Evidence of an eligible member reading the published content, together with the public Arkiv pointer, still needs confirmation. The public address omits the decryption key.
 
 ## Friction and limits
 

@@ -58,6 +58,8 @@ These are separate dashboard views with different key labels. They show recorded
 
 ![0G usage summary](evidence/usage-summary.jpg)
 
+The team reports that **0G interpretation appears at `2:35–3:15`** in the demo submitted on ETHGlobal. The shareable URL remains pending; the recording has not been independently viewed. A separate cut under three minutes is needed for the 0G submission.
+
 ## Where unused credits fit
 
 We have also discussed an idea with 0G developers: use a person's remaining daily compute credits for agentic trading before they expire. The credits would pay for inference, with the user's permission. They would not become trading capital or authorize a trade.
