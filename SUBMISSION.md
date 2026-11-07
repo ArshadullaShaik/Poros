@@ -14,7 +14,7 @@ The team reports the main project submission is complete and confirms applicatio
 | Version history | The incremental history is retained. This update changes documentation only. |
 | From-scratch eligibility | The team describes Poros as a from-scratch build. Confirm that all project-specific work began within the permitted event window; the earlier workspace consolidation is disclosed. |
 | AI attribution | The README explains where AI assisted and what the team did. Confirm that any other tools and contributions are included. |
-| Spec-driven artifacts, if applicable | **Needs review.** Local planning and context notes are ignored by Git. Identify any required original specs or prompts and remove secrets before sharing them. |
+| Spec-driven artifacts, if applicable | [Original prompt excerpts](prompts.md) are documented, with room for teammate contributions. **Still incomplete:** original planning/spec files remain ignored by Git; review and include the required artifacts without secrets. |
 | Dashboard details and partner selections | Main submission complete; Arkiv, 0G, and Definitive selected, as confirmed by the team. |
 | Demo recording | [Project Submission.mp4](https://drive.google.com/file/d/1r3lqRVqUpi-3--zr1bCQRdSJWsFJZvdL/view?usp=drive_link); Drive confirms anyone-with-link viewing access. Team-reported sections: Swarm publishing `1:30–2:15`, 0G interpretation `2:35–3:15`. A separate 0G cut must be under three minutes; video content has not been independently reviewed. |
 | Team details | Four team members and their supplied public contacts are listed below. |

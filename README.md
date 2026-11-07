@@ -130,3 +130,5 @@ Codex assisted implementation, debugging, tests, Next.js migration, and document
 | [Audience](arkiv/reach.md) | Users and proposed next steps. |
 | [Feedback](arkiv/friction.md) | Reproduced limitations and improvements. |
 | [Submission checklist](SUBMISSION.md) | Readiness and outstanding evidence. |
+| [AI prompts](prompts.md) | Original prompt excerpts, contribution disclosure, and teammate additions. |
+| [Arkiv + Swarm](arkiv/swarm.md) | Encrypted member delivery, public pointer evidence, and reproduction steps. |
