@@ -20,6 +20,9 @@ services:
   membership-worker:
     <<: *backend
     command: [node, apps/web/tooling/membership-worker.mjs]
+  trade-worker:
+    <<: *backend
+    command: [node, apps/web/tooling/trade-worker.mjs]
   bee:
     image: ethersphere/bee:2.8.3
     user: "1000:1000"
