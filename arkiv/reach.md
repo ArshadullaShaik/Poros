@@ -1,12 +1,12 @@
 # Reach
 
-Poros serves trading communities that want explicit rules behind a shared idea.
+Poros serves traders who want to evaluate a creator's strategy history before following their advice or paying for membership. A feed of successful calls alone leaves out the failures that matter to that decision.
 
 | Audience | Problem | Current workflow |
 |---|---|---|
 | Community traders | Posts are hard to turn into testable rules. | Open a published graph or interpret a written strategy, then review it. |
 | Creators | Public discussion and member content are split across tools. | Publish strategies, offer a 30-day membership, and share exclusive messages. |
-| People evaluating creators | Screenshots and popularity are weak evidence. | Inspect public history and available verifier-backed fills, with coverage limits. |
+| People evaluating creators | Deleted failed calls can leave a misleading history. | Inspect retained strategy versions, revisions, and available trade records. |
 | Developers | Community data is usually locked behind one product. | Query the same public Arkiv records from another client. |
 
 ## Try it

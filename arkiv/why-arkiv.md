@@ -1,8 +1,10 @@
 # Why Arkiv
 
-A strategy should carry its authorship and revision history when someone shares or forks it. Poros connects a community discussion to an exact strategy version that another person can inspect, test, and improve.
+On chat and social platforms, a trader can share a strategy, delete it when it fails, and leave only successful calls visible. People considering that trader's advice or membership then see an incomplete history.
 
-Arkiv makes that history publicly queryable outside our website. Another client can read the same wallet-authored records without a Poros database account.
+Poros uses Arkiv to publish wallet-authored strategy versions with links to their revisions and forks. Community members can inspect the published rules and query retained records independently of the creator's feed or the Poros website.
+
+This gives communities a shared history to evaluate before trusting a creator. Strategy records default to 180 days; Arkiv storage has expiration and owner-authorized deletion, so Poros does not promise an undeletable track record.
 
 | User need | What Arkiv provides | What a private database alone would lose |
 |---|---|---|
