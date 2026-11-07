@@ -70,7 +70,119 @@ No credentials, private messages, private keys, or full encrypted Swarm referenc
 
 ## Teammate contributions
 
-Additional contributors will append their own original prompts below. For each entry, record the contributor, AI tool, original prompt, the decision it supported, and the relevant files or commits. Mark paraphrases as summaries. Do not present a newly written prompt as a historical conversation.
+The following entries record Lakshya's direction during Poros development and submission preparation. Each uses OpenAI Codex. Original excerpts retain their wording; context and outcomes are edited for clarity. These entries do not attribute teammates' implementation work solely to Lakshya.
+
+### Lakshya — Creator memberships
+
+Tool: OpenAI Codex
+
+Approved plan excerpt:
+> Add **creator memberships** as a new community feature.
+
+Context and outcome: Requested paid creator access alongside free community participation. The current implementation uses creator-priced, 30-day Rabdi memberships and exclusive publications.
+Implementation: [Creator interface](apps/web/src/creator-membership.ts) · [Membership logic](src/integrations/arkiv/community/memberships.ts)
+
+### Lakshya — Record retention
+
+Tool: OpenAI Codex
+
+Original prompt:
+> do one thing go with 180 day limit as the trade data become old if in future needed we will add a new feature
+
+Context and outcome: Chose a 180-day default for strategy and community records. Chat uses a separate 45-day lifetime; current extension behavior is documented in the schema.
+Implementation: [Schema and retention](arkiv/schema.md)
+
+### Lakshya — Next.js migration
+
+Tool: OpenAI Codex
+
+Original prompt:
+> lets move the complete codebase on nextjs
+
+Context and outcome: Requested a shared Next.js application for the builder, community, profile, and Orders pages.
+Implementation: [Application routes](apps/web/app) · [Web configuration](apps/web/package.json)
+
+### Lakshya — Centered navigation
+
+Tool: OpenAI Codex
+
+Original prompt:
+> the navbar components must be in the middle
+
+Context and outcome: Requested centered navigation and a consistent header across pages.
+Implementation: [Shared header](apps/web/components/site-header.tsx)
+
+### Lakshya — Community strategies on the canvas
+
+Tool: OpenAI Codex
+
+Original prompt:
+> ive shared a trading statergy in arshad fan hub community it is succesfully shared but in trade page when i try to find that statergy its not available to drag and drop (its showing no trading statergy availabale)
+
+Context and outcome: Reported a gap between community publication and builder discovery. Work connected public strategy reads and drag/import handling; written posts use interpretation before canvas review.
+Implementation: [Public strategy reads](apps/web/src/builder-library.ts) · [Drag handling](apps/web/src/strategy-drag.ts)
+
+### Lakshya — Guided strategy publishing
+
+Tool: OpenAI Codex
+
+Original prompt excerpt:
+> Like when a person tries to post a strategy, he needs to answer some of these questions. And those questions must be, like, it should make easier to implement the strategies and all.
+
+Context and outcome: Requested structured questions to make strategy posts clearer and easier to interpret.
+Implementation: [Strategy questions and post composer](apps/web/src/strategy-post.ts)
+
+### Lakshya — Creator eligibility
+
+Tool: OpenAI Codex
+
+Original clarification:
+> Open membership; rank by verified results
+
+Context and outcome: Chose open creator membership rather than a minimum track-record requirement, with ranking based on available verified results.
+Implementation: [Creator directory](apps/web/src/creator-directory.ts) · [Creator reports](apps/web/src/creator-report.ts)
+
+### Lakshya — Orders and trading history
+
+Tool: OpenAI Codex
+
+Original prompt:
+> lets add a seperate page named orders where the graph present below the canvas will be present and below the graph it will show the history of transactions taken by ai with profit or loss
+
+Context and outcome: Requested a separate chart and transaction-history page. Orders displays market charts and available execution records; reported results depend on the available trade evidence.
+Implementation: [Orders workspace](apps/web/components/orders-workspace.tsx)
+
+### Lakshya — Smooth community navigation
+
+Tool: OpenAI Codex
+
+Original prompt:
+> Make Creator, Memberships, and community navigation smooth, with subtle transitions, stable loading states, and reduced-motion support
+
+Context and outcome: Requested consistent transitions and loading behavior across community views, including reduced-motion support.
+Implementation: [Community application](apps/web/src/main.ts) · [Styles](apps/web/src/style.css)
+
+### Lakshya — Community trust through strategy history
+
+Tool: OpenAI Codex
+
+Prompt summary (edited for clarity):
+> Explain how deleted unsuccessful calls can leave a misleading creator feed, and how retained Arkiv strategy versions help communities evaluate that history.
+
+Context and outcome: Refocused the Arkiv submission on community trust, public authorship, and inspectable revisions, while keeping retention and deletion claims accurate.
+Implementation: [Why Arkiv](arkiv/why-arkiv.md) · [Audience](arkiv/reach.md)
+
+### Lakshya — Concise integration documentation
+
+Tool: OpenAI Codex
+
+Original prompt excerpt:
+> most importantly keep eveything far more direct and point to point
+
+Context and outcome: Requested a shorter integration explanation focused on user-visible features, queries, ownership, and record lifetimes.
+Implementation: [How Poros uses Arkiv](arkiv/how-you-use-arkiv.md)
+
+Additional contributors can use the format below. For each entry, record the contributor, AI tool, original prompt, the decision it supported, and the relevant files or commits. Mark paraphrases as summaries. Do not present a newly written prompt as a historical conversation.
 
 ```markdown
 ### [Contributor] — [Development task]
