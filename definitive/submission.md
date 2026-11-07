@@ -64,6 +64,6 @@ The app is [deployed](https://poros-theta.vercel.app/), and the team reports suc
 - A working Flash advanced-order flow.
 - A real advanced order's ID, type, network, and final status.
 - Its onchain execution and Explorer link shown in the demo. An accepted order or a paper fill is not execution evidence.
-- A short product video posted on X with `@DefinitiveFi` tagged, and the public post URL.
+- Confirm that the [team-supplied X post](https://x.com/LakshyaSingh_02/status/2118921354322018514) contains the demo video and tags `@DefinitiveFi`. The link was supplied by the team and has not been independently reviewed.
 
 Once the advanced-order flow is ready, the demo should follow one idea from community discovery through review, wallet approval, and execution. A recording lasting at least two minutes and less than three can also cover the shared project demo. Until then, this is a preview of the social trading product, not a completed advanced-order submission.
