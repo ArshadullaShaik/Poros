@@ -102,7 +102,7 @@ Publishing consumes Swarm postage and Arkiv testnet storage gas. Membership purc
 
 ## Demo evidence to finish
 
-**Video URL and timestamp: pending team recording.** Show the creator publishing, an eligible member reading the same message, and the public Arkiv pointer. Explain that the public address omits the decryption key. Add the exact timestamp here once that flow is in the final video; do not substitute an estimated timestamp.
+The team confirms a demo was submitted on ETHGlobal and supplied `2:35–3:15` as an evidence reference. The shareable URL and confirmation that this section shows Swarm remain pending. The Swarm segment should show the creator publishing, an eligible member reading the same message, and the public Arkiv pointer, explaining that the public address omits the decryption key.
 
 ## Friction and limits
 

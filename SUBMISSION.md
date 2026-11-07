@@ -16,7 +16,7 @@ The team reports the main project submission is complete and confirms applicatio
 | AI attribution | The README explains where AI assisted and what the team did. Confirm that any other tools and contributions are included. |
 | Spec-driven artifacts, if applicable | **Needs review.** Local planning and context notes are ignored by Git. Identify any required original specs or prompts and remove secrets before sharing them. |
 | Dashboard details and partner selections | Main submission complete; Arkiv, 0G, and Definitive selected, as confirmed by the team. |
-| Demo recording | **Link needed.** At least two minutes and less than three, at least 720p, with real narration. No AI voiceover or sped-up recording. |
+| Demo recording | Team confirms submission on ETHGlobal and supplies `2:35–3:15` as an evidence reference. Shareable URL and the feature shown in that section remain unconfirmed. A separate 0G cut must be under three minutes; resolution and narration have not been checked. |
 | Team details | Four team members and their supplied public contacts are listed below. |
 | Finalist judging, if selected | Check the assigned session in the dashboard. |
 
@@ -53,4 +53,4 @@ Follow one strategy through the product so the explanation is easy to follow:
 
 The validated rules, wallet checks, read-back verification, and recovery behavior explain the technical work. Keeping a discussion linked to an exact strategy version explains the product's value. Make the distinction between reviewing, testing, and trading visible throughout the recording.
 
-Remaining evidence: final video URL and timestamps, a 0G request ID tied to its input/result, and Definitive advanced-order execution and X-post links. This update records supplied evidence; it does not submit dashboard changes or publish on X.
+Remaining evidence: shareable demo URL and confirmation of what `2:35–3:15` shows; an under-three-minute 0G cut and real request ID tied to its input/result; and Definitive advanced-order execution and X-post links. The team will supply the 0G ID later and reports the X post is being prepared. This update records supplied evidence; it does not submit dashboard changes or publish on X.
