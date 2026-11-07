@@ -55,7 +55,22 @@ Depth: 18
 
 This verifies the current configured batch and its usability. It does not independently prove which batch stamped the historical entity above.
 
-**Batch provenance still to add:** the wallet that purchased the batch, or the person/service that supplied it, with purchase evidence if available. The relay writer address is not assumed to be the postage purchaser.
+### Postage purchase evidence
+
+The team supplied the wallet and transaction below. A read-only Gnosis RPC check on 7 November 2026 confirmed a successful receipt and a `BatchCreated` event matching the configured batch ID above.
+
+| Field | Evidence |
+|---|---|
+| Network | Gnosis, chain ID `100` |
+| Purchasing wallet / batch owner | `0x13cE57509228f42c123A6C97a133dA45F2397F94` |
+| Transaction | [`0xdc30a6b8aee215f1d8e3cbd8202b514b35c57b8286dfeb478f93395da5a9be8f`](https://gnosisscan.io/tx/0xdc30a6b8aee215f1d8e3cbd8202b514b35c57b8286dfeb478f93395da5a9be8f) |
+| Receipt | Success; block `49143467` |
+| Emitting contract | `0x45a1502382541cd610cc9068e88727426b696293` |
+| Matching batch ID | `bb8490201fb903d9958d4196904e429b010c9a08fac68e4b741cbdd2c13df264` |
+
+[Public receipt evidence](evidence/swarm-postage-receipt.json) · [Team contacts](../SUBMISSION.md#team)
+
+This establishes purchase of the configured batch, not which batch stamped a specific historical publication.
 
 ## Implementation references
 

@@ -2,7 +2,7 @@
 
 **Track:** Build with 0G Private Computer
 
-The inference integration is implemented. We still need to attach evidence from a successful live request, the demo video, and public team details.
+The inference integration is implemented, with team-supplied usage screenshots below. A real request ID, its strategy input/result, and the demo link remain to be attached. [Team contacts](../SUBMISSION.md#team) are recorded.
 
 [Live app](https://poros-theta.vercel.app/) · [Repository](https://github.com/ArshadullaShaik/Poros) · [Setup](../README.md#run-locally) · [Requirements](https://ethglobal.com/events/mumbai/prizes/0g)
 
@@ -42,6 +42,22 @@ We have not independently verified confidential-execution proofs for this integr
 
 The tests cover model selection, response validation, clarification, and the API and UI flows using controlled responses. They do not establish that a paid request succeeded on the deployed app.
 
+## Submitted usage evidence
+
+The team supplied the following 0G dashboard screenshots on 7 November 2026.
+
+| Evidence | Visible details |
+|---|---|
+| Request activity | `qwen3.7-flash`, provider `0x0000…8044` via `aliyun`; six rows under key label `test6`. |
+| Example row | Nov 7, 03:10 UTC; 826 input / 130 output tokens; $0.000040. |
+| Usage summary | Key label `test5`; 27 requests, 103,695 tokens (71,485 input / 32,210 output), total cost below $0.01. |
+
+These are separate dashboard views with different key labels. They show recorded model usage, but no request ID, strategy input, or reviewed canvas result.
+
+![0G inference activity](evidence/inference-activity.jpg)
+
+![0G usage summary](evidence/usage-summary.jpg)
+
 ## Where unused credits fit
 
 We have also discussed an idea with 0G developers: use a person's remaining daily compute credits for agentic trading before they expire. The credits would pay for inference, with the user's permission. They would not become trading capital or authorize a trade.
@@ -50,8 +66,9 @@ The [0G Pot](../apps/web/ZERO-G-POT.md) demonstrates that idea with simulated do
 
 ## What we still need to attach
 
-- A successful real request ID and its model, timestamp, input, and reviewed result. An existing authorized run can supply this evidence; a test fixture cannot.
+- A successful real request ID linked to its strategy input and reviewed canvas result. Model and usage screenshots are included above; the request-level link remains pending.
 - A demo lasting at least two minutes and less than three, showing the written strategy, interpretation, real request details, and canvas review.
-- Approved public team names and Telegram/X contacts.
+
+Public team names and contacts are listed in the [submission checklist](../SUBMISSION.md#team).
 
 The app, repository, and setup links are above. This inference path does not deploy a contract; verified contract addresses are only needed if we include other deployed contracts in the submission. The 0G demo can be recorded independently of the unfinished Definitive advanced-order work.

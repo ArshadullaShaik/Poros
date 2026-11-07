@@ -37,6 +37,26 @@ If a submission has an unknown outcome, we do not retry it automatically. Stoppi
 | Local monitoring | [Monitor](../src/features/builder/execution/monitor.ts), [tests](../tests/dev3/price-monitor.test.ts) |
 | Community handoff | [Controller](../src/features/builder/demo/community.js), [tests](../tests/dev3/text-live-flow.test.ts) |
 
+## Submitted market-order evidence
+
+The team supplied these screenshots on 7 November 2026. Both show **MARKET** orders marked **Filled** on **Base**.
+
+| Field | Buy | Sell |
+|---|---|---|
+| Order ID | `1ff96b17-eaf6-4112-8494-6e9b8d74164b` (full ID supplied by the team) | `f36b0d5b…90d268` (only a shortened ID is visible) |
+| Pair and direction | USDC → WETH | WETH → USDC |
+| Displayed notional size | $0.10 | $0.10 |
+| Displayed filled notional | $0.06 | $0.09 |
+| Displayed time | `11/06/26 07:06 PM` | `11/06/26 06:52 PM` |
+
+The screenshots do not specify a timezone or include transaction hashes. They document displayed market-order fills; they do not establish advanced-order qualification or independently verified onchain execution.
+
+![Filled Base market buy](evidence/flash-market-buy.jpg)
+
+![Filled Base market sell](evidence/flash-market-sell.jpg)
+
+[Team and contacts](../SUBMISSION.md#team)
+
 ## Evidence still needed
 
 The app is [deployed](https://poros-theta.vercel.app/), and the team reports successful deployment testing. To complete this track's evidence, we still need:

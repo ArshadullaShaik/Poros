@@ -1,0 +1,43 @@
+{
+  "checkedAt": "2026-11-07T03:43:35.458Z",
+  "network": "Gnosis",
+  "chainId": 100,
+  "rpc": "https://gnosis-rpc.publicnode.com",
+  "methods": [
+    "eth_getTransactionByHash",
+    "eth_getTransactionReceipt"
+  ],
+  "transactionHash": "0xdc30a6b8aee215f1d8e3cbd8202b514b35c57b8286dfeb478f93395da5a9be8f",
+  "transaction": {
+    "from": "0x13ce57509228f42c123a6c97a133da45f2397f94",
+    "to": "0x45a1502382541cd610cc9068e88727426b696293",
+    "chainId": "0x64"
+  },
+  "receipt": {
+    "status": "0x1",
+    "blockNumber": 49143467,
+    "blockHash": "0xcba225611d41c42ec343e069e564a69bdb2598835282b948fe111820c3a95a2f"
+  },
+  "event": {
+    "name": "BatchCreated",
+    "signature": "BatchCreated(bytes32,uint256,uint256,address,uint8,uint8,bool)",
+    "contract": "0x45a1502382541cd610cc9068e88727426b696293",
+    "args": {
+      "batchId": "0xbb8490201fb903d9958d4196904e429b010c9a08fac68e4b741cbdd2c13df264",
+      "totalAmount": "32768000000000000",
+      "normalisedBalance": "1058475294375",
+      "owner": "0x13cE57509228f42c123A6C97a133dA45F2397F94",
+      "depth": 18,
+      "bucketDepth": 16,
+      "immutableFlag": true
+    },
+    "rawLog": {
+      "topics": [
+        "0x9b088e2c89b322a3c1d81515e1c88db3d386d022926f0e2d0b9b5813b7413d58",
+        "0xbb8490201fb903d9958d4196904e429b010c9a08fac68e4b741cbdd2c13df264"
+      ],
+      "data": "0x00000000000000000000000000000000000000000000000000746a5288000000000000000000000000000000000000000000000000000000000000f6720b3ea700000000000000000000000013ce57509228f42c123a6c97a133da45f2397f94000000000000000000000000000000000000000000000000000000000000001200000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000001"
+    }
+  },
+  "scope": "Confirms creation of the configured postage batch. Does not establish which batch stamped a specific historical Poros publication."
+}

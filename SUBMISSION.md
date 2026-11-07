@@ -2,7 +2,7 @@
 
 This checklist tracks what we have ready and what still needs to be attached or confirmed. The last review against the [ETHGlobal Mumbai rules](https://ethglobal.com/events/mumbai/info/details) was on **7 November 2026**. There are still open items.
 
-The deadline recorded in that review is **7 November 2026, 09:00 IST**. The Hacker Dashboard still needs to be checked to confirm the submitted entry and selected tracks.
+The team reports the main project submission is complete and confirms applications to **Arkiv, 0G, and Definitive** on 7 November 2026. Sponsor selections are team-confirmed; this update does not independently inspect the Hacker Dashboard.
 
 ## Project requirements
 
@@ -15,20 +15,31 @@ The deadline recorded in that review is **7 November 2026, 09:00 IST**. The Hack
 | From-scratch eligibility | The team describes Poros as a from-scratch build. Confirm that all project-specific work began within the permitted event window; the earlier workspace consolidation is disclosed. |
 | AI attribution | The README explains where AI assisted and what the team did. Confirm that any other tools and contributions are included. |
 | Spec-driven artifacts, if applicable | **Needs review.** Local planning and context notes are ignored by Git. Identify any required original specs or prompts and remove secrets before sharing them. |
-| Dashboard details and partner selections | **Not checked.** Confirm the submitted entry and intended tracks in the dashboard. |
+| Dashboard details and partner selections | Main submission complete; Arkiv, 0G, and Definitive selected, as confirmed by the team. |
 | Demo recording | **Link needed.** At least two minutes and less than three, at least 720p, with real narration. No AI voiceover or sped-up recording. |
-| Team details | **Approved public names and Telegram/X contacts needed.** |
+| Team details | Four team members and their supplied public contacts are listed below. |
 | Finalist judging, if selected | Check the assigned session in the dashboard. |
+
+## Team
+
+Public names and handles supplied by the team for this submission:
+
+| Name | Telegram | X |
+|---|---|---|
+| Lakshya Singh | [@lakshya_0207](https://t.me/lakshya_0207) | — |
+| Harsh Singh Rawat | [@hessoruby](https://t.me/hessoruby) | — |
+| Rishabh Surana | — | [@surana_rishabh_](https://x.com/surana_rishabh_) |
+| Shaik Mohammed Arshadulla | [@Valoucard](https://t.me/Valoucard) | [@Valoucard](https://x.com/Valoucard) |
 
 ## Partner requirements
 
 | Track | Present | Remaining |
 |---|---|---|
-| [Arkiv: Build from scratch](https://ethglobal.com/events/mumbai/prizes/arkiv) | Five required documents, SDK-backed reads and writes, public writer addresses and a tested query in the README, license, and AI disclosure. | Confirm event eligibility and dashboard selection. Existing records show that writes occurred; they are not a fresh live-write test. |
-| [Definitive: Social App](https://ethglobal.com/events/mumbai/prizes/definitive) | Social trading flow, Flash market orders, and the [integration note](definitive/submission.md). | Implement genuine advanced orders, show onchain execution, and post the demo on X tagging `@DefinitiveFi`. |
-| [0G: Private Computer](https://ethglobal.com/events/mumbai/prizes/0g) | Inference integration, setup and app links, and an [integration note](0g/submission.md) explaining where 0G is used and what stops working without it. | Attach a successful real request ID and model, the video, and team contacts. Include verified contract addresses only if applicable. |
+| [Arkiv: Build from scratch](https://ethglobal.com/events/mumbai/prizes/arkiv) | Required documents, SDK-backed reads/writes, public writer addresses, README query, license, AI disclosure, and team-confirmed sponsor selection. | Confirm event eligibility; attach final demo link. |
+| [Definitive: Social App](https://ethglobal.com/events/mumbai/prizes/definitive) | Social flow and [filled Base market-order screenshots](definitive/submission.md#submitted-market-order-evidence), including a full buy order ID. | Genuine advanced-order implementation/evidence, onchain execution link, and X demo tagging `@DefinitiveFi`. |
+| [0G: Private Computer](https://ethglobal.com/events/mumbai/prizes/0g) | Inference integration, [model/activity screenshots](0g/submission.md#submitted-usage-evidence), setup links, and team contacts. | Real request ID tied to strategy input/result, and an under-three-minute demo link. |
 
-The 0G credit pool is still a mock, so it is not evidence for the iAI or self-funding tracks. The Arkiv + Swarm bonus is separate: its evidence file, public-safe entity/reference example, batch provenance, and demo timestamp still need to be prepared.
+The 0G credit pool remains a mock. For the Arkiv + Swarm bonus, [integration evidence](arkiv/swarm.md), a public Arkiv pointer, and verified postage-batch purchase provenance are recorded. The final video URL, publication/subscriber-read timestamps, and bonus-track selection confirmation remain pending.
 
 ## What to show in the demo
 
@@ -42,4 +53,4 @@ Follow one strategy through the product so the explanation is easy to follow:
 
 The validated rules, wallet checks, read-back verification, and recovery behavior explain the technical work. Keeping a discussion linked to an exact strategy version explains the product's value. Make the distinction between reviewing, testing, and trading visible throughout the recording.
 
-Video, request, transaction, and contact evidence still need to be added where noted. This documentation update does not submit the project in the Hacker Dashboard or publish a post on X.
+Remaining evidence: final video URL and timestamps, a 0G request ID tied to its input/result, and Definitive advanced-order execution and X-post links. This update records supplied evidence; it does not submit dashboard changes or publish on X.
